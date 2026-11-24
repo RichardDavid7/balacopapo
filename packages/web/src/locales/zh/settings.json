@@ -132,7 +132,12 @@
         "autoBadge": "自动"
       },
       "bypassNoticeMusic": "音乐模式开启时，下方的语音处理选项将被自动绕过。",
-      "bypassNoticeStereo": "AI 噪声抑制 (RNNoise) 仅支持单声道，开启立体声时将被自动绕过。"
+      "bypassNoticeStereo": "AI 噪声抑制 (RNNoise) 仅支持单声道，开启立体声时将被自动绕过。",
+      "jitterBuffer": {
+        "label": "抗抖动缓冲",
+        "description": "增加音频缓冲以减少网络抖动和丢包导致的卡顿。",
+        "auto": "自动"
+      }
     },
     "processing": {
       "sectionTitle": "语音处理",

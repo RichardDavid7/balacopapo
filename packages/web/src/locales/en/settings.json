@@ -132,7 +132,12 @@
         "autoBadge": "Auto"
       },
       "bypassNoticeMusic": "Voice processing options below are bypassed while Music mode is active.",
-      "bypassNoticeStereo": "AI Noise Suppression (RNNoise) is mono-only and is bypassed while Stereo Audio is enabled."
+      "bypassNoticeStereo": "AI Noise Suppression (RNNoise) is mono-only and is bypassed while Stereo Audio is enabled.",
+      "jitterBuffer": {
+        "label": "Jitter buffer",
+        "description": "Extra audio buffer to smooth out micro-stutters and packet loss.",
+        "auto": "Auto"
+      }
     },
     "processing": {
       "sectionTitle": "Voice Processing",

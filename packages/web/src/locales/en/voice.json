@@ -171,7 +171,8 @@
     "watch": "Watch Stream",
     "watchShort": "Watch",
     "mute": "Mute Stream",
-    "isStreaming": "{{name}} is streaming"
+    "isStreaming": "{{name}} is streaming",
+    "resetZoom": "Reset zoom (1x)"
   },
   "streamDiagnostics": {
     "publisherNetwork": "The streamer's network is unstable",

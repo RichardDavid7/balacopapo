@@ -171,7 +171,8 @@
     "watch": "Assistir à transmissão",
     "watchShort": "Assistir",
     "mute": "Silenciar transmissão",
-    "isStreaming": "{{name}} está transmitindo"
+    "isStreaming": "{{name}} está transmitindo",
+    "resetZoom": "Redefinir zoom (1x)"
   },
   "streamDiagnostics": {
     "publisherNetwork": "A rede de quem transmite está instável",

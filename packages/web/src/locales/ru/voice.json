@@ -171,7 +171,8 @@
     "watch": "Смотреть трансляцию",
     "watchShort": "Смотреть",
     "mute": "Заглушить трансляцию",
-    "isStreaming": "{{name}} ведёт трансляцию"
+    "isStreaming": "{{name}} ведёт трансляцию",
+    "resetZoom": "Сбросить масштаб (1x)"
   },
   "streamDiagnostics": {
     "publisherNetwork": "Нестабильная сеть у транслирующего",

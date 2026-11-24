@@ -23,7 +23,7 @@ Todas estas entregas já estão implementadas e validadas na base atual (`4441bf
 Itens já identificados durante os testes e uso real:
 
 - [x] **Recuperação de áudio pós-suspensão do PC (sleep/wake)** — monitor de gap de relógio + `visibilitychange` em `AudioManager.ts` que retoma `AudioContext` suspenso/interrompido, re-aplica `setSinkId` e reabre o microfone se a faixa encerrar.
-- [ ] **Zoom & Pan na stream focada + atalho fullscreen na barra de foco** — scroll 1x–6x no ponteiro + arrastar para ler texto pequeno em compartilhamento de tela (inspirado na `#481`).
+- [x] **Zoom & Pan na stream focada** — scroll 1x–6x ancorado no ponteiro + arrastar para ler texto pequeno em compartilhamento de tela + pílula de reset (`StreamTile.tsx`).
 - [ ] **Acompanhar upstream (`TheZwiss/backspace`)** — acompanhar PRs #494, #496, #497, Issue #495 e novas Issues/Proposals para reduzir manutenção no fork.
 
 ---

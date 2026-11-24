@@ -132,7 +132,12 @@
         "autoBadge": "Auto-Modus"
       },
       "bypassNoticeMusic": "Die Sprachverarbeitungs-Optionen unten sind im Musikmodus deaktiviert.",
-      "bypassNoticeStereo": "KI-Rauschunterdrückung (RNNoise) ist nur Mono und wird bei aktiviertem Stereo-Audio umgangen."
+      "bypassNoticeStereo": "KI-Rauschunterdrückung (RNNoise) ist nur Mono und wird bei aktiviertem Stereo-Audio umgangen.",
+      "jitterBuffer": {
+        "label": "Jitter-Puffer",
+        "description": "Zusätzlicher Audiopuffer gegen Mikroruckler und Paketverlust.",
+        "auto": "Auto"
+      }
     },
     "processing": {
       "sectionTitle": "Sprachverarbeitung",

@@ -226,6 +226,92 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
   // Quality badge state: the raw dimensions, rendered through the catalog so a language switch relabels them.
   const [qualityBadge, setQualityBadge] = useState<{ height: number; fps: number | null } | null>(null);
 
+  // Zoom & Pan (1x–6x) for focused screen shares so viewers can read small text easily.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+
+  const clampPan = useCallback((x: number, y: number, scale: number) => {
+    const el = containerRef.current;
+    if (!el || scale <= 1) return { x: 0, y: 0 };
+    const maxX = ((scale - 1) * el.clientWidth) / 2;
+    const maxY = ((scale - 1) * el.clientHeight) / 2;
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setIsPanning(false);
+    panStartRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!large || !liveScreenTrack || !isWatching) {
+      resetZoom();
+    }
+  }, [large, liveScreenTrack, isWatching, participant.identity, resetZoom]);
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (!large || !liveScreenTrack || !isWatching) return;
+      e.preventDefault();
+      const el = containerRef.current;
+      if (!el) return;
+      const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+      setZoom((prevZoom) => {
+        const nextZoom = Math.max(1, Math.min(6, Number((prevZoom * factor).toFixed(2))));
+        if (nextZoom <= 1.02) {
+          setPan({ x: 0, y: 0 });
+          return 1;
+        }
+        const rect = el.getBoundingClientRect();
+        const cursorX = e.clientX - rect.left - rect.width / 2;
+        const cursorY = e.clientY - rect.top - rect.height / 2;
+        const ratio = nextZoom / prevZoom;
+        setPan((prevPan) =>
+          clampPan(
+            cursorX - (cursorX - prevPan.x) * ratio,
+            cursorY - (cursorY - prevPan.y) * ratio,
+            nextZoom,
+          ),
+        );
+        return nextZoom;
+      });
+    },
+    [large, liveScreenTrack, isWatching, clampPan],
+  );
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!large || zoom <= 1 || e.button !== 0) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+    },
+    [large, zoom, pan.x, pan.y],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!isPanning || !panStartRef.current) return;
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setPan(clampPan(panStartRef.current.panX + dx, panStartRef.current.panY + dy, zoom));
+    },
+    [isPanning, zoom, clampPan],
+  );
+
+  const handlePointerUp = useCallback(() => {
+    setIsPanning(false);
+    panStartRef.current = null;
+  }, []);
+
   const openContextMenu = useContextMenuStore((s) => s.open);
 
   const screenStat = stats?.videoTracks.find((track) =>
@@ -423,13 +509,20 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
 
   return (
     <div
+      ref={containerRef}
       data-context-menu
       className={`relative overflow-hidden flex items-center justify-center group transition-all duration-200 h-full w-full ${
         edgeToEdge
           ? 'bg-black rounded-none ring-0'
           : 'bg-surface-base rounded-xl ring-1 ring-white/[0.06] hover:ring-white/10'
-      }`}
+      } ${large && hasVideo && isWatching && zoom > 1 ? (isPanning ? 'cursor-grabbing select-none' : 'cursor-grab select-none') : ''}`}
       onContextMenu={handleContextMenu}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onDoubleClick={() => { if (large && zoom > 1) resetZoom(); }}
     >
       {hasVideo && isWatching ? (
         <video
@@ -437,6 +530,15 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
           autoPlay
           playsInline
           muted
+          style={
+            large && zoom > 1
+              ? {
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  transformOrigin: 'center center',
+                  transition: isPanning ? 'none' : 'transform 80ms ease-out',
+                }
+              : undefined
+          }
           className="w-full h-full object-contain bg-black"
         />
       ) : (
@@ -463,9 +565,22 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
         </div>
       )}
 
-      {/* LIVE badge — top left */}
-      <div className={`absolute top-2 left-2 px-1.5 py-0.5 bg-accent-rose rounded text-[11px] font-bold text-white uppercase tracking-wide transition-opacity duration-300 ease-out ${overlayFade}`}>
-        {t('voice:badges.live')}
+      {/* LIVE badge + Zoom reset pill — top left */}
+      <div className={`absolute top-2 left-2 flex items-center gap-1.5 transition-opacity duration-300 ease-out ${overlayFade}`}>
+        <div className="px-1.5 py-0.5 bg-accent-rose rounded text-[11px] font-bold text-white uppercase tracking-wide">
+          {t('voice:badges.live')}
+        </div>
+        {large && hasVideo && isWatching && zoom > 1 && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); resetZoom(); }}
+            title={t('voice:stream.resetZoom')}
+            className="px-2 py-0.5 bg-black/75 hover:bg-black/90 border border-white/15 rounded text-[11px] font-semibold text-white tabular-nums transition-colors"
+          >
+            {/* i18n-check: allow-literal "2.0x" is a numeric zoom factor */}
+            {zoom.toFixed(1)}x
+          </button>
+        )}
       </div>
 
       {/* Stream status — in focus mode this is the visual peer of the Grid

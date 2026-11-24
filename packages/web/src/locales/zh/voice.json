@@ -171,7 +171,8 @@
     "watch": "观看直播",
     "watchShort": "观看",
     "mute": "静音直播",
-    "isStreaming": "{{name}} 正在直播"
+    "isStreaming": "{{name}} 正在直播",
+    "resetZoom": "重置缩放 (1x)"
   },
   "streamDiagnostics": {
     "publisherNetwork": "推流端网络不稳定",

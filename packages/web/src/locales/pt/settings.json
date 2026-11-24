@@ -132,7 +132,12 @@
         "autoBadge": "Automático"
       },
       "bypassNoticeMusic": "As opções de processamento de voz abaixo ficam ignoradas enquanto o modo Música estiver ativo.",
-      "bypassNoticeStereo": "A supressão de ruído com IA (RNNoise) é apenas mono e fica ignorada enquanto o Áudio estéreo estiver ativado."
+      "bypassNoticeStereo": "A supressão de ruído com IA (RNNoise) é apenas mono e fica ignorada enquanto o Áudio estéreo estiver ativado.",
+      "jitterBuffer": {
+        "label": "Buffer anti-jitter",
+        "description": "Buffer extra de áudio para eliminar micro-cortes e perda de pacotes.",
+        "auto": "Auto"
+      }
     },
     "processing": {
       "sectionTitle": "Processamento de voz",

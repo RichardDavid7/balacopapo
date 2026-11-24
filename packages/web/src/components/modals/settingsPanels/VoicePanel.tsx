@@ -14,9 +14,13 @@ import { Toggle } from '../../ui/Toggle';
 import { VideoSection } from './VideoSection';
 import { AudioInputSection } from './AudioInputSection';
 import { AudioOutputSection } from './AudioOutputSection';
+import { Track, type RemoteAudioTrack } from 'livekit-client';
+import { getActiveRoom, applyAudioReceiverJitterBuffer } from '../../../hooks/useLiveKit';
+
+const JITTER_BUFFER_PRESETS = [0, 40, 80, 120] as const;
 
 export function VoicePanel() {
-  const { t } = useTranslation(['settings']);
+  const { t } = useTranslation(['settings', 'common']);
   const f = useFormatters();
   const echoCancellation = useVoiceStore((s) => s.echoCancellation);
   const autoGainControl = useVoiceStore((s) => s.autoGainControl);
@@ -38,6 +42,21 @@ export function VoicePanel() {
   const setAudioBitrateAuto = useVoiceStore((s) => s.setAudioBitrateAuto);
   const audioBitrate = useVoiceStore((s) => s.audioBitrate);
   const setAudioBitrate = useVoiceStore((s) => s.setAudioBitrate);
+  const jitterBufferMs = useVoiceStore((s) => s.jitterBufferMs);
+  const setJitterBufferMs = useVoiceStore((s) => s.setJitterBufferMs);
+
+  const handleJitterBufferChange = (ms: number) => {
+    setJitterBufferMs(ms);
+    const room = getActiveRoom();
+    if (!room) return;
+    room.remoteParticipants.forEach((rp) => {
+      rp.trackPublications.forEach((pub) => {
+        if (pub.track && pub.track.kind === Track.Kind.Audio) {
+          applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, ms);
+        }
+      });
+    });
+  };
   const currentVoiceChannelId = useVoiceStore((s) => s.currentVoiceChannelId);
   const currentVoiceChannel = useSpaceStore((s) =>
     currentVoiceChannelId ? s.channels.find((c) => c.id === currentVoiceChannelId) : undefined,
@@ -266,6 +285,36 @@ export function VoicePanel() {
                 <p className={`text-xs mt-1 ${bitrateNotice.tone}`}>{bitrateNotice.text}</p>
               </>
             )}
+          </div>
+
+          {/* Jitter Buffer (packet-loss / jitter smoothing) */}
+          <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/[0.04]">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-txt-primary">{t('settings:voice.opus.jitterBuffer.label')}</div>
+              <div className="text-xs text-txt-tertiary">{t('settings:voice.opus.jitterBuffer.description')}</div>
+            </div>
+            <div className="inline-flex rounded-lg bg-surface-base p-0.5 shrink-0">
+              {JITTER_BUFFER_PRESETS.map((ms) => {
+                const active = jitterBufferMs === ms;
+                return (
+                  <button
+                    key={ms}
+                    type="button"
+                    onClick={() => handleJitterBufferChange(ms)}
+                    aria-pressed={active}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium tabular-nums transition-colors ${
+                      active
+                        ? 'bg-accent-primary text-white'
+                        : 'text-txt-secondary hover:text-txt-primary'
+                    }`}
+                  >
+                    {ms === 0
+                      ? t('settings:voice.opus.jitterBuffer.auto')
+                      : t('common:units.ms', { value: ms })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

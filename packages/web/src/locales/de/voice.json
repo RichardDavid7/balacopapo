@@ -171,7 +171,8 @@
     "watch": "Stream ansehen",
     "watchShort": "Ansehen",
     "mute": "Stream stummschalten",
-    "isStreaming": "{{name}} streamt"
+    "isStreaming": "{{name}} streamt",
+    "resetZoom": "Zoom zurücksetzen (1x)"
   },
   "streamDiagnostics": {
     "publisherNetwork": "Das Netzwerk des Streamers ist instabil",
