@@ -1226,6 +1226,8 @@ export interface InstanceStreamingLimits {
   maxBitrateKbps: number;
   minBitrateKbps: number;
   bitrateStepKbps: number;
+  /** Optional total instance upload bandwidth budget (kbps) split dynamically across active streams/watchers; null = unlimited. */
+  streamBandwidthBudgetKbps?: number | null;
   allowedResolutions: (number | 'native')[];
   allowedFramerates: number[];
   maxResolution: number;

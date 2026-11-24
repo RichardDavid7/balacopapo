@@ -15,6 +15,7 @@ function rowToLimits(row: typeof schema.instanceSettings.$inferSelect): Instance
     maxBitrateKbps: row.maxBitrateKbps,
     minBitrateKbps: row.minBitrateKbps,
     bitrateStepKbps: row.bitrateStepKbps,
+    streamBandwidthBudgetKbps: row.streamBandwidthBudgetKbps ?? null,
     allowedResolutions: row.allowedResolutions.split(',')
       .map((s) => s.trim())
       .map((s) => s === 'native' ? 'native' as const : Number(s))
@@ -157,6 +158,21 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         return sendError(reply, 400, 'streaming_min_bitrate_out_of_range', { min: 100, max: 1000000 });
       }
       updateData.minBitrateKbps = body.minBitrateKbps;
+    }
+
+    if (body.streamBandwidthBudgetKbps !== undefined) {
+      if (body.streamBandwidthBudgetKbps === null || body.streamBandwidthBudgetKbps === 0) {
+        updateData.streamBandwidthBudgetKbps = null;
+      } else if (
+        typeof body.streamBandwidthBudgetKbps !== 'number'
+        || !Number.isFinite(body.streamBandwidthBudgetKbps)
+        || body.streamBandwidthBudgetKbps < 1500
+        || body.streamBandwidthBudgetKbps > 10_000_000
+      ) {
+        return sendError(reply, 400, 'streaming_max_bitrate_out_of_range', { min: 1500, max: 10_000_000 });
+      } else {
+        updateData.streamBandwidthBudgetKbps = Math.round(body.streamBandwidthBudgetKbps);
+      }
     }
 
     if (body.bitrateStepKbps !== undefined) {

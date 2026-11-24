@@ -39,12 +39,12 @@ Itens já identificados durante os testes e uso real:
 - [x] **Ajuste de terminologia:** trocar *Espaço* → **Grupo** e *Grupo* (DM em grupo) → **Grupo Direto** (aplicado nos locales `pt` do Web e `values-pt-rBR` do Android).
 - [x] **Trocar nome de usuário** (baseado em `users.id` imutável para preservar menções `@`, histórico e futuro vínculo OIDC; validação de formato/unicidade em `PATCH /api/users/@me`, broadcast `user_updated` em tempo real e campo editável nas Configurações da Conta nos 5 idiomas).
 
-### Fase 1 — Estabilidade de Voz, Vídeo e Rede (Prioridade Alta)
-- [x] **Buffer contra perda de pacote / jitter** — `jitterBufferTarget` + `playoutDelayHint` aplicados nos `RTCRtpReceiver` de áudio (`jitterBufferMs` configurável no `voiceStore`, padrão 40 ms) + Opus RED/FEC.
+### Fase 1 — Estabilidade de Voz, Vídeo e Rede (Prioridade Alta) *(Concluída)*
+- [x] **Buffer contra perda de pacote / jitter** — `jitterBufferTarget` + `playoutDelayHint` aplicados nos `RTCRtpReceiver` de áudio (`jitterBufferMs` configurável ao vivo no `VoicePanel`: Auto / 40 / 80 / 120 ms) + Opus RED/FEC.
 - [x] **Bitrate dinâmico inteligente (orçamento de banda) & fim das quedas para 320p:**
   - `degradationPreference: 'maintain-resolution'` + `scaleResolutionDownBy = 1.0` no `screenShare.ts` para impedir quedas bruscas para 320p em picos de congestão.
-  - Helper `computeDynamicStreamBitrateBps()` pronto com piso mínimo de 1,5 Mbps e divisão suave de orçamento de upload por streams/espectadores ativos.
-- [ ] **Melhorar consistência geral** — resiliência de reconexão WebSocket/LiveKit, sincronização de estado de voz e eliminação de engasgos entre desktop/mobile.
+  - Campo configurável **Orçamento total de upload (Mbps)** nas Configurações da Instância (`0038_stream_bandwidth_budget.sql` + `StreamingPanel`) ajustando o teto dinamicamente via `RTCRtpSender.setParameters()` conforme entram/saem espectadores e streams (com piso de 1,5 Mbps).
+- [x] **Melhorar consistência geral** — após reconexão LiveKit (`ConnectionState.Connected`), re-sincroniza automaticamente `broadcastVoiceStatus()`, `AudioManager.recoverFromWake()` (`AudioContext` + `setSinkId`) e `jitterBufferMs` em todos os receivers de áudio.
 - [x] **Teste de microfone (loopback local)** — botão nas configurações de voz (`AudioInputSection` + `AudioManager.startMicLoopback`) para ouvir a própria voz já passando por RNNoise, ganho e AEC.
 
 ### Fase 2 — Malha P2P Híbrida (com Failover na Instância)

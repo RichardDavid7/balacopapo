@@ -488,6 +488,19 @@ export function useLiveKit() {
   // The host's limits shape the effective config, so a document that arrives
   // after the share started must reach the running encoder too.
   const { limits: streamHostLimits } = useStreamHostLimits();
+  const streamWatcherCount = useVoiceStore((s) => s.streamWatchers.size);
+  const remoteStreamCount = useVoiceStore(
+    (s) => s.participants.filter((p) => !p.isLocal && p.isScreenSharing).length,
+  );
+
+  // Dynamically re-adjust local screen-share bitrate ceiling when watchers,
+  // simultaneous streams, or the instance upload budget change.
+  useEffect(() => {
+    const r = roomRef.current;
+    if (!r || !isScreenSharing) return;
+    if (!streamHostLimits?.streamBandwidthBudgetKbps) return;
+    scheduleScreenShareOverdrive(r);
+  }, [isScreenSharing, streamWatcherCount, remoteStreamCount, streamHostLimits?.streamBandwidthBudgetKbps]);
   const voiceUserStates = useVoiceStore((s) => s.voiceUserStates);
   const spaceMutedUserIds = useVoiceStore((s) => s.spaceMutedUserIds);
   const spaceDeafenedUserIds = useVoiceStore((s) => s.spaceDeafenedUserIds);
@@ -1356,6 +1369,17 @@ export function useLiveKit() {
             if (connectedChannelRef.current) {
               registerWithServer();
             }
+            // Re-sync voice status, AudioContext/sinkId, and receiver jitter buffers after reconnect
+            broadcastVoiceStatus();
+            void AudioManager.getInstance().recoverFromWake();
+            const currentJitterMs = useVoiceStore.getState().jitterBufferMs;
+            newRoom.remoteParticipants.forEach((rp) => {
+              rp.trackPublications.forEach((pub) => {
+                if (pub.track && pub.track.kind === Track.Kind.Audio) {
+                  applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, currentJitterMs);
+                }
+              });
+            });
             updateParticipants();
             if (useVoiceStore.getState().isScreenSharing) {
               scheduleScreenShareOverdrive(newRoom);

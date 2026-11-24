@@ -308,6 +308,41 @@ export function StreamingPanel() {
             </div>
           </div>
 
+          {/* Dynamic Upload Bandwidth Budget */}
+          <div className="pt-2 border-t border-white/[0.05] space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm text-txt-primary">{t('admin:streaming.bandwidth.budget.label')}</div>
+                <div className="text-xs text-txt-tertiary">{t('admin:streaming.bandwidth.budget.description')}</div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <input
+                  type="number"
+                  min={0}
+                  max={10000}
+                  step={5}
+                  value={draft.streamBandwidthBudgetKbps ? Math.round(draft.streamBandwidthBudgetKbps / 1000) : ''}
+                  placeholder={t('admin:streaming.bandwidth.budget.unlimited')}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    if (!raw || Number(raw) <= 0) {
+                      setDraft({ ...draft, streamBandwidthBudgetKbps: null });
+                      return;
+                    }
+                    const mbps = Math.max(2, Math.min(10000, Math.round(Number(raw))));
+                    setDraft({ ...draft, streamBandwidthBudgetKbps: mbps * 1000 });
+                  }}
+                  className="input-standard w-24 px-2 py-1 text-xs tabular-nums"
+                />
+                <span className="text-[11px] text-txt-tertiary">
+                  {draft.streamBandwidthBudgetKbps
+                    ? formatKbps(draft.streamBandwidthBudgetKbps)
+                    : t('admin:streaming.bandwidth.budget.unlimited')}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Bitrate Step — presets + custom input */}
           <div className="pt-2 border-t border-white/[0.04]">
             <div className="flex items-center gap-2 mb-1.5">

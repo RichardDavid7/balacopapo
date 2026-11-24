@@ -954,6 +954,29 @@ export function scheduleScreenShareOverdrive(room: Room): void {
       // constraints or restarting the source track.
       resolveNativeOverdrive(mediaTrack, useVoiceStore.getState().screenShareConfig, freshOpts);
     }
+
+    // Apply instance-wide dynamic upload bandwidth budget across active streams & watchers
+    const budgetKbps = getStreamHostLimits().streamBandwidthBudgetKbps;
+    if (budgetKbps && budgetKbps > 0) {
+      let remoteActiveStreams = 0;
+      room.remoteParticipants.forEach((rp) => {
+        for (const pub of rp.trackPublications.values()) {
+          if (pub.source === Track.Source.ScreenShare && !pub.isMuted) {
+            remoteActiveStreams++;
+            break;
+          }
+        }
+      });
+      const activeStreams = 1 + remoteActiveStreams;
+      const watcherCount = Math.max(1, useVoiceStore.getState().streamWatchers.size);
+      freshOpts.overdrive.maxBitrate = computeDynamicStreamBitrateBps(
+        freshOpts.overdrive.maxBitrate,
+        activeStreams,
+        watcherCount,
+        budgetKbps,
+      );
+    }
+
     const applied = await applyOverdrive(room, Track.Source.ScreenShare, freshOpts.overdrive);
     if (!useVoiceStore.getState().isScreenSharing) return;
 

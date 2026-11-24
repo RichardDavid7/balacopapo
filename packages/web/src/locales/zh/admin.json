@@ -301,7 +301,12 @@
       "range": "码率范围",
       "min": "最小值",
       "max": "最大值",
-      "step": "滑块步进"
+      "step": "滑块步进",
+      "budget": {
+        "label": "总上传带宽预算 (Mbps)",
+        "description": "按活跃推流和观看人数动态分配服务器上传带宽（留空或 0 表示不限制）。",
+        "unlimited": "不限制"
+      }
     },
     "quality": {
       "label": "画质",

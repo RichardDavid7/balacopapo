@@ -315,7 +315,12 @@
       "range": "Bitrate Range",
       "min": "Min",
       "max": "Max",
-      "step": "Slider Step"
+      "step": "Slider Step",
+      "budget": {
+        "label": "Total upload bandwidth budget (Mbps)",
+        "description": "Divides available server upload dynamically across active streams and viewers (empty or 0 = unlimited).",
+        "unlimited": "Unlimited"
+      }
     },
     "quality": {
       "label": "Quality",

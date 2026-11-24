@@ -329,7 +329,12 @@
       "range": "Faixa de taxa de bits",
       "min": "Mín.",
       "max": "Máx.",
-      "step": "Passo do controle deslizante"
+      "step": "Passo do controle deslizante",
+      "budget": {
+        "label": "Orçamento total de upload (Mbps)",
+        "description": "Divide a banda de upload do servidor dinamicamente entre transmissões e espectadores ativos (vazio ou 0 = ilimitado).",
+        "unlimited": "Ilimitado"
+      }
     },
     "quality": {
       "label": "Qualidade",

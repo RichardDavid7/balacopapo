@@ -315,7 +315,12 @@
       "range": "Bitratenbereich",
       "min": "Min.",
       "max": "Max.",
-      "step": "Reglerschritt"
+      "step": "Reglerschritt",
+      "budget": {
+        "label": "Gesamt-Upload-Bandbreitenbudget (Mbps)",
+        "description": "Teilt den Server-Upload dynamisch auf aktive Streams und Zuschauer auf (leer oder 0 = unbegrenzt).",
+        "unlimited": "Unbegrenzt"
+      }
     },
     "quality": {
       "label": "Qualität",

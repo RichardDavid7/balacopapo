@@ -413,6 +413,7 @@ export const instanceSettings = sqliteTable('instance_settings', {
   discoveryEnabled: integer('discovery_enabled').notNull().default(1),
   maxBitrateKbps: integer('max_bitrate_kbps').notNull().default(20000),
   minBitrateKbps: integer('min_bitrate_kbps').notNull().default(500),
+  streamBandwidthBudgetKbps: integer('stream_bandwidth_budget_kbps'),
   bitrateStepKbps: integer('bitrate_step_kbps').notNull().default(500),
   allowedResolutions: text('allowed_resolutions').notNull().default('540,720,1080'),
   allowedFramerates: text('allowed_framerates').notNull().default('30,45,60'),
