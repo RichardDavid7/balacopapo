@@ -48,7 +48,7 @@ Itens já identificados durante os testes e uso real:
 - [x] **Teste de microfone (loopback local)** — botão nas configurações de voz (`AudioInputSection` + `AudioManager.startMicLoopback`) para ouvir a própria voz já passando por RNNoise, ganho e AEC.
 
 ### Fase 2 — Malha P2P Híbrida (com Failover na Instância)
-- [x] **2A · P2P para arquivos + Indicador P2P** — sinalização WebSocket autenticada (`p2p_signal`), motor `P2PMeshManager` (WebRTC DataChannel com chunks de 64 KB + backpressure), indicador `P2P` na barra de voz e envio/download direto entre peers sem sobrecarregar a banda do servidor.
+- [x] **2A · P2P para arquivos + Indicador P2P** — sinalização WebSocket autenticada (`p2p_signal`), motor `P2PMeshManager` (WebRTC DataChannel com chunks de 64 KB + backpressure), **consentimento obrigatório do destinatário (Aceitar / Recusar antes de transferir qualquer byte)** e envio direto na **Conversa Direta (DM)** com bandeja flutuante `P2PTransferTray`.
 - [x] **2B · Mapa da malha P2P com latência** — modal `P2PMeshModal` com grafo visual SVG mostrando o RTT direto (ping/pong a cada 3s) entre você e cada participante, tipo de rota (`LAN`/`NAT`/`Relay`) e latência até a instância.
 - [ ] **2C · P2P híbrido para chamadas (voz/vídeo):**
   1. Conecta normalmente via instância (sinalização + SFU).
@@ -59,7 +59,7 @@ Itens já identificados durante os testes e uso real:
 
 ### Fase 3 — Administração, Retenção de Arquivos e Segurança
 - [ ] **OIDC (SSO)** — login integrado com provedores OpenID Connect (Authentik, Keycloak, Google, etc.), usando o navegador do sistema + retorno via deep link `balacopapo://auth/callback` (Fase 0).
-- [ ] **Ban por IP + proteção contra força bruta** — bloqueio de IPs no servidor + rate-limit progressivo em login/rotas sensíveis (e integração fácil com proxy/fail2ban).
+- [x] **Ban por IP + ciclo automático + integração OPNsense/Nginx** — migração `0039_ip_bans.sql`, expiração automática em dias (`durationDays` / `expiresAt`), auto-ban de evasão se uma conta banida tentar entrar de um novo IP, e feed `GET /api/admin/ip-bans/feed?format=opnsense|nginx` (compatível nativamente com Firewall Alias `URL Table (IPs)` do OPNsense e `deny` do Nginx).
 - [ ] **Retenção de arquivos no chat (controlada pela instância):**
   - A **instância define quais grupos têm permissão para ativar a retenção de arquivos**.
   - Apenas nos grupos autorizados pela instância, o chat/grupo pode ativar a função de manter arquivos (protegendo-os contra expiração/limpeza automática).

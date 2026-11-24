@@ -14,6 +14,7 @@ import { fetchPeerEpoch } from '../utils/federationEpoch.js';
 import { stripTrailingSlashes } from '../utils/federationAuth.js';
 import { getInviteByToken, inviteStatus, redeemInvite, InviteUnavailableError } from '../utils/inviteService.js';
 import { sendError, errorText } from '../utils/httpErrors.js';
+import { autoBanEvadingAccount, isUserSourceOfActiveIpBan } from '../utils/ipBans.js';
 import type { ErrorCode, ErrorDetails } from '@backspace/shared/src/errors';
 
 const USERNAME_MIN = 3;
@@ -370,6 +371,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
     if (user.isDeleted) {
       return sendError(reply, 401, 'account_deleted');
+    }
+
+    if (isUserSourceOfActiveIpBan(user.id)) {
+      const ban = autoBanEvadingAccount(request.ip, user.id);
+      return reply.code(403).send({
+        error: 'ip_banned',
+        reason: ban?.reason ?? 'Auto-ban: banned account login attempt',
+        expiresAt: ban?.expiresAt ?? null,
+      });
     }
 
     const validPassword = await verifyPassword(password, user.passwordHash);

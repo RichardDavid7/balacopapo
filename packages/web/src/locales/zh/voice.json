@@ -386,6 +386,14 @@
     "transferSent": "已通过 P2P 发送 {{name}}",
     "transferFailed": "P2P 文件传输失败",
     "statusOn": "已开启",
-    "statusOff": "已关闭"
+    "statusOff": "已关闭",
+    "sendFileDmTitle": "通过 P2P 直连发送文件（需对方同意）",
+    "offerSent": "已发送 {{name}} 的 P2P 传输请求 — 等待对方同意",
+    "incomingFrom": "{{name}} 想要发送文件 ({{size}})",
+    "outgoingTo": "正在发送给 {{name}} ({{size}})",
+    "accept": "接受",
+    "reject": "拒绝",
+    "waitingAcceptance": "等待对方接受...",
+    "rejectedNotice": "传输已被拒绝。"
   }
 }

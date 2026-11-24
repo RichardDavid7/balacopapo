@@ -392,6 +392,14 @@
     "transferSent": "{{name}} отправлен через P2P",
     "transferFailed": "Ошибка передачи файла через P2P",
     "statusOn": "Включено",
-    "statusOff": "Выключено"
+    "statusOff": "Выключено",
+    "sendFileDmTitle": "Отправить файл напрямую через P2P (требуется согласие)",
+    "offerSent": "Предложение файла {{name}} отправлено — ожидание согласия",
+    "incomingFrom": "{{name}} хочет отправить файл ({{size}})",
+    "outgoingTo": "Отправка для {{name}} ({{size}})",
+    "accept": "Принять",
+    "reject": "Отклонить",
+    "waitingAcceptance": "Ожидание подтверждения получателя...",
+    "rejectedNotice": "Передача отклонена."
   }
 }

@@ -23,6 +23,21 @@ function rttColor(rttMs: number | null): string {
 }
 
 /**
+ * Bootstraps P2PMeshManager signaling globally as soon as the user is authenticated,
+ * so direct DM file offers can arrive even when the user is not in a voice call.
+ */
+export function useP2PGlobalBridge(): void {
+  const myUserId = useAuthStore((s) => s.user?.id ?? null);
+  useEffect(() => {
+    const manager = P2PMeshManager.getInstance();
+    manager.setLocalUserId(myUserId);
+    manager.registerSignalSender((targetUserId, roomKey, kind, payload) => {
+      wsSend({ type: 'p2p_signal', targetUserId, roomKey, kind, payload });
+    });
+  }, [myUserId]);
+}
+
+/**
  * Keeps P2PMeshManager synchronized with the active voice room participants
  * and periodically measures HTTP RTT to the instance for the Mesh Map.
  */
@@ -33,12 +48,7 @@ export function useP2PMeshSync(): void {
   const participants = useVoiceStore((s) => s.participants);
   const p2pEnabled = useP2PStore((s) => s.enabled);
 
-  useEffect(() => {
-    const manager = P2PMeshManager.getInstance();
-    manager.registerSignalSender((targetUserId, roomKey, kind, payload) => {
-      wsSend({ type: 'p2p_signal', targetUserId, roomKey, kind, payload });
-    });
-  }, []);
+  useP2PGlobalBridge();
 
   useEffect(() => {
     const manager = P2PMeshManager.getInstance();
@@ -95,14 +105,12 @@ export function P2PStatusButton() {
   const { t } = useTranslation(['voice', 'common']);
   const enabled = useP2PStore((s) => s.enabled);
   const peersMap = useP2PStore((s) => s.peers);
-  const transfers = useP2PStore((s) => s.transfers);
   const setMeshModalOpen = useP2PStore((s) => s.setMeshModalOpen);
 
   useP2PMeshSync();
 
   const peers = Object.values(peersMap);
   const connectedPeers = peers.filter((p) => p.state === 'connected');
-  const activeTransfers = transfers.filter((tr) => tr.status === 'transferring').length;
   const bestRtt = connectedPeers.reduce<number | null>(
     (min, p) => (p.rttMs !== null && (min === null || p.rttMs < min) ? p.rttMs : min),
     null,
@@ -138,15 +146,181 @@ export function P2PStatusButton() {
           {bestRtt !== null ? ` · ${t('common:units.ms', { value: bestRtt })}` : ''}
         </span>
       )}
-      {activeTransfers > 0 && (
-        <span className="px-1 rounded bg-accent-primary text-white text-[9px] tabular-nums">
-          {activeTransfers}
-        </span>
-      )}
     </button>
   );
 }
 
+/**
+ * Direct-Message header action button to offer a P2P file directly to the DM partner.
+ * The recipient must explicitly accept before any file bytes are transmitted.
+ */
+export function DmP2PSendButton({
+  peerUserId,
+  dmChannelId,
+}: {
+  peerUserId: string;
+  dmChannelId: string;
+}) {
+  const { t } = useTranslation(['voice']);
+  const enabled = useP2PStore((s) => s.enabled);
+  const addToast = useUIStore((s) => s.addToast);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!enabled) return null;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try {
+      await P2PMeshManager.getInstance().sendFileToPeer(peerUserId, file, `dm:${dmChannelId}`);
+      addToast(t('voice:p2p.offerSent', { name: file.name }), 'info', 2500);
+    } catch {
+      addToast(t('voice:p2p.transferFailed'), 'warning', 3000);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => fileInputRef.current?.click()}
+        title={t('voice:p2p.sendFileDmTitle')}
+        className="w-8 h-8 flex items-center justify-center text-txt-tertiary hover:text-accent-mint transition-colors rounded-[6px] hover:bg-interactive-hover disabled:opacity-50"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+      </button>
+    </>
+  );
+}
+
+/**
+ * Global floating tray for consent-gated P2P file offers and active transfers.
+ * Renders Accept / Reject buttons for incoming offers before any bytes are transferred.
+ */
+export function P2PTransferTray() {
+  const { t } = useTranslation(['voice', 'common']);
+  const transfers = useP2PStore((s) => s.transfers);
+  const dismissTransfer = useP2PStore((s) => s.dismissTransfer);
+  const members = useSpaceStore((s) => s.members);
+  const dmChannels = useSpaceStore((s) => s.dmChannels);
+
+  useP2PGlobalBridge();
+
+  if (transfers.length === 0) return null;
+
+  const resolveName = (userId: string): string => {
+    const member = members.find((m) => m.userId === userId);
+    if (member) return member.nickname || member.user.displayName || member.user.username;
+    for (const dm of dmChannels) {
+      const u = dm.members?.find((m) => m.id === userId);
+      if (u) return u.displayName || u.username;
+    }
+    return userId.slice(0, 8);
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] space-y-2 pointer-events-auto">
+      {transfers.slice(0, 4).map((tr) => {
+        const pct = tr.totalBytes > 0 ? Math.min(100, Math.round((tr.transferredBytes / tr.totalBytes) * 100)) : 100;
+        const peerName = resolveName(tr.peerUserId);
+        return (
+          <div
+            key={tr.id}
+            className="rounded-xl bg-surface-elevated border border-white/10 shadow-elevation-high p-3 text-xs space-y-2"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-txt-primary truncate">{tr.fileName}</div>
+                <div className="text-[11px] text-txt-tertiary truncate">
+                  {tr.direction === 'receive'
+                    ? t('voice:p2p.incomingFrom', { name: peerName, size: formatBytes(tr.totalBytes) })
+                    : t('voice:p2p.outgoingTo', { name: peerName, size: formatBytes(tr.totalBytes) })}
+                </div>
+              </div>
+              {tr.status !== 'transferring' && (
+                <button
+                  type="button"
+                  onClick={() => dismissTransfer(tr.id)}
+                  aria-label={t('common:actions.close')}
+                  className="text-txt-tertiary hover:text-txt-primary px-1"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {tr.status === 'pending_acceptance' && tr.direction === 'receive' && (
+              <div className="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => P2PMeshManager.getInstance().acceptIncomingFile(tr.id)}
+                  className="flex-1 py-1.5 rounded bg-accent-mint/20 hover:bg-accent-mint/30 text-accent-mint font-semibold transition-colors"
+                >
+                  {t('voice:p2p.accept')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => P2PMeshManager.getInstance().rejectIncomingFile(tr.id)}
+                  className="flex-1 py-1.5 rounded bg-accent-rose/15 hover:bg-accent-rose/25 text-accent-rose font-semibold transition-colors"
+                >
+                  {t('voice:p2p.reject')}
+                </button>
+              </div>
+            )}
+
+            {tr.status === 'pending_acceptance' && tr.direction === 'send' && (
+              <div className="text-[11px] text-accent-amber">{t('voice:p2p.waitingAcceptance')}</div>
+            )}
+
+            {tr.status === 'transferring' && (
+              <div className="space-y-1">
+                <div className="w-full h-1.5 rounded-full bg-surface-base overflow-hidden">
+                  <div className="h-full bg-accent-primary transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="text-[11px] text-txt-tertiary tabular-nums">{pct}%</div>
+              </div>
+            )}
+
+            {tr.status === 'rejected' && (
+              <div className="text-[11px] text-accent-rose">{t('voice:p2p.rejectedNotice')}</div>
+            )}
+
+            {tr.status === 'failed' && (
+              <div className="text-[11px] text-accent-rose">{t('voice:p2p.transferFailed')}</div>
+            )}
+
+            {tr.status === 'completed' && tr.direction === 'receive' && tr.downloadUrl && (
+              <a
+                href={tr.downloadUrl}
+                download={tr.fileName}
+                className="inline-block w-full text-center py-1.5 rounded bg-accent-primary hover:bg-accent-primary-hover text-white font-semibold transition-colors"
+              >
+                {t('voice:p2p.downloadFile')}
+              </a>
+            )}
+
+            {tr.status === 'completed' && tr.direction === 'send' && (
+              <div className="text-[11px] text-accent-mint">{t('voice:p2p.transferSent', { name: tr.fileName })}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Call-scoped P2P Mesh Latency Map modal (Phase 2B).
+ */
 export function P2PMeshModal() {
   const { t } = useTranslation(['voice', 'common']);
   const isOpen = useP2PStore((s) => s.meshModalOpen);
@@ -154,14 +328,8 @@ export function P2PMeshModal() {
   const enabled = useP2PStore((s) => s.enabled);
   const setEnabled = useP2PStore((s) => s.setEnabled);
   const peersMap = useP2PStore((s) => s.peers);
-  const transfers = useP2PStore((s) => s.transfers);
   const instanceRttMs = useP2PStore((s) => s.instanceRttMs);
-  const clearCompletedTransfers = useP2PStore((s) => s.clearCompletedTransfers);
   const members = useSpaceStore((s) => s.members);
-  const addToast = useUIStore((s) => s.addToast);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [targetPeerId, setTargetPeerId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -172,24 +340,6 @@ export function P2PMeshModal() {
     return member?.nickname || member?.user.displayName || member?.user.username || userId.slice(0, 8);
   };
 
-  const handlePickFile = (peerId: string) => {
-    setTargetPeerId(peerId);
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !targetPeerId) return;
-    try {
-      await P2PMeshManager.getInstance().sendFileToPeer(targetPeerId, file);
-      addToast(t('voice:p2p.transferSent', { name: file.name }), 'success', 2500);
-    } catch {
-      addToast(t('voice:p2p.transferFailed'), 'warning', 3000);
-    }
-  };
-
-  // Layout coordinates for the SVG Mesh Graph (360 x 210)
   const cx = 180;
   const cy = 115;
   const instX = 180;
@@ -217,9 +367,6 @@ export function P2PMeshModal() {
   return (
     <Modal isOpen={isOpen} onClose={() => setOpen(false)} title={t('voice:p2p.modalTitle')} maxWidth="max-w-lg">
       <div className="space-y-4">
-        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
-
-        {/* Toggle + status header */}
         <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] px-3.5 py-2.5">
           <div>
             <div className="text-sm font-medium text-txt-primary">{t('voice:p2p.enableLabel')}</div>
@@ -238,10 +385,8 @@ export function P2PMeshModal() {
           </button>
         </div>
 
-        {/* Visual Mesh Graph (Phase 2B) */}
         <div className="rounded-lg bg-surface-base border border-white/[0.06] p-3">
           <svg viewBox="0 0 360 210" className="w-full h-[200px]">
-            {/* Link: You -> Instance */}
             <line
               x1={cx}
               y1={cy}
@@ -256,7 +401,6 @@ export function P2PMeshModal() {
               {instanceRttMs !== null ? t('common:units.ms', { value: instanceRttMs }) : '—'}
             </text>
 
-            {/* Direct links: You -> Peers */}
             {peerNodes.map(({ peer, x, y }) => (
               <g key={`link-${peer.userId}`}>
                 <line
@@ -281,19 +425,16 @@ export function P2PMeshModal() {
               </g>
             ))}
 
-            {/* Instance Node */}
             <rect x={instX - 44} y={instY - 14} width={88} height={26} rx={6} fill="#1e293b" stroke="#475569" />
             <text x={instX} y={instY + 3} textAnchor="middle" fill="#e2e8f0" fontSize="10" fontWeight="600">
               {t('voice:p2p.instanceNode')}
             </text>
 
-            {/* Local User Node */}
             <circle cx={cx} cy={cy} r={20} fill="#7c3aed" stroke="#c4b5fd" strokeWidth={2} />
             <text x={cx} y={cy + 4} textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="700">
               {t('voice:p2p.youNode')}
             </text>
 
-            {/* Remote Peer Nodes */}
             {peerNodes.map(({ peer, x, y }) => (
               <g key={`node-${peer.userId}`}>
                 <circle
@@ -312,7 +453,6 @@ export function P2PMeshModal() {
           </svg>
         </div>
 
-        {/* Peer list + Direct P2P file send (Phase 2A) */}
         <div className="space-y-2">
           <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider">
             {t('voice:p2p.peersHeading')}
@@ -339,66 +479,10 @@ export function P2PMeshModal() {
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={!peer.dataChannelReady}
-                  onClick={() => handlePickFile(peer.userId)}
-                  className="flex-shrink-0 px-2.5 py-1.5 rounded bg-accent-primary hover:bg-accent-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium transition-colors"
-                >
-                  {t('voice:p2p.sendFile')}
-                </button>
               </div>
             ))
           )}
         </div>
-
-        {/* Active & completed P2P transfers */}
-        {transfers.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider">
-                {t('voice:p2p.transfersHeading')}
-              </div>
-              <button
-                type="button"
-                onClick={clearCompletedTransfers}
-                className="text-[11px] text-txt-tertiary hover:text-txt-primary"
-              >
-                {t('common:actions.clear')}
-              </button>
-            </div>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto">
-              {transfers.map((tr) => {
-                const pct = tr.totalBytes > 0 ? Math.min(100, Math.round((tr.transferredBytes / tr.totalBytes) * 100)) : 100;
-                return (
-                  <div key={tr.id} className="rounded-md bg-white/[0.03] border border-white/[0.05] px-3 py-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-txt-primary truncate">{tr.fileName}</span>
-                      <span className="text-txt-tertiary tabular-nums flex-shrink-0">
-                        {formatBytes(tr.totalBytes)} · {pct}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1 rounded-full bg-surface-base mt-1.5 overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${tr.status === 'failed' ? 'bg-accent-rose' : 'bg-accent-mint'}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    {tr.status === 'completed' && tr.direction === 'receive' && tr.downloadUrl && (
-                      <a
-                        href={tr.downloadUrl}
-                        download={tr.fileName}
-                        className="inline-block mt-1.5 text-accent-primary hover:underline font-medium"
-                      >
-                        {t('voice:p2p.downloadFile')}
-                      </a>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </Modal>
   );

@@ -388,6 +388,14 @@
     "transferSent": "{{name}} per P2P gesendet",
     "transferFailed": "P2P-Dateitransfer fehlgeschlagen",
     "statusOn": "Aktiv",
-    "statusOff": "Aus"
+    "statusOff": "Aus",
+    "sendFileDmTitle": "Datei direkt per P2P senden (Empfänger muss zustimmen)",
+    "offerSent": "{{name}} per P2P angeboten — warte auf Annahme",
+    "incomingFrom": "{{name}} möchte eine Datei senden ({{size}})",
+    "outgoingTo": "Senden an {{name}} ({{size}})",
+    "accept": "Annehmen",
+    "reject": "Ablehnen",
+    "waitingAcceptance": "Warte auf Annahme des Empfängers...",
+    "rejectedNotice": "Übertragung abgelehnt."
   }
 }

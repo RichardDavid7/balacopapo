@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { MessageList } from '../chat/MessageList';
 import { MessageInput } from '../chat/MessageInput';
 import { VoiceGrid } from '../voice/VoiceGrid';
+import { DmP2PSendButton } from '../voice/P2PMeshModal';
 import { VoiceControlBar } from '../voice/VoiceControlBar';
 import { VoiceChatPanel } from '../voice/VoiceChatPanel';
 import { FriendsPage } from '../chat/FriendsPage';
@@ -375,6 +376,9 @@ export function MainContent() {
             )}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {!isGroupDm && !dmPartnerDeleted && firstOther && currentChannelId && (
+              <DmP2PSendButton peerUserId={firstOther.id} dmChannelId={currentChannelId} />
+            )}
             {/* A 1-on-1 whose partner was deleted has nobody to ring, as on mobile. */}
             {!dmPartnerDeleted && (
               <>

@@ -8,10 +8,11 @@ const ICE_SERVERS: RTCIceServer[] = [
 
 const CTRL_CHANNEL_LABEL = 'balacopapo-ctrl';
 const FILE_CHANNEL_LABEL = 'balacopapo-files';
-const FILE_CHUNK_SIZE = 64 * 1024; // 64 KB chunks for smooth WebRTC DataChannel flow
+const FILE_CHUNK_SIZE = 64 * 1024;
 const HIGH_WATER_MARK = 512 * 1024;
 const PING_INTERVAL_MS = 3_000;
 const DEGRADED_RTT_MS = 350;
+const CHANNEL_OPEN_TIMEOUT_MS = 12_000;
 
 export interface IncomingP2PSignal {
   fromUserId: string;
@@ -26,6 +27,14 @@ type SignalSender = (
   kind: P2PSignalKind,
   payload?: string,
 ) => void;
+
+interface IncomingFileOffer {
+  id: string;
+  peerUserId: string;
+  fileName: string;
+  mimeType: string;
+  totalBytes: number;
+}
 
 interface IncomingFileBuffer {
   id: string;
@@ -46,27 +55,27 @@ interface PeerSession {
   makingOffer: boolean;
   pingTimer: ReturnType<typeof setInterval> | null;
   pendingPings: Map<number, number>;
+  pendingIncomingOffers: Map<string, IncomingFileOffer>;
   incomingFiles: Map<string, IncomingFileBuffer>;
   activeIncomingFileId: string | null;
   rttMs: number | null;
   route: P2PRouteKind;
+  fileChannelWaiters: Array<() => void>;
 }
 
 /**
  * Hybrid P2P Mesh Manager (Phase 2A + 2B + survival/failover foundation for 2C).
  *
- * - Establishes direct WebRTC RTCPeerConnections with peers in the same room
- *   using glare-free polite/impolite negotiation (`myUserId < remoteUserId`).
- * - Measures direct peer RTT every 3s over an ordered control DataChannel and
- *   inspects ICE candidate-pair stats (`lan` / `nat` / `relay`).
- * - Streams direct P2P file transfers in 64 KB chunks over a dedicated DataChannel
- *   without touching server bandwidth.
- * - Survives temporary server/WS drops once connected; marks degraded/failed
- *   links so hybrid call routing can fail over to LiveKit automatically.
+ * - Works both inside voice calls (automatic mesh for latency map) and on-demand
+ *   in Direct Messages for consent-gated P2P file transfers.
+ * - Mandatory receiver consent: sender transmits only a `file_offer` metadata
+ *   frame first; zero file bytes leave the sender until the receiver explicitly
+ *   clicks Accept (`file_accept`).
  */
 export class P2PMeshManager {
   private static instance: P2PMeshManager | null = null;
   private sessions = new Map<string, PeerSession>();
+  private pendingOutgoingFiles = new Map<string, { peerUserId: string; file: File }>();
   private myUserId: string | null = null;
   private currentRoomKey: string | null = null;
   private sendSignal: SignalSender | null = null;
@@ -82,20 +91,24 @@ export class P2PMeshManager {
     return P2PMeshManager.instance;
   }
 
+  setLocalUserId(userId: string | null): void {
+    this.myUserId = userId;
+  }
+
   registerSignalSender(sender: SignalSender): void {
     this.sendSignal = sender;
   }
 
   /**
    * Synchronizes the mesh with the peers currently in the active voice room.
-   * Existing healthy P2P links stay open even if the signaling WS drops later.
+   * Direct DM file sessions (`roomKey.startsWith('dm:')`) are preserved until finished.
    */
   syncRoomPeers(myUserId: string, roomKey: string | null, remoteUserIds: string[]): void {
     this.myUserId = myUserId;
     const store = useP2PStore.getState();
 
     if (!store.enabled || !roomKey) {
-      if (this.sessions.size > 0 || store.activeRoomKey !== null) {
+      if (this.currentRoomKey !== null || store.activeRoomKey !== null) {
         this.leaveRoom();
       }
       return;
@@ -110,14 +123,12 @@ export class P2PMeshManager {
 
     const desired = new Set(remoteUserIds.filter((id) => id && id !== myUserId));
 
-    // Close sessions for peers that left the room
-    for (const [peerId] of this.sessions) {
-      if (!desired.has(peerId)) {
+    for (const [peerId, session] of this.sessions) {
+      if (session.roomKey === roomKey && !desired.has(peerId)) {
         this.closePeer(peerId, true);
       }
     }
 
-    // Ensure a P2P session exists for every peer in the room
     for (const peerId of desired) {
       if (!this.sessions.has(peerId)) {
         this.ensureSession(peerId, roomKey, true);
@@ -126,20 +137,25 @@ export class P2PMeshManager {
   }
 
   leaveRoom(): void {
-    for (const [peerId] of this.sessions) {
-      this.closePeer(peerId, true);
+    const prevRoom = this.currentRoomKey;
+    for (const [peerId, session] of this.sessions) {
+      if (!prevRoom || session.roomKey === prevRoom) {
+        this.closePeer(peerId, true);
+      }
     }
     this.currentRoomKey = null;
-    useP2PStore.getState().clearPeers();
+    useP2PStore.getState().setActiveRoomKey(null);
   }
 
   async handleIncomingSignal(signal: IncomingP2PSignal): Promise<void> {
     if (!useP2PStore.getState().enabled) return;
     if (!this.myUserId || signal.fromUserId === this.myUserId) return;
-    if (this.currentRoomKey && signal.roomKey !== this.currentRoomKey) return;
 
     if (signal.kind === 'bye') {
-      this.closePeer(signal.fromUserId, false);
+      const existing = this.sessions.get(signal.fromUserId);
+      if (existing && existing.roomKey === signal.roomKey) {
+        this.closePeer(signal.fromUserId, false);
+      }
       return;
     }
 
@@ -158,7 +174,7 @@ export class P2PMeshManager {
         const desc = JSON.parse(signal.payload) as RTCSessionDescriptionInit;
         const offerCollision = session.makingOffer || pc.signalingState !== 'stable';
         if (offerCollision && !session.polite) {
-          return; // Impolite peer ignores colliding offer
+          return;
         }
         await pc.setRemoteDescription(desc);
         const answer = await pc.createAnswer();
@@ -184,18 +200,21 @@ export class P2PMeshManager {
   }
 
   /**
-   * Sends a File directly to a connected P2P peer over the dedicated DataChannel.
+   * Offers a file to a peer (establishing a direct DM P2P session on demand if needed).
+   * Zero file bytes are sent until the receiver accepts the offer.
    */
-  async sendFileToPeer(peerUserId: string, file: File): Promise<void> {
-    const session = this.sessions.get(peerUserId);
-    const dc = session?.fileChannel;
-    if (!session || !dc || dc.readyState !== 'open') {
-      throw new Error('P2P file channel is not open for this peer');
+  async sendFileToPeer(peerUserId: string, file: File, roomKey?: string): Promise<void> {
+    if (!useP2PStore.getState().enabled) {
+      throw new Error('P2P is disabled');
     }
+    const effectiveRoomKey = roomKey ?? this.sessions.get(peerUserId)?.roomKey ?? this.currentRoomKey ?? `dm:${peerUserId}`;
+    const session = this.ensureSession(peerUserId, effectiveRoomKey, true);
+    const dc = await this.waitForFileChannel(session);
 
     const transferId = `${Date.now()}-${++this.transferSeq}`;
-    const store = useP2PStore.getState();
-    store.upsertTransfer({
+    this.pendingOutgoingFiles.set(transferId, { peerUserId, file });
+
+    useP2PStore.getState().upsertTransfer({
       id: transferId,
       peerUserId,
       direction: 'send',
@@ -203,22 +222,77 @@ export class P2PMeshManager {
       mimeType: file.type || 'application/octet-stream',
       totalBytes: file.size,
       transferredBytes: 0,
-      status: 'transferring',
+      status: 'pending_acceptance',
       createdAt: Date.now(),
     });
 
+    dc.send(
+      JSON.stringify({
+        t: 'file_offer',
+        id: transferId,
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        size: file.size,
+      }),
+    );
+  }
+
+  /**
+   * Receiver explicitly accepts a pending file offer, instructing the sender to begin streaming chunks.
+   */
+  acceptIncomingFile(transferId: string): void {
+    for (const session of this.sessions.values()) {
+      const offer = session.pendingIncomingOffers.get(transferId);
+      if (!offer) continue;
+      const dc = session.fileChannel;
+      if (!dc || dc.readyState !== 'open') {
+        useP2PStore.getState().failTransfer(transferId, 'P2P channel closed');
+        session.pendingIncomingOffers.delete(transferId);
+        return;
+      }
+      session.pendingIncomingOffers.delete(transferId);
+      session.incomingFiles.set(transferId, {
+        id: offer.id,
+        fileName: offer.fileName,
+        mimeType: offer.mimeType,
+        totalBytes: offer.totalBytes,
+        receivedBytes: 0,
+        chunks: [],
+      });
+      session.activeIncomingFileId = transferId;
+      useP2PStore.getState().setTransferStatus(transferId, 'transferring');
+      dc.send(JSON.stringify({ t: 'file_accept', id: transferId }));
+      return;
+    }
+  }
+
+  /**
+   * Receiver declines a pending file offer; notifies sender so no bytes are transmitted.
+   */
+  rejectIncomingFile(transferId: string): void {
+    for (const session of this.sessions.values()) {
+      if (!session.pendingIncomingOffers.has(transferId)) continue;
+      session.pendingIncomingOffers.delete(transferId);
+      if (session.fileChannel?.readyState === 'open') {
+        session.fileChannel.send(JSON.stringify({ t: 'file_reject', id: transferId }));
+      }
+      useP2PStore.getState().setTransferStatus(transferId, 'rejected');
+      return;
+    }
+  }
+
+  private async streamAcceptedOutgoingFile(session: PeerSession, transferId: string): Promise<void> {
+    const pending = this.pendingOutgoingFiles.get(transferId);
+    const dc = session.fileChannel;
+    if (!pending || !dc || dc.readyState !== 'open') return;
+
+    this.pendingOutgoingFiles.delete(transferId);
+    const { file } = pending;
+    const store = useP2PStore.getState();
+    store.setTransferStatus(transferId, 'transferring');
+
     try {
       dc.bufferedAmountLowThreshold = FILE_CHUNK_SIZE * 2;
-      dc.send(
-        JSON.stringify({
-          t: 'file_start',
-          id: transferId,
-          name: file.name,
-          mime: file.type || 'application/octet-stream',
-          size: file.size,
-        }),
-      );
-
       let offset = 0;
       while (offset < file.size) {
         if (dc.readyState !== 'open') {
@@ -244,16 +318,40 @@ export class P2PMeshManager {
       store.completeTransfer(transferId);
     } catch (err) {
       store.failTransfer(transferId, err instanceof Error ? err.message : 'Transfer failed');
-      throw err;
     }
+  }
+
+  private waitForFileChannel(session: PeerSession): Promise<RTCDataChannel> {
+    if (session.fileChannel && session.fileChannel.readyState === 'open') {
+      return Promise.resolve(session.fileChannel);
+    }
+    return new Promise<RTCDataChannel>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Timed out waiting for direct P2P channel'));
+      }, CHANNEL_OPEN_TIMEOUT_MS);
+
+      session.fileChannelWaiters.push(() => {
+        clearTimeout(timer);
+        if (session.fileChannel && session.fileChannel.readyState === 'open') {
+          resolve(session.fileChannel);
+        } else {
+          reject(new Error('P2P file channel unavailable'));
+        }
+      });
+    });
   }
 
   private ensureSession(peerUserId: string, roomKey: string, initiateIfImpolite: boolean): PeerSession {
     const existing = this.sessions.get(peerUserId);
-    if (existing) return existing;
+    if (existing && existing.pc.connectionState !== 'failed' && existing.pc.connectionState !== 'closed') {
+      return existing;
+    }
+    if (existing) {
+      this.closePeer(peerUserId, false);
+    }
 
     const myId = this.myUserId ?? '';
-    const polite = myId > peerUserId; // Deterministic glare resolution
+    const polite = myId > peerUserId;
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     const session: PeerSession = {
@@ -266,10 +364,12 @@ export class P2PMeshManager {
       makingOffer: false,
       pingTimer: null,
       pendingPings: new Map(),
+      pendingIncomingOffers: new Map(),
       incomingFiles: new Map(),
       activeIncomingFileId: null,
       rttMs: null,
       route: 'unknown',
+      fileChannelWaiters: [],
     };
 
     this.sessions.set(peerUserId, session);
@@ -304,14 +404,12 @@ export class P2PMeshManager {
     };
 
     if (!polite) {
-      // Impolite peer creates both DataChannels and sends the initial offer
       this.attachCtrlChannel(session, pc.createDataChannel(CTRL_CHANNEL_LABEL, { ordered: true }));
       this.attachFileChannel(session, pc.createDataChannel(FILE_CHANNEL_LABEL, { ordered: true }));
       if (initiateIfImpolite) {
         void this.createAndSendOffer(session);
       }
     } else if (initiateIfImpolite) {
-      // Polite peer announces presence so impolite peer starts negotiation
       this.emitSignal(peerUserId, roomKey, 'hello');
     }
 
@@ -373,6 +471,8 @@ export class P2PMeshManager {
     dc.binaryType = 'arraybuffer';
     dc.onopen = () => {
       this.publishPeerState(session, this.computeHealthState(session));
+      const waiters = session.fileChannelWaiters.splice(0);
+      for (const w of waiters) w();
     };
     dc.onmessage = (e) => {
       const store = useP2PStore.getState();
@@ -385,16 +485,14 @@ export class P2PMeshManager {
             mime?: string;
             size?: number;
           };
-          if (msg.t === 'file_start' && msg.id && msg.name && typeof msg.size === 'number') {
-            session.incomingFiles.set(msg.id, {
+          if (msg.t === 'file_offer' && msg.id && msg.name && typeof msg.size === 'number') {
+            session.pendingIncomingOffers.set(msg.id, {
               id: msg.id,
+              peerUserId: session.userId,
               fileName: msg.name,
               mimeType: msg.mime || 'application/octet-stream',
               totalBytes: msg.size,
-              receivedBytes: 0,
-              chunks: [],
             });
-            session.activeIncomingFileId = msg.id;
             store.upsertTransfer({
               id: msg.id,
               peerUserId: session.userId,
@@ -403,9 +501,14 @@ export class P2PMeshManager {
               mimeType: msg.mime || 'application/octet-stream',
               totalBytes: msg.size,
               transferredBytes: 0,
-              status: 'transferring',
+              status: 'pending_acceptance',
               createdAt: Date.now(),
             });
+          } else if (msg.t === 'file_accept' && msg.id) {
+            void this.streamAcceptedOutgoingFile(session, msg.id);
+          } else if (msg.t === 'file_reject' && msg.id) {
+            this.pendingOutgoingFiles.delete(msg.id);
+            store.setTransferStatus(msg.id, 'rejected');
           } else if (msg.t === 'file_end' && msg.id) {
             const buf = session.incomingFiles.get(msg.id);
             if (buf) {
@@ -441,7 +544,6 @@ export class P2PMeshManager {
       if (!dc || dc.readyState !== 'open') return;
       const seq = ++this.pingSeq;
       session.pendingPings.set(seq, performance.now());
-      // Trim stale pings
       if (session.pendingPings.size > 10) {
         const oldest = session.pendingPings.keys().next().value;
         if (oldest !== undefined) session.pendingPings.delete(oldest);

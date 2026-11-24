@@ -861,3 +861,16 @@ export const spaceSoundboardOverrides = sqliteTable('space_soundboard_overrides'
   pk: primaryKey({ columns: [table.spaceId, table.soundId] }),
   spaceIdx: index('idx_space_soundboard_overrides_space').on(table.spaceId),
 }));
+
+export const ipBans = sqliteTable('ip_bans', {
+  id: text('id').primaryKey(),
+  ip: text('ip').notNull().unique(),
+  reason: text('reason'),
+  bannedBy: text('banned_by'),
+  sourceUserId: text('source_user_id'),
+  durationDays: integer('duration_days'),
+  expiresAt: integer('expires_at'),
+  createdAt: integer('created_at').notNull(),
+}, (table) => ({
+  expiresIdx: index('idx_ip_bans_expires_at').on(table.expiresAt),
+}));

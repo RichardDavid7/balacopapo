@@ -28,6 +28,8 @@ import { exploreRoutes } from './routes/explore.js';
 import { directoryRoutes } from './routes/directory.js';
 import { searchRoutes } from './routes/search.js';
 import { adminRoutes } from './routes/admin.js';
+import { ipBanRoutes } from './routes/ipBans.js';
+import { isIpBanned } from './utils/ipBans.js';
 import { adminUpdateRoutes } from './routes/adminUpdates.js';
 import { adminTelemetryRoutes } from './routes/adminTelemetry.js';
 import { gifRoutes } from './routes/gif.js';
@@ -230,7 +232,21 @@ async function main(): Promise<void> {
   await app.register(exploreRoutes);
   await app.register(directoryRoutes);
   await app.register(searchRoutes);
+  app.addHook('onRequest', async (request, reply) => {
+    const urlPath = request.url.split('?')[0] ?? '';
+    if (urlPath === '/api/health' || urlPath === '/api/admin/ip-bans/feed') return;
+    const status = isIpBanned(request.ip);
+    if (status.banned) {
+      return reply.code(403).send({
+        error: 'ip_banned',
+        reason: status.reason,
+        expiresAt: status.expiresAt,
+      });
+    }
+  });
+
   await app.register(adminRoutes);
+  await app.register(ipBanRoutes);
   await app.register(adminUpdateRoutes);
   await app.register(adminTelemetryRoutes);
   await app.register(gifRoutes);
