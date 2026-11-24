@@ -185,7 +185,7 @@ export function P2PMeshModal() {
       await P2PMeshManager.getInstance().sendFileToPeer(targetPeerId, file);
       addToast(t('voice:p2p.transferSent', { name: file.name }), 'success', 2500);
     } catch {
-      addToast(t('voice:p2p.transferFailed'), 'error', 3000);
+      addToast(t('voice:p2p.transferFailed'), 'warning', 3000);
     }
   };
 
