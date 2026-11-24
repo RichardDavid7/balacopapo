@@ -42,9 +42,11 @@ export class AudioManager {
   // Reference-counted audio lifecycle so the AudioContext suspends when idle
   // and releases the OS audio device / DAC instead of holding it open 24/7.
   private static readonly IDLE_SUSPEND_DELAY_MS = 1500;
+  private static readonly RESUME_TIMEOUT_MS = 1000;
   private audioSessions: Set<symbol> = new Set();
   private activePlaybackCount = 0;
   private idleSuspendTimer: ReturnType<typeof setTimeout> | null = null;
+  private visibilityListenerAttached = false;
 
   // Local microphone loopback ("Test Microphone" in settings) — routes processed
   // mic audio (RNNoise + AEC + inputGain) to masterBoost so the user hears
@@ -138,6 +140,19 @@ export class AudioManager {
     };
 
     this.isInitialized = true;
+
+    // On iOS Safari, backgrounding puts the AudioContext in 'interrupted'.
+    // Automatically resume when returning to foreground if a voice session is active.
+    if (typeof document !== 'undefined' && !this.visibilityListenerAttached) {
+      this.visibilityListenerAttached = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.audioSessions.size > 0) {
+          if (this.ctx && (this.ctx.state === 'suspended' || this.isContextInterrupted())) {
+            void this.resumeContext();
+          }
+        }
+      });
+    }
 
     // Apply pending output device selection (user preference loaded before context creation)
     this.applyOutputDevice();
@@ -279,11 +294,23 @@ export class AudioManager {
     this.clearIdleSuspendTimer();
     if (!this.ctx) this.initContext();
     if (this.ctx && (this.ctx.state === 'suspended' || this.isContextInterrupted())) {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       try {
-        await this.ctx.resume();
-        console.log('[AudioManager] AudioContext resumed.');
+        // Bound resume() so a stuck iOS 'interrupted' context or autoplay-blocked
+        // call can never hang voice joins or one-shot cues indefinitely.
+        await Promise.race([
+          this.ctx.resume(),
+          new Promise<void>((resolve) => {
+            timeoutId = setTimeout(resolve, AudioManager.RESUME_TIMEOUT_MS);
+          }),
+        ]);
+        if (this.ctx?.state === 'running') {
+          console.log('[AudioManager] AudioContext resumed.');
+        }
       } catch (err) {
         console.error('[AudioManager] Failed to resume context:', err);
+      } finally {
+        if (timeoutId !== null) clearTimeout(timeoutId);
       }
     }
     this.scheduleIdleSuspendIfUnused();
