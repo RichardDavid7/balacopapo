@@ -104,14 +104,14 @@
         "deleted_one": "Identidade excluída com sucesso",
         "deleted_many": "Identidade excluída em {{count}} instâncias",
         "deleted_other": "Identidade excluída em {{count}} instâncias",
-        "ownsSpaces": "{{host}}: transfira primeiro a propriedade dos espaços",
+        "ownsSpaces": "{{host}}: transfira primeiro a propriedade dos grupos",
         "failed": "{{host}}: {{error}}",
         "failedGeneric": "Falhou"
       }
     },
     "action": {
       "friendRequest": "solicitação de amizade",
-      "spaceJoin": "entrada em espaço",
+      "spaceJoin": "entrada em grupo",
       "directMessage": "mensagem direta",
       "friendRequestTo": "Solicitação de amizade para {{target}}",
       "joinSpace": "Entrar em {{target}}",
@@ -284,7 +284,7 @@
       "repeerIncomplete": "Peering incompleto — {{name}} ainda mantém um peering obsoleto com você. O administrador dela precisa redefinir o lado dele e depois você deve refazer o peering.",
       "repeerInitiated": "Peering reiniciado com {{name}}",
       "removed": "{{username}} e todo o seu conteúdo foram removidos",
-      "ownsSpaces": "{{username}} possui espaços — transfira a propriedade primeiro (Configurações do espaço → Propriedade).",
+      "ownsSpaces": "{{username}} possui grupos — transfira a propriedade primeiro (Configurações do grupo → Propriedade).",
       "staleRemote": "A instância remota ainda mantém um peering obsoleto com você. Peça ao administrador dela que redefina o lado dele e depois refaça o peering.",
       "eventSummary": "<host>{{host}}</host> foi redefinida — {{identities}} limpas automaticamente, {{accounts}} com conteúdo local desvinculadas. As contas desvinculadas continuam funcionando localmente — os donos mantêm o acesso com a senha atual. O dono pode revincular uma conta desvinculada à sua nova identidade de origem nas configurações dela (Conta → aviso de desvinculação) estando conectado às duas.",
       "identitiesCleaned_one": "{{count}} identidade replicada",

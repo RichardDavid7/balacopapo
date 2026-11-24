@@ -1,11 +1,11 @@
 {
   "names": {
-    "group": "Grupo",
+    "group": "Grupo Direto",
     "directMessage": "Mensagem direta",
-    "theGroup": "o grupo",
+    "theGroup": "o grupo direto",
     "unknownHandle": "desconhecido",
-    "groupFallback": "DM em grupo",
-    "emptyGroup": "Grupo vazio"
+    "groupFallback": "Grupo Direto",
+    "emptyGroup": "Grupo Direto vazio"
   },
   "preview": {
     "image": "Imagem",
@@ -19,15 +19,15 @@
   "system": {
     "spaceInviteNamed": "📨 Enviou convite para {{spaceName}}",
     "memberAdded": "{{actor}} adicionou {{target}}",
-    "memberAddedToGroup": "{{actor}} adicionou {{target}} ao grupo",
-    "memberLeft": "{{target}} saiu do grupo",
+    "memberAddedToGroup": "{{actor}} adicionou {{target}} ao grupo direto",
+    "memberLeft": "{{target}} saiu do grupo direto",
     "memberRemoved": "{{actor}} removeu {{target}}",
-    "memberRemovedFromGroup": "{{actor}} removeu {{target}} do grupo",
-    "ownerChanged": "{{newOwner}} agora é o dono do grupo",
-    "renamed": "{{actor}} renomeou o grupo",
-    "renamedTo": "{{actor}} renomeou o grupo para \"{{name}}\"",
-    "nameCleared": "{{actor}} apagou o nome do grupo",
-    "iconChanged": "{{actor}} atualizou o ícone do grupo",
+    "memberRemovedFromGroup": "{{actor}} removeu {{target}} do grupo direto",
+    "ownerChanged": "{{newOwner}} agora é o dono do grupo direto",
+    "renamed": "{{actor}} renomeou o grupo direto",
+    "renamedTo": "{{actor}} renomeou o grupo direto para \"{{name}}\"",
+    "nameCleared": "{{actor}} apagou o nome do grupo direto",
+    "iconChanged": "{{actor}} atualizou o ícone do grupo direto",
     "generic": "Mensagem do sistema"
   },
   "deletedNotice": {
@@ -36,9 +36,9 @@
   "memberRow": {
     "viewProfile": "Ver perfil",
     "transferOwnership": "Transferir propriedade",
-    "removeFromGroup": "Remover do grupo",
+    "removeFromGroup": "Remover do grupo direto",
     "removeFriend": "Remover amigo",
-    "ownerTooltip": "Dono do grupo",
+    "ownerTooltip": "Dono do grupo direto",
     "actions": "Ações do membro"
   },
   "roster": {
@@ -46,9 +46,9 @@
     "sectionCount": "{{label}} — {{total}}"
   },
   "kick": {
-    "title": "Remover do grupo",
-    "description": "Remover {{name}} deste grupo? Essa pessoa não poderá ver as novas mensagens.",
-    "success": "{{name}} foi removido(a) do grupo",
+    "title": "Remover do grupo direto",
+    "description": "Remover {{name}} deste grupo direto? Essa pessoa não poderá ver as novas mensagens.",
+    "success": "{{name}} foi removido(a) do grupo direto",
     "failed": "Falha ao remover o membro"
   },
   "transfer": {
@@ -62,10 +62,10 @@
     "failed": "Falha ao remover o amigo"
   },
   "leave": {
-    "title": "Sair do grupo",
+    "title": "Sair do grupo direto",
     "description": "Sair de “{{name}}”? Você deixará de receber mensagens desta conversa.",
     "inProgress": "Saindo…",
-    "failed": "Falha ao sair do grupo",
+    "failed": "Falha ao sair do grupo direto",
     "explanation": "Você deixará de receber mensagens desta conversa. Os outros membros verão uma mensagem do sistema."
   },
   "search": {
@@ -81,7 +81,7 @@
   "list": {
     "title": "Mensagens",
     "empty": "Nenhuma conversa ainda.",
-    "leaveGroup": "Sair do grupo",
+    "leaveGroup": "Sair do grupo direto",
     "justNow": "agora",
     "minutesShort_one": "{{count}} min",
     "minutesShort_many": "{{count}} min",
@@ -104,7 +104,7 @@
     "description": "Selecione amigos para adicionar a esta conversa.",
     "capacity": "{{current}}/{{max}}",
     "searchPlaceholder": "Pesquisar amigos…",
-    "limitReached": "Esta DM em grupo atingiu o limite de {{max}} membros.",
+    "limitReached": "Este Grupo Direto atingiu o limite de {{max}} membros.",
     "alreadyInDm": "Já está nesta DM",
     "noMatch": "Nenhum amigo corresponde à sua pesquisa",
     "noFriends": "Nenhum amigo ainda",
@@ -117,36 +117,36 @@
     "failed": "Falha ao adicionar membros"
   },
   "groupSettings": {
-    "title": "Configurações do grupo",
+    "title": "Configurações do grupo direto",
     "general": "Geral",
     "overview": "Visão geral",
-    "backToMenu": "Voltar ao menu de configurações da DM em grupo",
-    "changeIcon": "Alterar ícone do grupo",
-    "icon": "Ícone do grupo",
+    "backToMenu": "Voltar ao menu de configurações do Grupo Direto",
+    "changeIcon": "Alterar ícone do grupo direto",
+    "icon": "Ícone do grupo direto",
     "clickToUpload": "Clique para enviar",
-    "removeIcon": "Remover ícone do grupo",
-    "nameLabel": "Nome do grupo",
-    "nameAria": "Nome do grupo",
+    "removeIcon": "Remover ícone do grupo direto",
+    "nameLabel": "Nome do grupo direto",
+    "nameAria": "Nome do grupo direto",
     "nameCount": "{{current}}/{{max}}",
     "addMember": "Adicionar membro",
-    "groupFull": "O grupo está cheio",
-    "groupFullSuffix": "— O grupo está cheio",
-    "cropTitle": "Recortar ícone do grupo",
+    "groupFull": "O grupo direto está cheio",
+    "groupFullSuffix": "— O grupo direto está cheio",
+    "cropTitle": "Recortar ícone do grupo direto",
     "saveFailed": "Falha ao salvar as configurações"
   },
   "groupInfo": {
-    "title": "Informações do grupo",
+    "title": "Informações do grupo direto",
     "plainTitle": "Informações",
     "notFound": "Conversa não encontrada.",
-    "notGroup": "Esta conversa não tem informações de grupo.",
+    "notGroup": "Esta conversa não tem informações de grupo direto.",
     "cancelEdit": "Cancelar edição",
-    "federated": "Grupo federado",
+    "federated": "Grupo Direto federado",
     "memberCount_one": "{{count}} membro",
     "memberCount_many": "{{count}} membros",
     "memberCount_other": "{{count}} membros"
   },
   "ownerActions": {
-    "ownerNotConnected": "Este grupo é gerenciado em {{host}}. Conecte-se a essa instância para alterá-lo.",
-    "ownerNotListed": "{{host}} ainda não lista este grupo para você. Tente de novo em instantes."
+    "ownerNotConnected": "Este grupo direto é gerenciado em {{host}}. Conecte-se a essa instância para alterá-lo.",
+    "ownerNotListed": "{{host}} ainda não lista este grupo direto para você. Tente de novo em instantes."
   }
 }

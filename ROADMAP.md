@@ -36,7 +36,7 @@ Itens já identificados durante os testes e uso real:
 - [x] **Suporte a Deep Links / "Abrir com Balacopapo"** — esquema customizado `balacopapo://` (Tauri `deep-link`, PWA `protocol_handlers` `web+balacopapo`, Android `AndroidManifest.xml` intent-filter + parser compartilhado `deepLink.ts`):
   - Botão **"Abrir com Balacopapo"** na página de convite (`/join/:inviteCode`) nos 5 idiomas.
   - Rota de callback segura `/auth/callback` pronta para o **OIDC** (`balacopapo://auth/callback`).
-- [ ] **Ajuste de terminologia:** trocar *Espaço* → **Grupo** e *Grupo* (DM em grupo) → **Grupo Direto**.
+- [x] **Ajuste de terminologia:** trocar *Espaço* → **Grupo** e *Grupo* (DM em grupo) → **Grupo Direto** (aplicado nos locales `pt` do Web e `values-pt-rBR` do Android).
 - [ ] **Trocar nome de usuário** (fluxo seguro com validação de unicidade e atualização em tempo real).
 - [ ] **Temas de interface** (sistema de temas sobre os tokens CSS do Aether Drift + seletor nas configurações).
 

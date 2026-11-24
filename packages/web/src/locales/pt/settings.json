@@ -250,17 +250,17 @@
       "title": "Excluir conta",
       "warning": {
         "headline": "Isso excluirá sua conta permanentemente.",
-        "spaces": "Todas as participações em espaços serão removidas",
+        "spaces": "Todas as participações em grupos serão removidas",
         "friends": "Todas as conexões de amizade serão removidas",
         "dms": "Todas as participações em DMs serão removidas",
         "messages": "Suas mensagens permanecerão, mas serão atribuídas a “Usuário excluído”"
       },
       "ownedSpaces": {
-        "prompt_one": "Você possui {{count}} espaço. Resolva cada um antes de continuar:",
-        "prompt_many": "Você possui {{count}} espaços. Resolva cada um antes de continuar:",
-        "prompt_other": "Você possui {{count}} espaços. Resolva cada um antes de continuar:",
+        "prompt_one": "Você possui {{count}} grupo. Resolva cada um antes de continuar:",
+        "prompt_many": "Você possui {{count}} grupos. Resolva cada um antes de continuar:",
+        "prompt_other": "Você possui {{count}} grupos. Resolva cada um antes de continuar:",
         "transfer": "Transferir",
-        "delete": "Excluir espaço",
+        "delete": "Excluir grupo",
         "selectOwner": "Selecione o novo dono…"
       },
       "processing": "Processando…",
@@ -281,7 +281,7 @@
       },
       "errors": {
         "usernameMismatch": "O nome de usuário não corresponde",
-        "spacesFailed": "Falha ao processar os espaços",
+        "spacesFailed": "Falha ao processar os grupos",
         "deleteFailed": "Falha ao excluir a conta"
       }
     }
@@ -354,7 +354,7 @@
       "option": "Option",
       "cmd": "Cmd",
       "win": "Win",
-      "space": "Espaço",
+      "space": "Grupo",
       "middleClick": "Clique do meio",
       "mouse4": "Mouse 4",
       "mouse5": "Mouse 5",

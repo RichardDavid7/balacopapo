@@ -56,17 +56,17 @@
     "friends_one": "{{count}} amigo em comum",
     "friends_many": "{{count}} amigos em comum",
     "friends_other": "{{count}} amigos em comum",
-    "spaces_one": "{{count}} espaço em comum",
-    "spaces_many": "{{count}} espaços em comum",
-    "spaces_other": "{{count}} espaços em comum",
+    "spaces_one": "{{count}} grupo em comum",
+    "spaces_many": "{{count}} grupos em comum",
+    "spaces_other": "{{count}} grupos em comum",
     "noFriends": "Nenhum amigo em comum",
-    "noSpaces": "Nenhum espaço em comum"
+    "noSpaces": "Nenhum grupo em comum"
   },
   "profile": {
     "tabs": {
       "about": "Sobre",
       "mutualFriends": "Amigos em comum",
-      "mutualSpaces": "Espaços em comum"
+      "mutualSpaces": "Grupos em comum"
     },
     "aboutMe": "Sobre mim",
     "roles": "Cargos",

@@ -8,34 +8,34 @@
       "counter": "{{length}}/{{max}}"
     },
     "discovery": {
-      "label": "Descoberta de espaços",
-      "description": "Até onde os espaços desta instância podem ser encontrados.",
+      "label": "Descoberta de grupos",
+      "description": "Até onde os grupos desta instância podem ser encontrados.",
       "levels": {
         "invite": {
           "label": "Somente por convite",
-          "description": "Os espaços daqui não são listados em nenhum lugar. Os links de convite continuam funcionando."
+          "description": "Os grupos daqui não são listados em nenhum lugar. Os links de convite continuam funcionando."
         },
         "local": {
-          "label": "Descoberta local de espaços",
-          "description": "Os espaços aparecem em Explorar para pessoas nesta instância e em instâncias conectadas a ela."
+          "label": "Descoberta local de grupos",
+          "description": "Os grupos aparecem em Explorar para pessoas nesta instância e em instâncias conectadas a ela."
         },
         "global": {
           "label": "Permitir listagem global",
-          "description": "Cada espaço poderá então ser listado manualmente no diretório global do Balacopapo pelas próprias configurações de Descoberta."
+          "description": "Cada grupo poderá então ser listado manualmente no diretório global do Balacopapo pelas próprias configurações de Descoberta."
         }
       },
       "unconfigured": "Esta instância não está configurada para acessar um diretório, portanto nada aqui pode ser listado globalmente."
     },
     "directory": {
-      "listingHint": "Ativar isto não lista nenhum espaço por si só. Cada espaço ainda precisa ativar \"{{setting}}\" nas próprias configurações de Descoberta.",
+      "listingHint": "Ativar isto não lista nenhum grupo por si só. Cada grupo ainda precisa ativar \"{{setting}}\" nas próprias configurações de Descoberta.",
       "showMeWhere": "Mostrar onde",
       "saveAndShowMeWhere": "Salvar e mostrar onde",
-      "listedCount_one": "{{count}} espaço listado",
-      "listedCount_many": "{{count}} espaços listados",
-      "listedCount_other": "{{count}} espaços listados",
-      "registrationClosed": "Novas contas de outras instâncias estão fechadas, então os espaços listados aparecerão como fechados para novas contas.",
+      "listedCount_one": "{{count}} grupo listado",
+      "listedCount_many": "{{count}} grupos listados",
+      "listedCount_other": "{{count}} grupos listados",
+      "registrationClosed": "Novas contas de outras instâncias estão fechadas, então os grupos listados aparecerão como fechados para novas contas.",
       "openFederatedRegistration": "Abrir contas federadas",
-      "disclosure": "Para cada espaço listado, isto torna públicos: o nome, a descrição, o ícone, o banner, a quantidade de membros e o endereço desta instância. As pessoas que navegam pelo diretório carregam o ícone e o banner desta instância.",
+      "disclosure": "Para cada grupo listado, isto torna públicos: o nome, a descrição, o ícone, o banner, a quantidade de membros e o endereço desta instância. As pessoas que navegam pelo diretório carregam o ícone e o banner desta instância.",
       "status": {
         "never": "Nunca reportado",
         "lastPing": "Último relatório em {{date}}",
@@ -52,8 +52,8 @@
       }
     },
     "browse": {
-      "toggleLabel": "Mostrar espaços globais em Explorar",
-      "toggleDescription": "As pessoas daqui veem espaços de outras instâncias em Espaço Sideral. Os navegadores carregam os ícones e banners desses espaços das instâncias que os hospedam.",
+      "toggleLabel": "Mostrar grupos globais em Explorar",
+      "toggleDescription": "As pessoas daqui veem grupos de outras instâncias em Espaço Sideral. Os navegadores carregam os ícones e banners desses grupos das instâncias que os hospedam.",
       "unavailable": "Esta instância não está configurada para acessar um diretório, então não há nada para mostrar."
     },
     "supportCard": {
@@ -477,7 +477,7 @@
     },
     "deleteDialog": {
       "title": "Excluir usuário",
-      "description": "Excluir permanentemente <strong>{{username}}</strong>? Isso removerá a pessoa de todos os espaços, DMs e listas de amigos. Isso não pode ser desfeito.",
+      "description": "Excluir permanentemente <strong>{{username}}</strong>? Isso removerá a pessoa de todos os grupos, DMs e listas de amigos. Isso não pode ser desfeito.",
       "confirm": "Excluir usuário"
     }
   },
@@ -499,8 +499,8 @@
     "title": "Áudio",
     "description": "Configure os limites de codificação de voz e os efeitos sonoros padrão desta instância.",
     "maxSoundboardPerScope": {
-      "label": "Máximo de efeitos por espaço",
-      "description": "Limite de áudios personalizados que cada espaço pode enviar (0 desativa envios personalizados)."
+      "label": "Máximo de efeitos por grupo",
+      "description": "Limite de áudios personalizados que cada grupo pode enviar (0 desativa envios personalizados)."
     },
     "maxConcurrentSoundboard": {
       "label": "Máximo de efeitos simultâneos",

@@ -52,11 +52,11 @@
         "description": "Este é o começo da conversa."
       },
       "group": {
-        "intro": "Este é o começo da conversa do seu grupo.",
+        "intro": "Este é o começo da conversa do seu grupo direto.",
         "owner": "Dono: <owner>@{{name}}</owner>",
         "federatedNotice": "As mensagens ficam armazenadas na sua instância e nas instâncias de origem dos seus destinatários. Elas não têm criptografia de ponta a ponta.",
-        "openSettings": "Abrir configurações do grupo",
-        "leave": "Sair do grupo"
+        "openSettings": "Abrir configurações do grupo direto",
+        "leave": "Sair do grupo direto"
       },
       "dm": {
         "fallbackName": "Mensagem direta",
@@ -158,7 +158,7 @@
     "sendingRequest": "Enviando…",
     "requestSent": "Solicitação enviada",
     "requestPending": "Solicitação pendente",
-    "requestNotice": "Este espaço aceita solicitações de entrada. Um gerente aprova cada uma.",
+    "requestNotice": "Este grupo aceita solicitações de entrada. Um gerente aprova cada uma.",
     "requestReview": "Um gerente vai analisar sua solicitação."
   },
   "notification": {
@@ -211,9 +211,9 @@
     "batchLimit_one": "Escolha no máximo {{count}} imagem por vez.",
     "batchLimit_many": "Escolha no máximo {{count}} imagens por vez.",
     "batchLimit_other": "Escolha no máximo {{count}} imagens por vez.",
-    "capacityLimit_one": "Sua coleção tem espaço para mais {{count}} figurinha.",
-    "capacityLimit_many": "Sua coleção tem espaço para mais {{count}} figurinhas.",
-    "capacityLimit_other": "Sua coleção tem espaço para mais {{count}} figurinhas.",
+    "capacityLimit_one": "Sua coleção tem grupo para mais {{count}} figurinha.",
+    "capacityLimit_many": "Sua coleção tem grupo para mais {{count}} figurinhas.",
+    "capacityLimit_other": "Sua coleção tem grupo para mais {{count}} figurinhas.",
     "full": "Sua coleção está cheia. Remova uma figurinha para adicionar outra.",
     "batchFailed_one": "Não foi possível adicionar {{count}} imagem. Ela continua na lista abaixo.",
     "batchFailed_many": "Não foi possível adicionar {{count}} imagens. Elas continuam na lista abaixo.",
