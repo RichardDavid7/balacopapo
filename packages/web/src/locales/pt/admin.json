@@ -515,5 +515,54 @@
       "label": "Ativar Efeitos Sonoros",
       "description": "Permite tocar e gerenciar efeitos sonoros nesta instância. Desativar oculta os botões de efeitos em toda a interface."
     }
+  },
+  "oidc": {
+    "title": "OIDC / Login Único (SSO)",
+    "subtitle": "Veja o status do provedor externo e vincule contas locais existentes ao OIDC.",
+    "loadFailed": "Falha ao carregar configurações OIDC.",
+    "subjectRequired": "Informe o identificador Subject (sub) do OIDC.",
+    "linkFailed": "Falha ao vincular conta OIDC.",
+    "linkTokenFailed": "Falha ao gerar link de vínculo.",
+    "unlinkFailed": "Falha ao desvincular conta OIDC.",
+    "notSet": "Não definido",
+    "noEmail": "sem e-mail",
+    "status": {
+      "active": "Ativo",
+      "inactive": "Inativo"
+    },
+    "configCard": {
+      "title": "Configuração via Variáveis Docker",
+      "dockerHint": "Configurado exclusivamente por variáveis de ambiente do Docker (fora do banco) para facilitar a recuperação caso algo dê errado.",
+      "callbackUrl": "URL de Callback / Redirecionamento",
+      "issuer": "URL do Issuer",
+      "clientId": "Client ID",
+      "syncAvatar": "Sincronizar Foto de Perfil",
+      "autoRegister": "Auto-criar Novos Usuários",
+      "adminGroups": "Grupos de Administradores (claim: {{claim}})",
+      "noAdminGroups": "Nenhum configurado (defina OIDC_ADMIN_GROUPS)"
+    },
+    "generatedLink": {
+      "title": "Link de vínculo OIDC para @{{username}}",
+      "hint": "Envie ou abra este link de uso único até {{time}}. Ao entrar pelo OIDC, a identidade será vinculada a esta conta existente."
+    },
+    "users": {
+      "title": "Usuários Existentes",
+      "subtitle": "Vincule contas locais já criadas para preservar histórico, grupos e cargos ao entrar pelo OIDC.",
+      "searchPlaceholder": "Buscar usuário, e-mail ou subject…",
+      "empty": "Nenhum usuário local encontrado.",
+      "adminBadge": "Admin",
+      "linkedSummary": "Vinculado · sub: {{subject}} ({{email}})",
+      "notLinked": "Não vinculado ao OIDC"
+    },
+    "actions": {
+      "generateLink": "Link de vínculo",
+      "manualLink": "Vincular por Subject",
+      "editLink": "Editar Subject",
+      "unlink": "Desvincular"
+    },
+    "fields": {
+      "subjectPlaceholder": "OIDC Subject (sub)",
+      "emailPlaceholder": "E-mail (opcional)"
+    }
   }
 }

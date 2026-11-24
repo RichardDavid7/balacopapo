@@ -74,5 +74,10 @@
   "Emoji",
   "Spaces",
   "commit {{commit}} · ",
-  "Sticker"
+  "Sticker",
+  "OIDC / SSO",
+  "Client ID",
+  "Issuer URL",
+  "OIDC Subject (sub)",
+  "Admin"
 ]

@@ -18,6 +18,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get('redirect');
+  const oidcErrorCode = searchParams.get('oidc_error');
 
   // AGPL § 13: anonymous users must be able to reach the source of the running
   // version. Fetched from the unauthenticated public info endpoint.
@@ -29,6 +30,19 @@ export function LoginPage() {
       .catch(() => { /* Non-critical — link is simply omitted if unreachable. */ });
     return () => { cancelled = true; };
   }, []);
+
+  const oidcErrorMessage = oidcErrorCode
+    ? t(`auth:oidc.errors.${oidcErrorCode}`, { defaultValue: t('auth:oidc.errors.generic') })
+    : '';
+
+  const handleOidcLogin = () => {
+    const params = new URLSearchParams();
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      params.set('redirect', redirect);
+    }
+    const qs = params.toString();
+    window.location.assign(`/api/auth/oidc/start${qs ? `?${qs}` : ''}`);
+  };
 
   useEffect(() => {
     if (retryAfter <= 0) return;
@@ -85,69 +99,99 @@ export function LoginPage() {
           <p className="text-txt-tertiary mt-1">{t('auth:login.subtitle')}</p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {retryAfter > 0 && (
-            <div className="mb-4 p-3 bg-accent-amber/10 border border-accent-amber/30 rounded text-sm">
-              <p className="font-medium text-accent-amber">{t('auth:login.rateLimited.title')}</p>
-              <p className="text-txt-secondary mt-0.5">{t('auth:login.rateLimited.retryIn', { seconds: retryAfter })}</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-4 p-3 bg-accent-rose/10 border border-accent-rose/30 rounded text-txt-danger text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="mb-5">
-            <label className="block text-xs font-bold text-txt-secondary uppercase mb-2">
-              {t('common:labels.username')} <span className="text-txt-danger">*</span>
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input-standard w-full py-2.5"
-              autoFocus
-              autoComplete="username"
-            />
+        {oidcErrorMessage && (
+          <div className="mb-4 p-3 bg-accent-rose/10 border border-accent-rose/30 rounded text-txt-danger text-sm">
+            {oidcErrorMessage}
           </div>
+        )}
 
+        {instanceInfo?.oidc?.enabled && (
           <div className="mb-5">
-            <label className="block text-xs font-bold text-txt-secondary uppercase mb-2">
-              {t('common:labels.password')} <span className="text-txt-danger">*</span>
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-standard w-full py-2.5"
-              autoComplete="current-password"
-            />
+            <button
+              type="button"
+              onClick={handleOidcLogin}
+              className="w-full py-2.5 bg-surface-overlay hover:bg-surface-hover border border-border-subtle text-txt-primary font-medium rounded transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4 text-accent-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              {t('auth:oidc.signInWith', { provider: instanceInfo.oidc.displayName })}
+            </button>
+            {!instanceInfo.oidc.passwordLoginDisabled && (
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-border-subtle" />
+                <span className="text-xs text-txt-tertiary uppercase">{t('auth:oidc.orPassword')}</span>
+                <div className="flex-1 h-px bg-border-subtle" />
+              </div>
+            )}
           </div>
+        )}
 
-          <button
-            type="submit"
-            disabled={isDisabled}
-            className="w-full py-2.5 bg-accent-primary hover:bg-accent-primary/80 text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {retryAfter > 0
-              ? t('auth:login.rateLimited.retryIn', { seconds: retryAfter })
-              : isLoading
-                ? t('auth:login.submitting')
-                : t('common:actions.logIn')}
-          </button>
+        {!instanceInfo?.oidc?.passwordLoginDisabled && (
+          <form onSubmit={handleSubmit}>
+            {retryAfter > 0 && (
+              <div className="mb-4 p-3 bg-accent-amber/10 border border-accent-amber/30 rounded text-sm">
+                <p className="font-medium text-accent-amber">{t('auth:login.rateLimited.title')}</p>
+                <p className="text-txt-secondary mt-0.5">{t('auth:login.rateLimited.retryIn', { seconds: retryAfter })}</p>
+              </div>
+            )}
 
-          <p className="mt-3 text-sm text-txt-tertiary">
-            <Trans
-              t={t}
-              i18nKey="auth:login.registerPrompt"
-              components={{
-                actionLink: <Link to={`/register${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="text-accent-primary hover:underline" />,
-              }}
-            />
-          </p>
-        </form>
+            {error && (
+              <div className="mb-4 p-3 bg-accent-rose/10 border border-accent-rose/30 rounded text-txt-danger text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-txt-secondary uppercase mb-2">
+                {t('common:labels.username')} <span className="text-txt-danger">*</span>
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input-standard w-full py-2.5"
+                autoFocus
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-txt-secondary uppercase mb-2">
+                {t('common:labels.password')} <span className="text-txt-danger">*</span>
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-standard w-full py-2.5"
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isDisabled}
+              className="w-full py-2.5 bg-accent-primary hover:bg-accent-primary/80 text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {retryAfter > 0
+                ? t('auth:login.rateLimited.retryIn', { seconds: retryAfter })
+                : isLoading
+                  ? t('auth:login.submitting')
+                  : t('common:actions.logIn')}
+            </button>
+
+            <p className="mt-3 text-sm text-txt-tertiary">
+              <Trans
+                t={t}
+                i18nKey="auth:login.registerPrompt"
+                components={{
+                  actionLink: <Link to={`/register${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="text-accent-primary hover:underline" />,
+                }}
+              />
+            </p>
+          </form>
+        )}
 
         {instanceInfo && (
           <div className="mt-6 pt-4 border-t border-white/[0.04] flex justify-center">

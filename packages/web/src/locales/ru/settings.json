@@ -326,7 +326,8 @@
       "users": "Пользователи",
       "updates": "Обновления",
       "telemetry": "Привет",
-      "audio": "Аудио"
+      "audio": "Аудио",
+      "oidc": "OIDC / SSO"
     }
   },
   "keybinds": {

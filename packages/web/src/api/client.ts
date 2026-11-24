@@ -52,6 +52,10 @@ import type {
   AdminUserListResponse,
   AdminUser,
   AdminResetPasswordResponse,
+  AdminOidcConfigResponse,
+  AdminOidcUsersResponse,
+  AdminOidcLinkRequest,
+  AdminOidcLinkTokenResponse,
   InstanceUpdateStatus,
   ExploreSpace,
   JoinRequest,
@@ -227,6 +231,7 @@ export class BackspaceApiClient {
     checkUsername: (username: string) => Promise<CheckUsernameResponse>;
     checkInvite: (token: string) => Promise<CheckInviteResponse>;
     attachProof: (targetDomain: string) => Promise<AttachProofResponse>;
+    exchangeOidcTicket: (ticket: string) => Promise<AuthResponse>;
   };
 
   readonly users: {
@@ -443,6 +448,13 @@ export class BackspaceApiClient {
       set: (enabled: boolean) => Promise<TelemetryStatus>;
       preview: () => Promise<TelemetryPayload>;
     };
+    oidc: {
+      getConfig: () => Promise<AdminOidcConfigResponse>;
+      listUsers: (q?: string) => Promise<AdminOidcUsersResponse>;
+      linkUser: (data: AdminOidcLinkRequest) => Promise<{ success: boolean }>;
+      createLinkToken: (userId: string) => Promise<AdminOidcLinkTokenResponse>;
+      unlinkUser: (userId: string) => Promise<{ success: boolean }>;
+    };
   };
 
   stickers: {
@@ -639,6 +651,8 @@ export class BackspaceApiClient {
         request<CheckInviteResponse>('GET', `/auth/check-invite?token=${encodeURIComponent(token)}`, undefined, false),
       attachProof: (targetDomain: string) =>
         request<AttachProofResponse>('POST', '/auth/attach-proof', { targetDomain }),
+      exchangeOidcTicket: (ticket: string) =>
+        request<AuthResponse>('POST', '/auth/oidc/exchange', { ticket }, false),
     };
 
     this.users = {
@@ -1078,6 +1092,17 @@ export class BackspaceApiClient {
         get: () => request<TelemetryStatus>('GET', '/admin/telemetry'),
         set: (enabled) => request<TelemetryStatus>('PUT', '/admin/telemetry', { enabled }),
         preview: () => request<TelemetryPayload>('GET', '/admin/telemetry/preview'),
+      },
+      oidc: {
+        getConfig: () => request<AdminOidcConfigResponse>('GET', '/admin/oidc/config'),
+        listUsers: (q?: string) =>
+          request<AdminOidcUsersResponse>('GET', q ? `/admin/oidc/users?q=${encodeURIComponent(q)}` : '/admin/oidc/users'),
+        linkUser: (data: AdminOidcLinkRequest) =>
+          request<{ success: boolean }>('POST', '/admin/oidc/links', data),
+        createLinkToken: (userId: string) =>
+          request<AdminOidcLinkTokenResponse>('POST', '/admin/oidc/link-token', { userId }),
+        unlinkUser: (userId: string) =>
+          request<{ success: boolean }>('DELETE', `/admin/oidc/links/${encodeURIComponent(userId)}`),
       },
     };
   }

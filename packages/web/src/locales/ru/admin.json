@@ -530,5 +530,54 @@
       "label": "Включить звуковую панель",
       "description": "Разрешает воспроизведение и управление звуками на этом инстансе. Отключение скрывает кнопки панели в интерфейсе."
     }
+  },
+  "oidc": {
+    "title": "OIDC / Единый вход (SSO)",
+    "subtitle": "Состояние внешнего провайдера и привязка существующих локальных аккаунтов к OIDC.",
+    "loadFailed": "Не удалось загрузить настройки OIDC.",
+    "subjectRequired": "Укажите идентификатор OIDC Subject (sub).",
+    "linkFailed": "Не удалось привязать учётную запись OIDC.",
+    "linkTokenFailed": "Не удалось создать ссылку привязки.",
+    "unlinkFailed": "Не удалось отвязать учётную запись OIDC.",
+    "notSet": "Не задано",
+    "noEmail": "без почты",
+    "status": {
+      "active": "Активен",
+      "inactive": "Неактивен"
+    },
+    "configCard": {
+      "title": "Конфигурация через переменные Docker",
+      "dockerHint": "Настраивается только через переменные окружения Docker вне базы данных, чтобы при сбое всё легко восстанавливалось.",
+      "callbackUrl": "URL обратного вызова (Callback)",
+      "issuer": "URL издателя (Issuer)",
+      "clientId": "Client ID",
+      "syncAvatar": "Синхронизация аватара",
+      "autoRegister": "Автосоздание пользователей",
+      "adminGroups": "Группы администраторов (claim: {{claim}})",
+      "noAdminGroups": "Не заданы (укажите OIDC_ADMIN_GROUPS)"
+    },
+    "generatedLink": {
+      "title": "Одноразовая ссылка OIDC для @{{username}}",
+      "hint": "Откройте или отправьте эту ссылку до {{time}}. Вход через OIDC привяжет личность к этому существующему аккаунту."
+    },
+    "users": {
+      "title": "Существующие пользователи",
+      "subtitle": "Привяжите локальные аккаунты, чтобы сохранить историю, группы и роли при входе через OIDC.",
+      "searchPlaceholder": "Поиск по имени, почте или subject…",
+      "empty": "Локальные пользователи не найдены.",
+      "adminBadge": "Админ",
+      "linkedSummary": "Привязан · sub: {{subject}} ({{email}})",
+      "notLinked": "Не привязан к OIDC"
+    },
+    "actions": {
+      "generateLink": "Ссылка привязки",
+      "manualLink": "Привязать по Subject",
+      "editLink": "Изменить Subject",
+      "unlink": "Отвязать"
+    },
+    "fields": {
+      "subjectPlaceholder": "OIDC Subject (sub)",
+      "emailPlaceholder": "Эл. почта (необязательно)"
+    }
   }
 }

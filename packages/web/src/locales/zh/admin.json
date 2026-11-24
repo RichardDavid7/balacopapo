@@ -485,5 +485,54 @@
       "label": "启用音效板",
       "description": "允许用户在此实例上播放和管理音效板片段。禁用后将隐藏界面中的所有音效板按钮。"
     }
+  },
+  "oidc": {
+    "title": "OIDC / 单点登录 (SSO)",
+    "subtitle": "查看外部身份提供商状态并将现有本地账号关联到 OIDC。",
+    "loadFailed": "加载 OIDC 设置失败。",
+    "subjectRequired": "请输入 OIDC Subject (sub) 标识符。",
+    "linkFailed": "关联 OIDC 账号失败。",
+    "linkTokenFailed": "生成关联链接失败。",
+    "unlinkFailed": "取消关联 OIDC 账号失败。",
+    "notSet": "未设置",
+    "noEmail": "无邮箱",
+    "status": {
+      "active": "已启用",
+      "inactive": "未启用"
+    },
+    "configCard": {
+      "title": "Docker 环境变量配置",
+      "dockerHint": "仅通过数据库外的 Docker 环境变量配置，出现问题时可随时修改并重启恢复。",
+      "callbackUrl": "回调 / 重定向 URL",
+      "issuer": "Issuer URL",
+      "clientId": "Client ID",
+      "syncAvatar": "同步头像",
+      "autoRegister": "自动创建新用户",
+      "adminGroups": "管理员组 (claim: {{claim}})",
+      "noAdminGroups": "未配置（请设置 OIDC_ADMIN_GROUPS）"
+    },
+    "generatedLink": {
+      "title": "@{{username}} 的一次性 OIDC 关联链接",
+      "hint": "请在 {{time}} 之前打开或发送此一次性链接。通过 OIDC 登录后即可将该身份绑定到此现有账号。"
+    },
+    "users": {
+      "title": "现有用户",
+      "subtitle": "关联已存在的本地账号，使用 OIDC 登录时保留历史记录、群组和角色。",
+      "searchPlaceholder": "搜索用户、邮箱或 Subject…",
+      "empty": "未找到本地用户。",
+      "adminBadge": "管理员",
+      "linkedSummary": "已关联 · sub: {{subject}} ({{email}})",
+      "notLinked": "未关联 OIDC"
+    },
+    "actions": {
+      "generateLink": "一键关联链接",
+      "manualLink": "按 Subject 关联",
+      "editLink": "编辑 Subject",
+      "unlink": "取消关联"
+    },
+    "fields": {
+      "subjectPlaceholder": "OIDC Subject (sub)",
+      "emailPlaceholder": "邮箱（可选）"
+    }
   }
 }

@@ -500,5 +500,54 @@
       "label": "Soundboard aktivieren",
       "description": "Ermöglicht das Abspielen und Verwalten von Soundboard-Clips. Beim Deaktivieren werden alle Soundboard-Schaltflächen ausgeblendet."
     }
+  },
+  "oidc": {
+    "title": "OIDC / Einmalanmeldung (SSO)",
+    "subtitle": "Status des externen Identitätsanbieters anzeigen und bestehende lokale Konten mit OIDC verknüpfen.",
+    "loadFailed": "OIDC-Einstellungen konnten nicht geladen werden.",
+    "subjectRequired": "Bitte die OIDC-Subject-ID (sub) angeben.",
+    "linkFailed": "OIDC-Konto konnte nicht verknüpft werden.",
+    "linkTokenFailed": "Verknüpfungslink konnte nicht erstellt werden.",
+    "unlinkFailed": "OIDC-Verknüpfung konnte nicht entfernt werden.",
+    "notSet": "Nicht gesetzt",
+    "noEmail": "keine E-Mail",
+    "status": {
+      "active": "Aktiv",
+      "inactive": "Inaktiv"
+    },
+    "configCard": {
+      "title": "Docker-Umgebungskonfiguration",
+      "dockerHint": "Ausschließlich über Docker-Umgebungsvariablen außerhalb der Datenbank konfiguriert, damit Fehler jederzeit leicht behoben werden können.",
+      "callbackUrl": "Callback- / Weiterleitungs-URL",
+      "issuer": "Issuer-URL",
+      "clientId": "Client-ID",
+      "syncAvatar": "Profilbild-Synchronisierung",
+      "autoRegister": "Neue Benutzer automatisch anlegen",
+      "adminGroups": "Admin-Gruppen (Claim: {{claim}})",
+      "noAdminGroups": "Keine konfiguriert (OIDC_ADMIN_GROUPS setzen)"
+    },
+    "generatedLink": {
+      "title": "Einmaliger OIDC-Link für @{{username}}",
+      "hint": "Diesen einmaligen Link vor {{time}} öffnen oder teilen. Die OIDC-Anmeldung verknüpft die Identität mit diesem bestehenden Konto."
+    },
+    "users": {
+      "title": "Bestehende Benutzer",
+      "subtitle": "Verknüpfe bestehende lokale Konten, damit Verlauf, Gruppen und Rollen bei der OIDC-Anmeldung erhalten bleiben.",
+      "searchPlaceholder": "Benutzer, E-Mail oder Subject suchen…",
+      "empty": "Keine lokalen Benutzer gefunden.",
+      "adminBadge": "Admin",
+      "linkedSummary": "Verknüpft · sub: {{subject}} ({{email}})",
+      "notLinked": "Nicht mit OIDC verknüpft"
+    },
+    "actions": {
+      "generateLink": "Einmal-Link",
+      "manualLink": "Per Subject verknüpfen",
+      "editLink": "Subject bearbeiten",
+      "unlink": "Trennen"
+    },
+    "fields": {
+      "subjectPlaceholder": "OIDC Subject (sub)",
+      "emailPlaceholder": "E-Mail (optional)"
+    }
   }
 }

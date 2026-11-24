@@ -37,6 +37,21 @@ services:
       # install.sh generates this before bringing the stack up; this guard only
       # bites the manual `cp .env.example .env && docker compose up` path.
       - "JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env - generate one with: openssl rand -hex 32}"
+      # ── OIDC / SSO (configured via Docker env vars, outside the database) ──
+      # Set these in .env or directly in your container manager (TrueNAS / Portainer).
+      # If something goes wrong, set OIDC_ENABLED=false and restart — local login stays intact.
+      - OIDC_ENABLED=${OIDC_ENABLED:-false}
+      - OIDC_ISSUER_URL=${OIDC_ISSUER_URL:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-SSO}
+      - OIDC_SCOPES=${OIDC_SCOPES:-openid profile email groups}
+      - OIDC_AUTO_REGISTER=${OIDC_AUTO_REGISTER:-true}
+      - OIDC_SYNC_AVATAR=${OIDC_SYNC_AVATAR:-true}
+      - OIDC_GROUPS_CLAIM=${OIDC_GROUPS_CLAIM:-groups}
+      - OIDC_ADMIN_GROUPS=${OIDC_ADMIN_GROUPS:-}
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-}
+      - OIDC_DISABLE_PASSWORD_LOGIN=${OIDC_DISABLE_PASSWORD_LOGIN:-false}
     networks:
       - internal
     healthcheck:

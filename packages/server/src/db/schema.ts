@@ -874,3 +874,18 @@ export const ipBans = sqliteTable('ip_bans', {
 }, (table) => ({
   expiresIdx: index('idx_ip_bans_expires_at').on(table.expiresAt),
 }));
+
+export const userOidcLinks = sqliteTable('user_oidc_links', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  issuer: text('issuer').notNull(),
+  subject: text('subject').notNull(),
+  email: text('email'),
+  preferredUsername: text('preferred_username'),
+  lastAvatarSourceUrl: text('last_avatar_source_url'),
+  linkedAt: integer('linked_at').notNull(),
+  lastLoginAt: integer('last_login_at'),
+}, (table) => ({
+  issuerSubjectUnique: uniqueIndex('idx_user_oidc_links_issuer_subject').on(table.issuer, table.subject),
+  userIdx: index('idx_user_oidc_links_user_id').on(table.userId),
+}));

@@ -325,7 +325,8 @@
       "users": "Usuários",
       "updates": "Atualizações",
       "telemetry": "Oi",
-      "audio": "Áudio"
+      "audio": "Áudio",
+      "oidc": "OIDC / SSO"
     }
   },
   "keybinds": {

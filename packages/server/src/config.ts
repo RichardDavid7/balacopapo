@@ -331,6 +331,23 @@ export const config = {
     offsiteCmd: envOptional('BACKUP_OFFSITE_CMD'),
     disabled: envBool('BACKUP_DISABLED', false),
   },
+  oidc: {
+    enabled: envBool('OIDC_ENABLED', false),
+    issuerUrl: envOptional('OIDC_ISSUER_URL')?.trim().replace(/\/+$/, ''),
+    clientId: envOptional('OIDC_CLIENT_ID')?.trim(),
+    clientSecret: envOptional('OIDC_CLIENT_SECRET')?.trim(),
+    redirectUri: envOptional('OIDC_REDIRECT_URI')?.trim(),
+    displayName: envOptional('OIDC_DISPLAY_NAME')?.trim() || 'SSO',
+    scopes: envOptional('OIDC_SCOPES')?.trim() || 'openid profile email groups',
+    autoRegister: envBool('OIDC_AUTO_REGISTER', true),
+    syncAvatar: envBool('OIDC_SYNC_AVATAR', true),
+    groupsClaim: envOptional('OIDC_GROUPS_CLAIM')?.trim() || 'groups',
+    adminGroups: (envOptional('OIDC_ADMIN_GROUPS') ?? '')
+      .split(',')
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0),
+    disablePasswordLogin: envBool('OIDC_DISABLE_PASSWORD_LOGIN', false),
+  },
 } as const;
 
 if (config.jwtSecret.length < 32) {

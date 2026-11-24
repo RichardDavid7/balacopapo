@@ -500,5 +500,54 @@
       "label": "Enable Soundboard",
       "description": "Allow users to play and manage soundboard clips on this instance. Disabling hides soundboard controls everywhere."
     }
+  },
+  "oidc": {
+    "title": "OIDC / Single Sign-On",
+    "subtitle": "Manage external identity provider status and link existing local accounts to OIDC.",
+    "loadFailed": "Failed to load OIDC settings.",
+    "subjectRequired": "Enter the OIDC Subject (sub) identifier.",
+    "linkFailed": "Failed to link OIDC account.",
+    "linkTokenFailed": "Failed to generate link URL.",
+    "unlinkFailed": "Failed to unlink OIDC account.",
+    "notSet": "Not set",
+    "noEmail": "no email",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "configCard": {
+      "title": "Docker Environment Configuration",
+      "dockerHint": "Configured exclusively via Docker environment variables outside the database so you can disable or fix it anytime without getting locked out.",
+      "callbackUrl": "Callback / Redirect URL",
+      "issuer": "Issuer URL",
+      "clientId": "Client ID",
+      "syncAvatar": "Profile Picture Sync",
+      "autoRegister": "Auto-create New Users",
+      "adminGroups": "Admin Groups (claim: {{claim}})",
+      "noAdminGroups": "None configured (set OIDC_ADMIN_GROUPS)"
+    },
+    "generatedLink": {
+      "title": "One-click OIDC link for @{{username}}",
+      "hint": "Send or open this single-use link before {{time}}. Signing in through OIDC will bind that identity to this existing account."
+    },
+    "users": {
+      "title": "Existing Users",
+      "subtitle": "Link existing local accounts so they keep their history, groups, and roles when signing in via OIDC.",
+      "searchPlaceholder": "Search user, email or subject…",
+      "empty": "No local users found.",
+      "adminBadge": "Admin",
+      "linkedSummary": "Linked · sub: {{subject}} ({{email}})",
+      "notLinked": "Not linked to OIDC"
+    },
+    "actions": {
+      "generateLink": "One-click link",
+      "manualLink": "Link by Subject",
+      "editLink": "Edit Subject",
+      "unlink": "Unlink"
+    },
+    "fields": {
+      "subjectPlaceholder": "OIDC Subject (sub)",
+      "emailPlaceholder": "Email (optional)"
+    }
   }
 }

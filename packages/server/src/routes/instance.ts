@@ -4,6 +4,7 @@ import { getDb, getRawDb, schema } from '../db/index.js';
 import { config } from '../config.js';
 import { getInstanceId } from '../utils/federationEpoch.js';
 import { readDirectoryBrowseEnabled } from '../directory/state.js';
+import { isOidcConfigured } from '../utils/oidc.js';
 import type { InstanceInfoResponse } from '@backspace/shared';
 
 export async function instanceRoutes(app: FastifyInstance): Promise<void> {
@@ -44,6 +45,11 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
       // Read by the web client alone, to hide the Support card. A missing row
       // falls back to the column default.
       supportCardEnabled: settings?.supportCardEnabled ?? true,
+      oidc: {
+        enabled: isOidcConfigured(),
+        displayName: config.oidc.displayName,
+        passwordLoginDisabled: config.oidc.disablePasswordLogin && isOidcConfigured(),
+      },
     };
 
     return reply.code(200).send(response);

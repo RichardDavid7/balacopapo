@@ -1349,6 +1349,66 @@ export interface InstanceInfoResponse {
   // page. It only hides that card in the web client and changes nothing the
   // server does.
   supportCardEnabled: boolean;
+  /** Public OIDC/SSO status for the login screen (configured via Docker env vars). */
+  oidc?: OidcPublicInfo;
+}
+
+export interface OidcPublicInfo {
+  enabled: boolean;
+  displayName: string;
+  passwordLoginDisabled: boolean;
+}
+
+export interface AdminOidcConfigResponse {
+  enabled: boolean;
+  configured: boolean;
+  issuerUrl: string | null;
+  clientId: string | null;
+  hasClientSecret: boolean;
+  displayName: string;
+  scopes: string;
+  autoRegister: boolean;
+  syncAvatar: boolean;
+  groupsClaim: string;
+  adminGroups: string[];
+  passwordLoginDisabled: boolean;
+  callbackUrl: string;
+}
+
+export interface AdminOidcLinkInfo {
+  issuer: string;
+  subject: string;
+  email: string | null;
+  preferredUsername: string | null;
+  linkedAt: number;
+  lastLoginAt: number | null;
+}
+
+export interface AdminOidcUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatar: string | null;
+  avatarColor: string | null;
+  isAdmin: boolean;
+  createdAt: number;
+  oidcLink: AdminOidcLinkInfo | null;
+}
+
+export interface AdminOidcUsersResponse {
+  users: AdminOidcUser[];
+}
+
+export interface AdminOidcLinkRequest {
+  userId: string;
+  subject: string;
+  email?: string;
+  preferredUsername?: string;
+}
+
+export interface AdminOidcLinkTokenResponse {
+  linkUrl: string;
+  expiresAt: number;
 }
 
 /**

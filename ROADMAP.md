@@ -58,7 +58,7 @@ Itens já identificados durante os testes e uso real:
   5. **Failover:** se a rota P2P degradar (perda de pacote/ping alto/queda), volta automaticamente para o LiveKit da instância.
 
 ### Fase 3 — Administração, Retenção de Arquivos e Segurança
-- [ ] **OIDC (SSO)** — login integrado com provedores OpenID Connect (Authentik, Keycloak, Google, etc.), usando o navegador do sistema + retorno via deep link `balacopapo://auth/callback` (Fase 0).
+- [x] **OIDC (SSO)** — login integrado com provedores OpenID Connect (Authentik, Keycloak, Pocket ID, Authelia, etc.) configurado via variáveis de ambiente Docker (fora do banco), migração `0040_oidc_links.sql` (`(issuer, sub) -> users.id`), sync de foto de perfil (`OIDC_SYNC_AVATAR`), grupos de administradores (`OIDC_ADMIN_GROUPS`), painel **OIDC / SSO** nas Configurações da Instância para vincular usuários existentes (manualmente por `sub` ou via link de vínculo de 1 clique), e callback web/deep link (`balacopapo://auth/callback`).
 - [x] **Ban por IP + ciclo automático + integração OPNsense/Nginx** — migração `0039_ip_bans.sql`, expiração automática em dias (`durationDays` / `expiresAt`), auto-ban de evasão se uma conta banida tentar entrar de um novo IP, e feed `GET /api/admin/ip-bans/feed?format=opnsense|nginx` (compatível nativamente com Firewall Alias `URL Table (IPs)` do OPNsense e `deny` do Nginx).
 - [ ] **Retenção de arquivos no chat (controlada pela instância):**
   - A **instância define quais grupos têm permissão para ativar a retenção de arquivos**.
