@@ -92,7 +92,7 @@ export function useP2PMeshSync(): void {
  * Shows connected direct peer count + best RTT and opens the P2P Mesh Map modal.
  */
 export function P2PStatusButton() {
-  const { t } = useTranslation(['voice']);
+  const { t } = useTranslation(['voice', 'common']);
   const enabled = useP2PStore((s) => s.enabled);
   const peersMap = useP2PStore((s) => s.peers);
   const transfers = useP2PStore((s) => s.transfers);
@@ -135,7 +135,7 @@ export function P2PStatusButton() {
       {connectedPeers.length > 0 && (
         <span className="tabular-nums opacity-90">
           {connectedPeers.length}
-          {bestRtt !== null ? ` · ${bestRtt}ms` : ''}
+          {bestRtt !== null ? ` · ${t('common:units.ms', { value: bestRtt })}` : ''}
         </span>
       )}
       {activeTransfers > 0 && (
