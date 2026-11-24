@@ -30,6 +30,12 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        protocol_handlers: [
+          {
+            protocol: 'web+balacopapo',
+            url: '/open?url=%s',
+          },
+        ],
       },
       workbox: {
         navigateFallback: '/index.html',

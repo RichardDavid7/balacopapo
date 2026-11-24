@@ -9,6 +9,22 @@ import { TelemetryAsk } from './components/telemetry/TelemetryAsk';
 import { ScreenShareSetup } from './components/voice/ScreenShareSetup';
 import { useAuthStore } from './stores/authStore';
 import { isElectron } from './platform/platform';
+import { parseDeepLinkUrl } from './platform/deepLink';
+
+function DeepLinkOpenRedirect() {
+  const [searchParams] = useSearchParams();
+  const rawUrl = searchParams.get('url');
+  const target = rawUrl ? parseDeepLinkUrl(rawUrl) : null;
+  return <Navigate to={target ?? '/channels/@me'} replace />;
+}
+
+function OidcCallbackRedirect() {
+  const [searchParams] = useSearchParams();
+  const token = useAuthStore((s) => s.token);
+  const query = searchParams.toString();
+  if (token) return <Navigate to="/channels/@me" replace />;
+  return <Navigate to={query ? `/login?${query}` : '/login'} replace />;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -87,6 +103,14 @@ export function App() {
           <Route
             path="/join/:inviteCode"
             element={<JoinPage />}
+          />
+          <Route
+            path="/open"
+            element={<DeepLinkOpenRedirect />}
+          />
+          <Route
+            path="/auth/callback"
+            element={<OidcCallbackRedirect />}
           />
           <Route
             path="/explore"

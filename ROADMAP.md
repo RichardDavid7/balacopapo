@@ -33,9 +33,9 @@ Itens já identificados durante os testes e uso real:
 ### Fase 0 — Identidade, Terminologia e Personalização
 - [x] **Repositório e imagem Docker próprios (`balacopapo`)** — monorepo unificado (`packages/` + `clients/desktop` + `clients/android`), imagem `ghcr.io/richarddavid7/balacopapo`, releases multiplataforma (`release.yml`) e `TheZwiss/backspace` como `remote upstream` para puxar correções de segurança.
 - [x] **Rebrand para Balacopapo** (nome, títulos, metadados PWA/Desktop/Android, locales nos 5 idiomas e README do monorepo; ícones personalizados podem ser substituídos depois).
-- [ ] **Suporte a Deep Links / "Abrir com Balacopapo"** — esquema customizado `balacopapo://` (Electron `setAsDefaultProtocolClient`, PWA `protocol_handlers`, Android App Links / iOS Universal Links) para:
-  - Botão **"Abrir com Balacopapo"** em links de convite (abre direto no app desktop/mobile).
-  - Callback seguro do **OIDC** quando o login abre no navegador externo e retorna ao app (`balacopapo://auth/callback`).
+- [x] **Suporte a Deep Links / "Abrir com Balacopapo"** — esquema customizado `balacopapo://` (Tauri `deep-link`, PWA `protocol_handlers` `web+balacopapo`, Android `AndroidManifest.xml` intent-filter + parser compartilhado `deepLink.ts`):
+  - Botão **"Abrir com Balacopapo"** na página de convite (`/join/:inviteCode`) nos 5 idiomas.
+  - Rota de callback segura `/auth/callback` pronta para o **OIDC** (`balacopapo://auth/callback`).
 - [ ] **Ajuste de terminologia:** trocar *Espaço* → **Grupo** e *Grupo* (DM em grupo) → **Grupo Direto**.
 - [ ] **Trocar nome de usuário** (fluxo seguro com validação de unicidade e atualização em tempo real).
 - [ ] **Temas de interface** (sistema de temas sobre os tokens CSS do Aether Drift + seletor nas configurações).
