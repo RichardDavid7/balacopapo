@@ -19,17 +19,26 @@ export function useVoiceParticipantMeta(participant: ParticipantInfo) {
   const spaces = useSpaceStore((s) => s.spaces);
   const dmChannels = useSpaceStore((s) => s.dmChannels);
   const channelOriginMap = useSpaceStore((s) => s.channelOriginMap);
+  const channelToSpaceMap = useSpaceStore((s) => s.channelToSpaceMap);
+  const activeChannelId = useVoiceStore((s) => s.activeChannelId);
   const sessionOrigin = useVoiceStore(voiceSessionOrigin);
 
   return useMemo(() => {
-    // 1. Try space members (primary — covers space voice channels)
-    const member = members.find(m => m.userId === participant.userId);
+    const voiceSpaceId = activeChannelId ? channelToSpaceMap.get(activeChannelId) : undefined;
+
+    // 1. Try space members (primary — covers space voice channels).
+    // When in a space voice channel, prefer the member row for that space and honor space nickname.
+    const member = voiceSpaceId
+      ? (members.find(m => m.userId === participant.userId && m.spaceId === voiceSpaceId)
+        ?? members.find(m => m.userId === participant.userId))
+      : members.find(m => m.userId === participant.userId);
     if (member?.user) {
       const origin = spaces.find(sp => sp.id === member.spaceId)?._instanceOrigin ?? '';
       const canonical = getCanonicalUserView(member.user as User, origin);
       const { baseName } = parseFederatedUsername(canonical.username);
+      const spaceNickname = voiceSpaceId && member.spaceId === voiceSpaceId ? member.nickname : null;
       return {
-        displayName: canonical.displayName ?? baseName,
+        displayName: spaceNickname || canonical.displayName || baseName,
         avatar: canonical.avatar ?? null,
         user: canonical,
         origin,
@@ -71,5 +80,5 @@ export function useVoiceParticipantMeta(participant: ParticipantInfo) {
     // 4. Final fallback — parse username from LiveKit identity
     const { baseName } = parseFederatedUsername(participant.username);
     return { displayName: baseName, avatar: null, user: null as User | null, origin: '' };
-  }, [members, spaces, dmChannels, channelOriginMap, sessionOrigin, participant.userId, participant.username, participant.cachedUser]);
+  }, [members, spaces, dmChannels, channelOriginMap, channelToSpaceMap, activeChannelId, sessionOrigin, participant.userId, participant.username, participant.cachedUser]);
 }

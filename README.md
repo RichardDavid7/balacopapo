@@ -25,9 +25,27 @@ Todas as plataformas são publicadas juntas em cada versão na página de [Relea
 - **Controle completo de áudio Opus:** política hierárquica *Instância → Espaço → Categoria → Canal → Usuário*, modo Voz vs. Música, estéreo, telemetria em tempo real e suspensão de áudio em inatividade.
 - **Soundboard integrado:** pastas, busca, permissões dedicadas, limites por instância/espaço e editor WAV direto no navegador com recorte e normalização.
 - **Seletor rápido de status:** Online, Ausente e Não Perturbe com timer de reversão automática.
+- **Troca segura de nome de usuário:** baseada em ID imutável por conta (preservando menções `@`, histórico e futuro vínculo OIDC).
+- **Deep Links (`balacopapo://`):** botão **"Abrir com Balacopapo"** em links de convite + integração nativa com Desktop, Android e PWA.
 - **Clientes nativos leves:** app desktop em Tauri v2 (modo standby de baixo consumo, tray, deep links `balacopapo://` e auto-update) e app Android nativo em Kotlin/Compose.
 
-Veja o planejamento completo em [ROADMAP.md](./ROADMAP.md).
+---
+
+## Plano para as Próximas Versões
+
+Resumo das próximas fases do projeto (detalhes completos em [ROADMAP.md](./ROADMAP.md)):
+
+| Fase | Foco | Principais Entregas |
+|---|---|---|
+| **Fase 0** *(Concluída)* | **Identidade e Fundação** | Monorepo unificado + Releases multiplataforma, rebrand Balacopapo, Deep Links `balacopapo://`, terminologia (*Grupo* / *Grupo Direto*) e troca segura de `@username` |
+| **Fase 1** *(Próxima)* | **Voz, Vídeo e Rede** | Buffer anti-jitter/perda de pacote (`jitterBufferTarget` + Opus FEC), orçamento dinâmico de banda + fim das quedas para 320p, Zoom & Pan na stream, recuperação pós-sleep e teste de microfone (loopback local) |
+| **Fase 2** | **Malha P2P Híbrida** | Envio P2P de arquivos via WebRTC DataChannel → mapa visual de latência entre peers → chamadas P2P diretas com sobrevivência e failover automático para o LiveKit da instância |
+| **Fase 3** | **Administração e Segurança** | Login via **OIDC (SSO)** com retorno por deep link, ban por IP + proteção contra força bruta e retenção de arquivos por Grupo controlada pela instância |
+| **Fase 4** | **Interação e Acessibilidade** | Clicar/apontar ao vivo na stream (desktop e mobile), indicação de jogo em andamento e modo leigo/acessível no Android |
+| **Fase 5** | **Desktop Nativo Avançado** | Sobreposição (Overlay in-game com quem está falando + avisos de entrada), captura isolada de áudio da janela (WASAPI) e atalhos globais de teclado |
+| **Fase 6** | **Balacopapo Utilidades — Ponte Discord** | Serviço/app companheiro conectando canais de voz Balacopapo ↔ Discord em tempo real |
+| **Fase 7** | **Balacopapo Utilidades — Música & Rádio** | Fila/rádio, YouTube (`yt-dlp` + cache local), Navidrome (Subsonic), DLNA/UPnP e mini-player integrado na barra de voz |
+| **Fase 8** | **Controle Remoto e Personalização** | Acesso remoto seguro (mouse/teclado) com revogação instantânea e sistema de temas customizáveis sobre o Aether Drift |
 
 ---
 

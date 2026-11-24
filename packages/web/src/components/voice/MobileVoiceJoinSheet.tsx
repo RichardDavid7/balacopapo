@@ -542,7 +542,7 @@ export function MobileVoiceJoinSheet({
               {userIds.map((userId) => {
                 const member = members.find((m) => m.userId === userId);
                 const displayName =
-                  member?.user.displayName ?? member?.user.username ?? userId;
+                  member?.nickname || member?.user.displayName || member?.user.username || userId;
                 const avatar = member?.user.avatar ?? null;
                 const avatarColor = member?.user.avatarColor;
                 const wsStatus = voiceUserStates.get(userId);

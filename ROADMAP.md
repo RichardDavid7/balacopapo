@@ -38,7 +38,6 @@ Itens já identificados durante os testes e uso real:
   - Rota de callback segura `/auth/callback` pronta para o **OIDC** (`balacopapo://auth/callback`).
 - [x] **Ajuste de terminologia:** trocar *Espaço* → **Grupo** e *Grupo* (DM em grupo) → **Grupo Direto** (aplicado nos locales `pt` do Web e `values-pt-rBR` do Android).
 - [x] **Trocar nome de usuário** (baseado em `users.id` imutável para preservar menções `@`, histórico e futuro vínculo OIDC; validação de formato/unicidade em `PATCH /api/users/@me`, broadcast `user_updated` em tempo real e campo editável nas Configurações da Conta nos 5 idiomas).
-- [ ] **Temas de interface** (sistema de temas sobre os tokens CSS do Aether Drift + seletor nas configurações).
 
 ### Fase 1 — Estabilidade de Voz, Vídeo e Rede (Prioridade Alta)
 - [ ] **Buffer contra perda de pacote / jitter** — controle de `jitterBufferTarget` / `playoutDelayHint` nos `RTCRtpReceiver` + Opus in-band FEC (`useinbandfec=1`) e opção de ajuste de DTX para eliminar micro-cortes de voz.
@@ -89,8 +88,9 @@ Itens já identificados durante os testes e uso real:
   - **Suporte a DLNA / UPnP** (descobrir e tocar faixas de servidores de mídia na rede local).
   - **Mini-player "Tocando agora" dentro do Balacopapo** — exibe a faixa atual + controles de volume/pular direto na barra de voz (via DataChannel), sem precisar abrir outro app.
 
-### Fase 8 — Controle Remoto de Outro PC *(último)*
+### Fase 8 — Controle Remoto e Personalização *(último)*
 - [ ] **Controlar outro PC** — acesso remoto seguro (mouse e teclado) via app desktop nativo, com permissão explícita do dono da tela e revogação instantânea a qualquer momento.
+- [ ] **Temas de interface** — sistema de temas sobre os tokens CSS do Aether Drift + seletor nas configurações.
 
 ---
 
