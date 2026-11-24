@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Backspace</string>
-    <string name="auth_subtitle">连接到你的 Backspace 实例</string>
+    <string name="app_name">Balacopapo</string>
+    <string name="auth_subtitle">连接到你的 Balacopapo 实例</string>
     <string name="auth_instance_url">实例地址</string>
     <string name="auth_username">用户名</string>
     <string name="auth_password">密码</string>

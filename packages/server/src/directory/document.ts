@@ -126,7 +126,7 @@ export function buildDirectoryDocument(sqlite: Database.Database, ctx: Directory
     schema: 1,
     origin: ctx.origin,
     instance: {
-      name: settings?.instance_name ?? 'Backspace',
+      name: settings?.instance_name ?? 'Balacopapo',
       federatedRegistrationOpen: settings?.federated_registration_open === 1,
       version: ctx.version,
     },

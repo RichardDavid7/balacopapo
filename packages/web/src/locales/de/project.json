@@ -1,10 +1,10 @@
 {
   "nav": {
-    "label": "Backspace",
-    "updatedDot": "Backspace wurde aktualisiert"
+    "label": "Balacopapo",
+    "updatedDot": "Balacopapo wurde aktualisiert"
   },
   "header": {
-    "title": "Backspace",
+    "title": "Balacopapo",
     "tagline": "Open-Source-Chat, den du selbst hosten kannst."
   },
   "whatsNew": {
@@ -15,8 +15,8 @@
     "action": "Versionshinweise lesen"
   },
   "community": {
-    "title": "Der Backspace-Community beitreten",
-    "body": "Sprich mit den Leuten, die Backspace entwickeln, stell Fragen und gib Feedback.",
+    "title": "Der Balacopapo-Community beitreten",
+    "body": "Sprich mit den Leuten, die Balacopapo entwickeln, stell Fragen und gib Feedback.",
     "join": "Beitreten",
     "open": "Öffnen",
     "pending": "Anfrage gesendet",
@@ -42,7 +42,7 @@
   },
   "host": {
     "title": "Eigene Instanz hosten",
-    "body": "Betreibe Backspace auf deinem eigenen Server und lade ein, wen du willst.",
+    "body": "Betreibe Balacopapo auf deinem eigenen Server und lade ein, wen du willst.",
     "action": "Installationsanleitung lesen"
   },
   "desktop": {
