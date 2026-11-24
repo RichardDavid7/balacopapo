@@ -20,11 +20,11 @@ export function useVoiceParticipantMeta(participant: ParticipantInfo) {
   const dmChannels = useSpaceStore((s) => s.dmChannels);
   const channelOriginMap = useSpaceStore((s) => s.channelOriginMap);
   const channelToSpaceMap = useSpaceStore((s) => s.channelToSpaceMap);
-  const activeChannelId = useVoiceStore((s) => s.activeChannelId);
+  const currentVoiceChannelId = useVoiceStore((s) => s.currentVoiceChannelId);
   const sessionOrigin = useVoiceStore(voiceSessionOrigin);
 
   return useMemo(() => {
-    const voiceSpaceId = activeChannelId ? channelToSpaceMap.get(activeChannelId) : undefined;
+    const voiceSpaceId = currentVoiceChannelId ? channelToSpaceMap.get(currentVoiceChannelId) : undefined;
 
     // 1. Try space members (primary — covers space voice channels).
     // When in a space voice channel, prefer the member row for that space and honor space nickname.
@@ -80,5 +80,5 @@ export function useVoiceParticipantMeta(participant: ParticipantInfo) {
     // 4. Final fallback — parse username from LiveKit identity
     const { baseName } = parseFederatedUsername(participant.username);
     return { displayName: baseName, avatar: null, user: null as User | null, origin: '' };
-  }, [members, spaces, dmChannels, channelOriginMap, channelToSpaceMap, activeChannelId, sessionOrigin, participant.userId, participant.username, participant.cachedUser]);
+  }, [members, spaces, dmChannels, channelOriginMap, channelToSpaceMap, currentVoiceChannelId, sessionOrigin, participant.userId, participant.username, participant.cachedUser]);
 }

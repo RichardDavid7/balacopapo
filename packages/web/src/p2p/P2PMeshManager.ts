@@ -71,6 +71,7 @@ export class P2PMeshManager {
   private currentRoomKey: string | null = null;
   private sendSignal: SignalSender | null = null;
   private pingSeq = 0;
+  private transferSeq = 0;
 
   private constructor() {}
 
@@ -192,7 +193,7 @@ export class P2PMeshManager {
       throw new Error('P2P file channel is not open for this peer');
     }
 
-    const transferId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const transferId = `${Date.now()}-${++this.transferSeq}`;
     const store = useP2PStore.getState();
     store.upsertTransfer({
       id: transferId,
