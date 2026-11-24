@@ -56,7 +56,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run OSV-Scanner
-        continue-on-error: true # report-only: uploads findings to GitHub Security tab without blocking unrelated commits
         uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |-
@@ -64,6 +63,19 @@ jobs:
             --lockfile=./pnpm-lock.yaml
             --format=sarif
             --output-file=osv-results.sarif
+      - name: Print OSV findings summary
+        if: failure()
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("osv-results.sarif")) process.exit(0);
+            const sarif = JSON.parse(fs.readFileSync("osv-results.sarif", "utf8"));
+            for (const run of sarif.runs || []) {
+              for (const r of run.results || []) {
+                console.log(`${r.ruleId} :: ${r.message?.text || ""}`);
+              }
+            }
+          '
       - name: Upload OSV SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
