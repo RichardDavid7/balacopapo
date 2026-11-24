@@ -46,6 +46,18 @@ export class AudioManager {
   private activePlaybackCount = 0;
   private idleSuspendTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Local microphone loopback ("Test Microphone" in settings) — routes processed
+  // mic audio (RNNoise + AEC + inputGain) to masterBoost so the user hears
+  // exactly what others hear.
+  private micLoopbackGain: GainNode | null = null;
+  private micLoopbackSession: symbol | null = null;
+
+  // Sleep/wake recovery — detects wall-clock jumps (>15s) after OS suspend/resume
+  // and recovers frozen AudioContexts + re-applies setSinkId for external DACs/headsets.
+  private wakeRecoveryInstalled = false;
+  private wakeHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private lastWakeTick = 0;
+
   // Cached `getUserMedia` denial. After a NotAllowedError, subsequent
   // `setInputDevice` calls (e.g. `useLiveKit.syncMic` racing the user's
   // tap on a denial prompt) re-throw the cached error WITHOUT issuing a
@@ -130,6 +142,7 @@ export class AudioManager {
 
     // Apply pending output device selection (user preference loaded before context creation)
     this.applyOutputDevice();
+    this.installWakeRecovery();
   }
 
   /**
@@ -875,6 +888,102 @@ export class AudioManager {
     } catch (err) {
       finish();
       throw err;
+    }
+  }
+
+  /**
+   * Starts local microphone loopback so the user can hear their own processed
+   * voice (RNNoise, AEC, and input gain) through the selected output device.
+   */
+  async startMicLoopback(deviceId?: string): Promise<void> {
+    if (this.micLoopbackSession) return;
+    const session = this.acquireAudioSession();
+    this.micLoopbackSession = session;
+    try {
+      await this.resumeContext();
+      if (!this.hasActiveStream()) {
+        await this.setInputDevice(deviceId ?? this.currentInputDeviceId);
+      }
+      if (!this.ctx || !this.inputGain || !this.masterBoost || this.micLoopbackSession !== session) {
+        return;
+      }
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(1, this.ctx.currentTime);
+      this.inputGain.connect(gain);
+      gain.connect(this.masterBoost);
+      this.micLoopbackGain = gain;
+    } catch (err) {
+      this.stopMicLoopback();
+      throw err;
+    }
+  }
+
+  /**
+   * Stops local microphone loopback and releases the mic stream if no other
+   * voice session is active.
+   */
+  stopMicLoopback(releaseInputIfIdle = true): void {
+    if (this.micLoopbackGain) {
+      try { this.inputGain?.disconnect(this.micLoopbackGain); } catch { /* ignore */ }
+      try { this.micLoopbackGain.disconnect(); } catch { /* ignore */ }
+      this.micLoopbackGain = null;
+    }
+    if (this.micLoopbackSession) {
+      const session = this.micLoopbackSession;
+      this.micLoopbackSession = null;
+      this.releaseAudioSession(session);
+    }
+    if (releaseInputIfIdle && this.audioSessions.size === 0 && this.hasActiveStream()) {
+      this.releaseInputStream();
+    }
+  }
+
+  isMicLoopbackActive(): boolean {
+    return this.micLoopbackSession !== null;
+  }
+
+  /**
+   * Installs sleep/wake detection (wall-clock gap > 15s + visibilitychange).
+   * When the PC wakes from suspend, resumes a frozen/interrupted AudioContext,
+   * re-applies setSinkId for USB/Bluetooth DACs, and re-acquires ended mic tracks.
+   */
+  private installWakeRecovery(): void {
+    if (this.wakeRecoveryInstalled || typeof window === 'undefined') return;
+    this.wakeRecoveryInstalled = true;
+    this.lastWakeTick = Date.now();
+
+    this.wakeHeartbeatTimer = setInterval(() => {
+      const now = Date.now();
+      const gap = now - this.lastWakeTick;
+      this.lastWakeTick = now;
+      if (gap > 15_000) {
+        void this.recoverFromWake();
+      }
+    }, 5_000);
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.isAudioInUse()) {
+          void this.recoverFromWake();
+        }
+      });
+    }
+  }
+
+  async recoverFromWake(): Promise<void> {
+    if (!this.ctx) return;
+    if (!this.isAudioInUse()) return;
+    try {
+      const state = this.ctx.state as string;
+      if (state === 'suspended' || state === 'interrupted') {
+        await this.ctx.resume();
+      }
+      await this.applyOutputDevice();
+      if (this.currentStream && this.currentStream.getAudioTracks().some((t) => t.readyState === 'ended')) {
+        await this.setInputDevice(this.currentInputDeviceId);
+      }
+    } catch (err) {
+      console.warn('[AudioManager] Wake recovery failed:', err);
     }
   }
 

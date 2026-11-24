@@ -27,6 +27,11 @@
       },
       "meter": {
         "hint": "音量指示条将在您加入语音频道后激活。"
+      },
+      "test": {
+        "start": "测试麦克风",
+        "stop": "停止测试",
+        "activeHint": "正在监听处理后的麦克风（RNNoise、AEC 与增益）。"
       }
     },
     "output": {

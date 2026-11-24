@@ -27,6 +27,11 @@
       },
       "meter": {
         "hint": "O medidor de nível é ativado quando você entra em um canal de voz."
+      },
+      "test": {
+        "start": "Testar microfone",
+        "stop": "Parar teste",
+        "activeHint": "Ouvindo seu microfone já processado (RNNoise, AEC e ganho)."
       }
     },
     "output": {

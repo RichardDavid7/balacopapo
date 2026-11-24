@@ -27,6 +27,11 @@
       },
       "meter": {
         "hint": "The level meter activates once you join a voice channel."
+      },
+      "test": {
+        "start": "Test Mic",
+        "stop": "Stop Test",
+        "activeHint": "Listening to your processed mic (RNNoise, AEC, and gain)."
       }
     },
     "output": {

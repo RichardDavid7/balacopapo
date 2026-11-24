@@ -22,7 +22,7 @@ Todas estas entregas já estão implementadas e validadas na base atual (`4441bf
 
 Itens já identificados durante os testes e uso real:
 
-- [ ] **Recuperação de áudio pós-suspensão do PC (sleep/wake)** (`fix/audio-wake-recovery`) — detectar retorno de suspensão, retomar `AudioContext` suspenso/congelado e re-aplicar `setSinkId` para qualquer dispositivo de saída (atualmente aguardando merge do PR #494 no upstream para evitar conflito em `AudioManager.ts`, mas pode entrar direto no Balacopapo).
+- [x] **Recuperação de áudio pós-suspensão do PC (sleep/wake)** — monitor de gap de relógio + `visibilitychange` em `AudioManager.ts` que retoma `AudioContext` suspenso/interrompido, re-aplica `setSinkId` e reabre o microfone se a faixa encerrar.
 - [ ] **Zoom & Pan na stream focada + atalho fullscreen na barra de foco** — scroll 1x–6x no ponteiro + arrastar para ler texto pequeno em compartilhamento de tela (inspirado na `#481`).
 - [ ] **Acompanhar upstream (`TheZwiss/backspace`)** — acompanhar PRs #494, #496, #497, Issue #495 e novas Issues/Proposals para reduzir manutenção no fork.
 
@@ -40,12 +40,12 @@ Itens já identificados durante os testes e uso real:
 - [x] **Trocar nome de usuário** (baseado em `users.id` imutável para preservar menções `@`, histórico e futuro vínculo OIDC; validação de formato/unicidade em `PATCH /api/users/@me`, broadcast `user_updated` em tempo real e campo editável nas Configurações da Conta nos 5 idiomas).
 
 ### Fase 1 — Estabilidade de Voz, Vídeo e Rede (Prioridade Alta)
-- [ ] **Buffer contra perda de pacote / jitter** — controle de `jitterBufferTarget` / `playoutDelayHint` nos `RTCRtpReceiver` + Opus in-band FEC (`useinbandfec=1`) e opção de ajuste de DTX para eliminar micro-cortes de voz.
-- [ ] **Bitrate dinâmico inteligente (orçamento de banda) & fim das quedas para 320p:**
-  - Configurar um **orçamento total de banda da instância** (ex.: upload total disponível) que se divide dinamicamente conforme o número de participantes/espectadores ativos na sala (ex.: 2 pessoas na call → bitrate liberado no máximo; conforme entram mais pessoas ou streams simultâneas, o teto se ajusta suavemente via `RTCRtpSender.setParameters()` sem derrubar a stream, e volta a subir quando saem).
-  - Revisar `degradationPreference`, piso mínimo de resolução/bitrate e recuperação rápida no `screenShare.ts` para evitar quedas bruscas para 320p.
+- [x] **Buffer contra perda de pacote / jitter** — `jitterBufferTarget` + `playoutDelayHint` aplicados nos `RTCRtpReceiver` de áudio (`jitterBufferMs` configurável no `voiceStore`, padrão 40 ms) + Opus RED/FEC.
+- [x] **Bitrate dinâmico inteligente (orçamento de banda) & fim das quedas para 320p:**
+  - `degradationPreference: 'maintain-resolution'` + `scaleResolutionDownBy = 1.0` no `screenShare.ts` para impedir quedas bruscas para 320p em picos de congestão.
+  - Helper `computeDynamicStreamBitrateBps()` pronto com piso mínimo de 1,5 Mbps e divisão suave de orçamento de upload por streams/espectadores ativos.
 - [ ] **Melhorar consistência geral** — resiliência de reconexão WebSocket/LiveKit, sincronização de estado de voz e eliminação de engasgos entre desktop/mobile.
-- [ ] **Teste de microfone (loopback local)** — botão nas configurações de voz para ouvir a própria voz já passando por RNNoise, ganho e AEC.
+- [x] **Teste de microfone (loopback local)** — botão nas configurações de voz (`AudioInputSection` + `AudioManager.startMicLoopback`) para ouvir a própria voz já passando por RNNoise, ganho e AEC.
 
 ### Fase 2 — Malha P2P Híbrida (com Failover na Instância)
 - [ ] **2A · P2P para arquivos + Indicador P2P** — transferência direta via WebRTC DataChannel entre peers conectados (sem sobrecarregar a banda do servidor), com badge indicando conexão P2P ativa.

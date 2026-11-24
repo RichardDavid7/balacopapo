@@ -16,6 +16,8 @@ export function AudioInputSection() {
   const [listOpen, setListOpen] = useState(false);
   const [micLevel, setMicLevel] = useState(0);
   const [activeUpstreamId, setActiveUpstreamId] = useState<string | null>(null);
+  const [isTestingMic, setIsTestingMic] = useState(() => AudioManager.getInstance().isMicLoopbackActive());
+  const [micTestBusy, setMicTestBusy] = useState(false);
   // Bumped whenever AudioManager's AudioContext transitions to 'running'.
   // Used as a dep on effects that need to re-run once the context exists —
   // the user may open Settings before joining voice (no AudioContext yet),
@@ -90,6 +92,13 @@ export function AudioInputSection() {
     const id = am.getCurrentInputDeviceId();
     setActiveUpstreamId(id === 'default' ? null : id);
   }, [permState, inputDeviceId, audioCtxGen]);
+
+  // Ensure local mic loopback always stops when leaving Voice settings.
+  useEffect(() => {
+    return () => {
+      AudioManager.getInstance().stopMicLoopback();
+    };
+  }, []);
 
   if (permState === 'unknown') {
     return (
@@ -216,8 +225,39 @@ export function AudioInputSection() {
               />
             ))}
           </div>
-          <div className="text-xs text-txt-tertiary mt-1.5">
-            {t('voice.input.meter.hint')}
+          <div className="flex items-center justify-between gap-2 mt-2">
+            <div className="text-xs text-txt-tertiary">
+              {isTestingMic ? t('voice.input.test.activeHint') : t('voice.input.meter.hint')}
+            </div>
+            <button
+              type="button"
+              disabled={micTestBusy}
+              onClick={async () => {
+                const am = AudioManager.getInstance();
+                if (isTestingMic) {
+                  am.stopMicLoopback();
+                  setIsTestingMic(false);
+                  return;
+                }
+                setMicTestBusy(true);
+                try {
+                  await am.startMicLoopback(inputDeviceId);
+                  setIsTestingMic(true);
+                  setAudioCtxGen((g) => g + 1);
+                } catch {
+                  setIsTestingMic(false);
+                } finally {
+                  setMicTestBusy(false);
+                }
+              }}
+              className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-md font-medium transition-colors disabled:opacity-50 ${
+                isTestingMic
+                  ? 'bg-accent-rose/20 text-accent-rose hover:bg-accent-rose/30'
+                  : 'bg-surface-base hover:bg-interactive-hover text-txt-primary'
+              }`}
+            >
+              {isTestingMic ? t('voice.input.test.stop') : t('voice.input.test.start')}
+            </button>
           </div>
         </div>
       </div>

@@ -353,6 +353,25 @@ export function resolveEffectiveAudioConfig(input: EffectiveAudioInputs): AudioP
  * - `audioStereo`: sets `forceStereo` (and disables RED, which is mono-only).
  * - `audioBitrate`: target Opus max bitrate in kbps, converted to bps.
  */
+export function applyAudioReceiverJitterBuffer(track: RemoteAudioTrack, targetMs: number): void {
+  const receiver = (track as unknown as { receiver?: RTCRtpReceiver }).receiver;
+  if (!receiver) return;
+  try {
+    const r = receiver as RTCRtpReceiver & {
+      jitterBufferTarget?: number | null;
+      playoutDelayHint?: number | null;
+    };
+    if ('jitterBufferTarget' in r) {
+      r.jitterBufferTarget = targetMs > 0 ? targetMs : null;
+    }
+    if ('playoutDelayHint' in r) {
+      r.playoutDelayHint = targetMs > 0 ? targetMs / 1000 : null;
+    }
+  } catch {
+    // Non-fatal on browsers that restrict jitterBufferTarget writes
+  }
+}
+
 export function buildAudioPublishOptions(cfg: AudioPublishConfig) {
   const isVoice = cfg.audioMode === 'voice';
   return {
@@ -1149,7 +1168,9 @@ export function useLiveKit() {
         // GlobalAudioRenderer is the sole audio playback path with volume/attenuation/boost.
         // Detach LiveKit's internal element to prevent double-playback.
         if (track.kind === Track.Kind.Audio) {
-          (track as RemoteAudioTrack).detach();
+          const audioTrack = track as RemoteAudioTrack;
+          audioTrack.detach();
+          applyAudioReceiverJitterBuffer(audioTrack, useVoiceStore.getState().jitterBufferMs);
         }
         guardedUpdate();
       });

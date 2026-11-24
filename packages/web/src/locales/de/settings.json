@@ -27,6 +27,11 @@
       },
       "meter": {
         "hint": "Die Pegelanzeige wird aktiv, sobald du einem Sprachkanal beitrittst."
+      },
+      "test": {
+        "start": "Mikrofon testen",
+        "stop": "Test stoppen",
+        "activeHint": "Du hörst dein verarbeitetes Mikrofon (RNNoise, AEC und Verstärkung)."
       }
     },
     "output": {

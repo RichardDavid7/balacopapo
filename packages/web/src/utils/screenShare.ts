@@ -211,7 +211,9 @@ export function buildScreenShareOptions(savedConfig: ScreenShareConfig): ScreenS
     overdrive: {
       maxBitrate: bps,
       maxFramerate: fps,
-      degradationPreference: mode === 'text' ? 'maintain-resolution' : 'balanced',
+      // Keep full resolution during transient congestion instead of letting
+      // Chromium collapse the stream down to an unreadable 320p tier.
+      degradationPreference: 'maintain-resolution',
     },
     contentHint: mode === 'text' ? 'detail' : 'motion',
   };
@@ -280,6 +282,7 @@ export async function applyOverdrive(
     const idx = params.encodings.length - 1;
     params.encodings[idx]!.maxBitrate = options.maxBitrate;
     params.encodings[idx]!.maxFramerate = options.maxFramerate;
+    params.encodings[idx]!.scaleResolutionDownBy = 1.0;
     params.encodings[idx]!.priority = 'high';
     params.encodings[idx]!.networkPriority = 'high';
     (params as any).degradationPreference = options.degradationPreference;
@@ -290,6 +293,32 @@ export async function applyOverdrive(
     console.warn('[ScreenShare] Failed to apply overdrive:', err);
     return false;
   }
+}
+
+/** Minimum floor (1.5 Mbps) so dynamic bandwidth budgeting never collapses a 720p+ share into 320p. */
+const DYNAMIC_STREAM_FLOOR_BPS = 1_500_000;
+
+/**
+ * Computes a smooth dynamic bitrate cap (in bps) from an optional total upload
+ * budget (in kbps) divided across active streams and watchers in the room.
+ * With 1–2 participants (single watcher / single stream), returns the full
+ * requested bitrate; as more simultaneous streams or watchers join, smoothly
+ * lowers the ceiling down to a safe floor without tearing down the stream.
+ */
+export function computeDynamicStreamBitrateBps(
+  baseBps: number,
+  activeStreamCount: number,
+  watcherCount: number,
+  totalUploadBudgetKbps?: number | null,
+): number {
+  if (!totalUploadBudgetKbps || totalUploadBudgetKbps <= 0) {
+    return baseBps;
+  }
+  const streams = Math.max(1, activeStreamCount);
+  const fanout = Math.max(1, watcherCount);
+  const perStreamBps = Math.floor((totalUploadBudgetKbps * 1000) / (streams * fanout));
+  const floor = Math.min(baseBps, DYNAMIC_STREAM_FLOOR_BPS);
+  return Math.max(floor, Math.min(baseBps, perStreamBps));
 }
 
 // ---------------------------------------------------------------------------
