@@ -205,7 +205,7 @@ describe('screen-share media options', () => {
     const text = buildScreenShareOptions({ ...base, mode: 'text' });
 
     expect(gaming.contentHint).toBe('motion');
-    expect(gaming.overdrive.degradationPreference).toBe('balanced');
+    expect(gaming.overdrive.degradationPreference).toBe('maintain-resolution');
     expect(text.contentHint).toBe('detail');
     expect(text.overdrive.degradationPreference).toBe('maintain-resolution');
     expect(gaming.publish.backupCodecPolicy).toBe(BackupCodecPolicy.SIMULCAST);
@@ -238,7 +238,7 @@ describe('screen-share media options', () => {
     expect(video.applyConstraints).toHaveBeenCalledOnce();
     expect(sender.setParameters).toHaveBeenLastCalledWith(expect.objectContaining({
       encodings: [expect.objectContaining({ maxBitrate: 18_000_000, maxFramerate: 60 })],
-      degradationPreference: 'balanced',
+      degradationPreference: 'maintain-resolution',
     }));
 
     await vi.advanceTimersByTimeAsync(4750);

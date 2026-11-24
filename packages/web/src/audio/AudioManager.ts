@@ -50,12 +50,11 @@ export class AudioManager {
   // mic audio (RNNoise + AEC + inputGain) to masterBoost so the user hears
   // exactly what others hear.
   private micLoopbackGain: GainNode | null = null;
-  private micLoopbackSession: symbol | null = null;
+  private micLoopbackRelease: (() => void) | null = null;
 
   // Sleep/wake recovery — detects wall-clock jumps (>15s) after OS suspend/resume
   // and recovers frozen AudioContexts + re-applies setSinkId for external DACs/headsets.
   private wakeRecoveryInstalled = false;
-  private wakeHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private lastWakeTick = 0;
 
   // Cached `getUserMedia` denial. After a NotAllowedError, subsequent
@@ -896,15 +895,15 @@ export class AudioManager {
    * voice (RNNoise, AEC, and input gain) through the selected output device.
    */
   async startMicLoopback(deviceId?: string): Promise<void> {
-    if (this.micLoopbackSession) return;
-    const session = this.acquireAudioSession();
-    this.micLoopbackSession = session;
+    if (this.micLoopbackRelease) return;
+    const release = this.acquireAudioSession();
+    this.micLoopbackRelease = release;
     try {
       await this.resumeContext();
       if (!this.hasActiveStream()) {
         await this.setInputDevice(deviceId ?? this.currentInputDeviceId);
       }
-      if (!this.ctx || !this.inputGain || !this.masterBoost || this.micLoopbackSession !== session) {
+      if (!this.ctx || !this.inputGain || !this.masterBoost || this.micLoopbackRelease !== release) {
         return;
       }
       const gain = this.ctx.createGain();
@@ -928,10 +927,10 @@ export class AudioManager {
       try { this.micLoopbackGain.disconnect(); } catch { /* ignore */ }
       this.micLoopbackGain = null;
     }
-    if (this.micLoopbackSession) {
-      const session = this.micLoopbackSession;
-      this.micLoopbackSession = null;
-      this.releaseAudioSession(session);
+    if (this.micLoopbackRelease) {
+      const release = this.micLoopbackRelease;
+      this.micLoopbackRelease = null;
+      release();
     }
     if (releaseInputIfIdle && this.audioSessions.size === 0 && this.hasActiveStream()) {
       this.releaseInputStream();
@@ -939,7 +938,7 @@ export class AudioManager {
   }
 
   isMicLoopbackActive(): boolean {
-    return this.micLoopbackSession !== null;
+    return this.micLoopbackRelease !== null;
   }
 
   /**
@@ -952,7 +951,7 @@ export class AudioManager {
     this.wakeRecoveryInstalled = true;
     this.lastWakeTick = Date.now();
 
-    this.wakeHeartbeatTimer = setInterval(() => {
+    setInterval(() => {
       const now = Date.now();
       const gap = now - this.lastWakeTick;
       this.lastWakeTick = now;
