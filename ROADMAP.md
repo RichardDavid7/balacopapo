@@ -37,7 +37,7 @@ Itens já identificados durante os testes e uso real:
   - Botão **"Abrir com Balacopapo"** na página de convite (`/join/:inviteCode`) nos 5 idiomas.
   - Rota de callback segura `/auth/callback` pronta para o **OIDC** (`balacopapo://auth/callback`).
 - [x] **Ajuste de terminologia:** trocar *Espaço* → **Grupo** e *Grupo* (DM em grupo) → **Grupo Direto** (aplicado nos locales `pt` do Web e `values-pt-rBR` do Android).
-- [ ] **Trocar nome de usuário** (fluxo seguro com validação de unicidade e atualização em tempo real).
+- [x] **Trocar nome de usuário** (baseado em `users.id` imutável para preservar menções `@`, histórico e futuro vínculo OIDC; validação de formato/unicidade em `PATCH /api/users/@me`, broadcast `user_updated` em tempo real e campo editável nas Configurações da Conta nos 5 idiomas).
 - [ ] **Temas de interface** (sistema de temas sobre os tokens CSS do Aether Drift + seletor nas configurações).
 
 ### Fase 1 — Estabilidade de Voz, Vídeo e Rede (Prioridade Alta)

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { sendError, errorText } from '../utils/httpErrors';
-import { eq, or, and, inArray, isNull } from 'drizzle-orm';
+import { eq, ne, or, and, inArray, isNull } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { getDb, schema } from '../db/index.js';
 import { authenticate, verifyPassword, hashPassword, signJwt } from '../utils/auth.js';
@@ -218,7 +218,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: UpdateUserRequest }>('/api/users/@me', { preHandler: authenticate }, async (request, reply) => {
-    const { displayName, avatar, banner, accentColor, avatarColor, bio, customStatus, status, replicatedInstances, homeUserId, profileUpdatedAt, discoverable, showActivity } = request.body;
+    const { username, displayName, avatar, banner, accentColor, avatarColor, bio, customStatus, status, replicatedInstances, homeUserId, profileUpdatedAt, discoverable, showActivity } = request.body;
     const db = getDb();
 
     const updateData: Record<string, string | null | undefined> = {};
@@ -226,7 +226,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     // Fetch the current user row upfront — used for:
     // 1. Write-protection guard (replicated users can't update durable fields)
     // 2. Change detection (only relay if values actually differ)
-    const DURABLE_PROFILE_FIELDS = ['displayName', 'avatar', 'banner', 'accentColor', 'avatarColor', 'bio'] as const;
+    const DURABLE_PROFILE_FIELDS = ['username', 'displayName', 'avatar', 'banner', 'accentColor', 'avatarColor', 'bio'] as const;
     const preUpdateUser = db.select().from(schema.users).where(eq(schema.users.id, request.userId)).get();
     if (!preUpdateUser) {
       return sendError(reply, 404, 'user_not_found');
@@ -240,6 +240,30 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       const hasDurableField = DURABLE_PROFILE_FIELDS.some(f => (request.body as Record<string, unknown>)[f] !== undefined);
       if (hasDurableField) {
         return sendError(reply, 403, 'profile_managed_by_home');
+      }
+    }
+
+    if (username !== undefined) {
+      if (typeof username !== 'string') {
+        return sendError(reply, 400, 'username_required');
+      }
+      const trimmedUsername = username.trim().toLowerCase();
+      if (trimmedUsername.length < 3 || trimmedUsername.length > 32) {
+        return sendError(reply, 400, 'username_length_invalid', { min: 3, max: 32 });
+      }
+      if (!/^[a-z0-9_]+$/.test(trimmedUsername)) {
+        return sendError(reply, 400, 'username_characters_invalid');
+      }
+      if (trimmedUsername !== preUpdateUser.username) {
+        const conflict = db
+          .select({ id: schema.users.id })
+          .from(schema.users)
+          .where(and(eq(schema.users.username, trimmedUsername), ne(schema.users.id, request.userId)))
+          .get();
+        if (conflict) {
+          return sendError(reply, 409, 'username_taken');
+        }
+        updateData.username = trimmedUsername;
       }
     }
 
@@ -466,14 +490,22 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
     }
 
     // Detect profile changes and stamp timestamp
-    const hasProfileChange = ['displayName', 'avatar', 'banner', 'accentColor', 'avatarColor', 'bio', 'customStatus'].some(f => f in updateData);
+    const hasProfileChange = ['username', 'displayName', 'avatar', 'banner', 'accentColor', 'avatarColor', 'bio', 'customStatus'].some(f => f in updateData);
     const hasDurableChange = DURABLE_PROFILE_FIELDS.some(f => f in updateData);
     if (hasDurableChange) {
       (updateData as Record<string, unknown>).profileUpdatedAt = Date.now();
     }
 
     if (Object.keys(updateData).length > 0) {
-      db.update(schema.users).set(updateData).where(eq(schema.users.id, request.userId)).run();
+      try {
+        db.update(schema.users).set(updateData).where(eq(schema.users.id, request.userId)).run();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('UNIQUE constraint failed: users.username')) {
+          return sendError(reply, 409, 'username_taken');
+        }
+        throw err;
+      }
     }
     // Writes chosen_status (and the live status while connected), then tells
     // local observers and peers.

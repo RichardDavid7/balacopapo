@@ -214,6 +214,9 @@
       "customStatus": {
         "label": "Eigener Status",
         "placeholder": "Was machst du gerade?"
+      },
+      "username": {
+        "hint": "3–32 Zeichen (Buchstaben, Zahlen, Unterstrich). Deine Konto-ID bleibt gleich, sodass Erwähnungen und Verlauf weiter funktionieren."
       }
     },
     "password": {

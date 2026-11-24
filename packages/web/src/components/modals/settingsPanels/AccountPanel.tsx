@@ -26,6 +26,7 @@ export function AccountPanel() {
   const savedStatus: ChosenUserStatus = useAuthStore(selectMyChosenStatus) ?? 'online';
   const updateProfile = useAuthStore((s) => s.updateProfile);
 
+  const [username, setUsername] = useState(user?.username ?? '');
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [customStatus, setCustomStatus] = useState(user?.customStatus ?? '');
   const [status, setStatus] = useState<ChosenUserStatus>(savedStatus);
@@ -54,6 +55,7 @@ export function AccountPanel() {
 
   useEffect(() => {
     if (user) {
+      setUsername(user.username ?? '');
       setDisplayName(user.displayName ?? '');
       setCustomStatus(user.customStatus ?? '');
       setStatus(savedStatus);
@@ -69,7 +71,7 @@ export function AccountPanel() {
       setBannerPreview(null);
       setBannerFilename(null);
     }
-  }, [user?.displayName, user?.customStatus, savedStatus, user?.bio, user?.accentColor, user?.avatarColor, user?.avatar, user?.banner]);
+  }, [user?.username, user?.displayName, user?.customStatus, savedStatus, user?.bio, user?.accentColor, user?.avatarColor, user?.avatar, user?.banner]);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -138,12 +140,15 @@ export function AccountPanel() {
 
   if (!user) return null;
 
-  const effectiveDisplayName = displayName.trim() || user.username;
+  const canEditUsername = !user.homeInstance;
+  const normalizedUsername = username.trim().toLowerCase();
+  const effectiveDisplayName = displayName.trim() || normalizedUsername || user.username;
   const effectiveAccent = accentColor;
   const effectiveAvatarColor = avatarColorState;
 
   // Change detection
   const hasChanges =
+    (canEditUsername && normalizedUsername !== user.username) ||
     displayName !== (user.displayName ?? '') ||
     customStatus !== (user.customStatus ?? '') ||
     status !== savedStatus ||
@@ -250,6 +255,7 @@ export function AccountPanel() {
     setIsLoading(true);
     try {
       const updates: Record<string, string | undefined> = {};
+      if (canEditUsername && normalizedUsername !== user.username) updates.username = normalizedUsername;
       if (displayName !== (user.displayName ?? '')) updates.displayName = displayName.trim();
       if (customStatus !== (user.customStatus ?? '')) updates.customStatus = customStatus.trim();
       if (status !== savedStatus) updates.status = status;
@@ -295,6 +301,7 @@ export function AccountPanel() {
   };
 
   const handleReset = () => {
+    setUsername(user.username ?? '');
     setDisplayName(user.displayName ?? '');
     setCustomStatus(user.customStatus ?? '');
     setStatus(savedStatus);
@@ -370,7 +377,7 @@ export function AccountPanel() {
             >
               {effectiveDisplayName}
             </div>
-            <div className="text-[12px] text-txt-tertiary">@{user.username}</div>
+            <div className="text-[12px] text-txt-tertiary">@{normalizedUsername || user.username}</div>
             {bio.trim() && (
               <div className="text-[12px] text-txt-secondary mt-1.5 whitespace-pre-wrap break-words line-clamp-3">
                 {bio.trim()}
@@ -631,6 +638,26 @@ export function AccountPanel() {
               <option value="dnd">{t('common:states.doNotDisturb')}</option>
             </select>
           </div>
+
+          {canEditUsername && (
+            <div>
+              <label className="block text-xs text-txt-secondary mb-1.5">{t('common:labels.username')}</label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-txt-tertiary">@</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  maxLength={32}
+                  autoComplete="username"
+                  className="input-standard w-full pl-7"
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-txt-tertiary">
+                {t('settings:account.details.username.hint')}
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs text-txt-secondary mb-1.5">{t('common:labels.displayName')}</label>

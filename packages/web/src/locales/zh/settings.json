@@ -214,6 +214,9 @@
       "customStatus": {
         "label": "自定义状态",
         "placeholder": "您现在在忙些什么？"
+      },
+      "username": {
+        "hint": "3–32 个字符（字母、数字、下划线）。你的账号 ID 保持不变，提及和历史记录都会继续正常显示。"
       }
     },
     "password": {

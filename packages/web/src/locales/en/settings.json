@@ -214,6 +214,9 @@
       "customStatus": {
         "label": "Custom Status",
         "placeholder": "What are you up to?"
+      },
+      "username": {
+        "hint": "3–32 characters (letters, numbers, underscore). Your account ID stays the same, so mentions and history keep working."
       }
     },
     "password": {

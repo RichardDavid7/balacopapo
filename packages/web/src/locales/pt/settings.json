@@ -214,6 +214,9 @@
       "customStatus": {
         "label": "Status personalizado",
         "placeholder": "O que você está fazendo?"
+      },
+      "username": {
+        "hint": "3–32 caracteres (letras, números e underline). O ID da sua conta permanece o mesmo, mantendo menções e histórico funcionando."
       }
     },
     "password": {

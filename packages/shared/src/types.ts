@@ -951,6 +951,7 @@ export interface UpdateSpaceRequest {
 }
 
 export interface UpdateUserRequest {
+  username?: string;
   displayName?: string;
   avatar?: string;
   banner?: string;
