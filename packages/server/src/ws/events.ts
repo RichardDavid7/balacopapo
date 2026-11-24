@@ -9,7 +9,7 @@ import type { VoiceRoom, DmRoomMeta, SpaceRoomMeta, FederatedCallEntry } from '.
 import { isMember, getChannelSpaceId, isDmMember, isDeadOneOnOne, hasPermission, computePermissions, PermissionBits } from '../utils/permissions.js';
 import { broadcastDmMessage, getDmMessageWithUser, reopenForClosedMembers } from '../routes/dm.js';
 import { fetchReplyToMessages, isReplyTargetInChannel, storedMassMentionFields } from '../routes/messages.js';
-import { MAX_MESSAGE_LENGTH, isChosenUserStatus, type MessageWithUser, type Attachment, type DmMessageWithUser, type Embed, type ServerEvent, type DmCallUndeliverableFailure, type DmCallUndeliverableReason } from '@backspace/shared';
+import { MAX_MESSAGE_LENGTH, isChosenUserStatus, type MessageWithUser, type Attachment, type DmMessageWithUser, type Embed, type ClientEvent, type ServerEvent, type DmCallUndeliverableFailure, type DmCallUndeliverableReason } from '@backspace/shared';
 import type { CallRelayResult, CallFanoutFailure } from '../utils/federationOutbox.js';
 import { mapCallReasonToEventReason } from '../utils/federationOutbox.js';
 import { callRelayActor, fanOutCallEvent, relayCallEvent, userRelayIdentity, type CallRelayEventType } from '../utils/callFanout.js';
@@ -2531,25 +2531,30 @@ const MAX_P2P_SIGNAL_PAYLOAD_LEN = 32_768;
  * The server never inspects or stores any P2P media/file bytes.
  */
 function handleP2PSignal(
-  event: Extract<ClientEvent, { type: 'p2p_signal' }>,
+  event: Record<string, unknown>,
   userId: string,
 ): void {
-  if (!event.targetUserId || event.targetUserId === userId) return;
-  if (!event.roomKey || event.roomKey.length > 128) return;
-  if (!VALID_P2P_SIGNAL_KINDS.has(event.kind)) return;
-  if (event.payload !== undefined && (typeof event.payload !== 'string' || event.payload.length > MAX_P2P_SIGNAL_PAYLOAD_LEN)) {
+  const targetUserId = typeof event.targetUserId === 'string' ? event.targetUserId : '';
+  const roomKey = typeof event.roomKey === 'string' ? event.roomKey : '';
+  const kind = typeof event.kind === 'string' ? event.kind : '';
+  const payload = event.payload;
+
+  if (!targetUserId || targetUserId === userId) return;
+  if (!roomKey || roomKey.length > 128) return;
+  if (!VALID_P2P_SIGNAL_KINDS.has(kind)) return;
+  if (payload !== undefined && (typeof payload !== 'string' || payload.length > MAX_P2P_SIGNAL_PAYLOAD_LEN)) {
     return;
   }
 
   const allowedTargets = collectProfileBroadcastTargetIds(userId);
-  if (!allowedTargets.has(event.targetUserId)) return;
+  if (!allowedTargets.has(targetUserId)) return;
 
-  connectionManager.sendToUser(event.targetUserId, {
+  connectionManager.sendToUser(targetUserId, {
     type: 'p2p_signal',
     fromUserId: userId,
-    roomKey: event.roomKey,
-    kind: event.kind,
-    payload: event.payload,
+    roomKey,
+    kind: kind as Extract<ClientEvent, { type: 'p2p_signal' }>['kind'],
+    payload,
   });
 }
 
