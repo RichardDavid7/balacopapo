@@ -124,3 +124,12 @@ site/sitemap.xml
 docs/superpowers/plans/2026-07-12-federation-security-remediation.md
 docs/superpowers/plans/2026-09-02-security-pass-master.md
 docs/superpowers/plans/2026-09-02-plan-e-remediation.md
+
+# Monorepo native clients (Desktop Tauri/Rust + Android Gradle)
+clients/desktop/src-tauri/target/
+clients/android/.gradle/
+clients/android/**/build/
+clients/android/local.properties
+*.jks
+*.keystore
+

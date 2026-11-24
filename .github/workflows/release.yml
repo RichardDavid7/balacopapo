@@ -1,359 +1,264 @@
-name: Release Desktop
+name: Release Balacopapo (Server + Windows + Linux + Android)
+
+# Unified multi-platform release workflow.
+# Pushing a version tag (e.g. `v0.1.0` or `v0.1.0-alpha.1`) builds and publishes
+# all Balacopapo artifacts under a single GitHub Release:
+#   - Server + Web container image on GHCR (`ghcr.io/<owner>/balacopapo`)
+#   - Desktop installers for Windows (.exe, .msi) and Linux (.AppImage, .deb)
+#   - Android native client (.apk + SHA256SUMS)
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v0.1.0)'
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
 
 jobs:
-  # Create the draft release once, before the build matrix fans out.
-  #
-  # electron-builder's GitHub publisher lists the repository's releases, looks
-  # for one carrying this tag, and creates a draft when it finds none
-  # (electron-publish, gitHubPublisher.js, getOrCreateRelease). The four matrix
-  # jobs run that lookup concurrently, so all four can see "no release for this
-  # tag" before any of them has finished creating one. On v1.0.3 two of them
-  # went on to create a draft: the tag ended up with two releases and the 22
-  # assets split 12/10 between them, which is easy to miss because a release
-  # listing shows one entry per tag. Consolidating them was manual.
-  #
-  # With the draft already in place, every matrix job takes the "found an
-  # existing draft" branch of that lookup and only uploads. That branch returns
-  # the release untouched — the publisher never rewrites the name or the body of
-  # a release it did not create — so the title set below is the one the release
-  # keeps.
-  create-release:
+  prepare-release:
     runs-on: ubuntu-latest
-    # Scoped to this job: it is the only one that needs to create a release.
-    permissions:
-      contents: write
+    outputs:
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+      version: ${{ steps.meta.outputs.version }}
+      version_code: ${{ steps.meta.outputs.version_code }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
     steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
-      - name: Create the draft release for this tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        # Listing releases rather than asking for one by tag: the "get a release
-        # by tag name" endpoint does not return drafts, and the release this job
-        # creates is a draft, so a re-run would not find its own work and would
-        # try to create a second one. The list endpoint includes drafts.
-        #
-        # Deliberately not `gh release create ... || true`. That form also
-        # swallows auth and network failures, and the matrix would then race
-        # exactly as before while this job reported success. Look first, create
-        # only on a confirmed absence, and let anything else fail the job.
-        #
-        # The title matches every release shipped so far ("Backspace 1.0.3").
-        # electron-builder would name the draft after the bare version instead,
-        # because `releaseInfo.releaseName` is not set in electron-builder.yml.
-        #
-        # The body starts as a "# Backspace X.Y.Z" heading followed by a
-        # Downloads table. GitHub sorts the asset list by name and offers no
-        # other order, which puts Linux first and Windows last; the table is
-        # what a visitor reads instead, in Windows, Linux, macOS order with
-        # plain labels. It is written before any asset exists (the draft is not
-        # visible until published) from the names electron-builder will
-        # produce, so it has to move with `artifactName` in
-        # packages/desktop/electron-builder.yml.
-        #
-        # The heading is the one flatpak/release-summary.mjs requires. The
-        # human step before publishing is to write the summary paragraph
-        # directly under it, and the "What's new" sections below that. That
-        # paragraph is the Flatpak "What's New" text: publishing the release
-        # starts flatpak-release-metadata.yml, which copies it into the
-        # AppStream release entry, and fails if the heading is followed by the
-        # `## Downloads` heading instead of a paragraph.
+      - name: Resolve release metadata
+        id: meta
         run: |
-          set -euo pipefail
-
-          existing="$(gh api --paginate "repos/$GH_REPO/releases" \
-            --jq '.[] | select(.tag_name == env.TAG) | .id')"
-          count="$(printf '%s' "$existing" | grep -c . || true)"
-
-          if [ "$count" -gt 1 ]; then
-            ids="$(printf '%s' "$existing" | tr '\n' ' ')"
-            echo "::error::$count releases already carry the tag $TAG (ids: $ids) — this is the duplicate-release state this job exists to prevent. Consolidate them by hand before re-running."
-            exit 1
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG_NAME="${{ github.event.inputs.tag }}"
+          else
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
           fi
-
-          if [ "$count" -eq 1 ]; then
-            echo "A release already carries $TAG (id $existing) — leaving it untouched."
-            exit 0
+          VERSION="${TAG_NAME#v}"
+          if [[ "${TAG_NAME}" =~ -(alpha|beta|rc) ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
           fi
+          VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))
 
-          version="${TAG#v}"
-          base="https://github.com/$GH_REPO/releases/download/$TAG"
-          asset() { printf '[%s](%s/%s)' "$1" "$base" "$1"; }
-          notes="$(mktemp)"
-          {
-            echo "# Backspace $version"
-            echo
-            echo "## Downloads"
-            echo
-            echo "| Platform | Download |"
-            echo "|---|---|"
-            echo "| Windows x64 | $(asset "Backspace-$version-win-x64.exe") |"
-            echo "| Windows arm64 | $(asset "Backspace-$version-win-arm64.exe") |"
-            echo "| Linux AppImage x86_64 | $(asset "Backspace-$version-linux-x86_64.AppImage") |"
-            echo "| Linux AppImage arm64 | $(asset "Backspace-$version-linux-arm64.AppImage") |"
-            echo "| Linux deb amd64 | $(asset "Backspace-$version-linux-amd64.deb") |"
-            echo "| Linux deb arm64 | $(asset "Backspace-$version-linux-arm64.deb") |"
-            echo "| macOS Apple Silicon | $(asset "Backspace-$version-mac-arm64.dmg") |"
-            echo "| macOS Intel | $(asset "Backspace-$version-mac-x64.dmg") |"
-            echo
-            echo "The \`.blockmap\` and \`latest*.yml\` files are read by the auto-updater and are not meant to be downloaded by hand."
-          } > "$notes"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
 
-          echo "No release carries $TAG yet — creating the draft."
-          gh release create "$TAG" \
-            --draft \
-            --title "Backspace $version" \
-            --notes-file "$notes"
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: "Balacopapo ${{ steps.meta.outputs.tag_name }}"
+          draft: false
+          prerelease: ${{ steps.meta.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
+          body: |
+            ## Balacopapo ${{ steps.meta.outputs.tag_name }}
 
-  build:
-    # Every matrix job publishes into the draft that `create-release` has
-    # already made. Without this dependency they race to create it themselves.
-    needs: create-release
-    # `contents: write` is scoped to this job: electron-builder runs with
-    # `--publish always`, which uploads the installers and the updater feed
-    # files to the release for the tag.
+            ### Servidor (Docker / GHCR)
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+            ```
+
+            ### Clientes anexados nesta Release
+            - **Windows:** instalador `.exe` (NSIS) e `.msi`
+            - **Linux:** `.AppImage` e `.deb`
+            - **Android:** `.apk` (compatível com Obtainium) + `SHA256SUMS-android.txt`
+
+  server-docker:
+    needs: prepare-release
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve build metadata
+        id: meta_commit
+        run: echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags and labels
+        id: docker_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ needs.prepare-release.outputs.version }}
+            type=raw,value=latest,enable=${{ needs.prepare-release.outputs.is_prerelease != 'true' }}
+            type=sha
+          labels: |
+            org.opencontainers.image.title=Balacopapo
+            org.opencontainers.image.description=Self-hosted voice, video, and chat platform (server + web client).
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
+          build-args: |
+            BACKSPACE_COMMIT=${{ steps.meta_commit.outputs.commit }}
+          sbom: true
+          provenance: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  desktop-clients:
+    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
         include:
-          # macOS — universal build (arm64 + x64) on Apple Silicon runner
-          - os: macos-latest
-            args: --mac --arm64 --x64
-          # Windows — x64 + arm64 on x64 runner.
-          # Pinned to windows-2022 (VS 2022 / v17): the windows-latest image
-          # ships VS "18", which the node-gyp bundled with electron-rebuild
-          # cannot detect ("unknown version undefined") when compiling
-          # uiohook-napi in postinstall.
-          - os: windows-2022
-            args: --win --x64 --arm64
-          # Linux — x64 on x64 runner
-          - os: ubuntu-latest
-            args: --linux --x64
-          # Linux — arm64 on arm64 runner
-          - os: ubuntu-24.04-arm
-            args: --linux --arm64
-
-    runs-on: ${{ matrix.os }}
-
+          - platform: windows-latest
+          - platform: ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
     steps:
-      - name: Harden the runner
-        if: runner.os == 'Linux'
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v4
 
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        # Full X11 dev header set required to compile libuiohook (uiohook-napi)
-        # from source in postinstall. Derived from the headers its sources
-        # include: Xlib/XKB (libx11-dev), XTest+record (libxtst-dev), Intrinsic
-        # (libxt-dev), Xrandr (libxrandr-dev), Xinerama (libxinerama-dev),
-        # Xlib-xcb (libx11-xcb-dev), XKBrules (libxkbfile-dev), xkbcommon
-        # (libxkbcommon-dev, libxkbcommon-x11-dev). Missing libxrandr-dev was
-        # the original build failure (Xrandr.h: No such file or directory).
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libx11-dev libxtst-dev libxt-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev libxkbfile-dev \
-            libxrandr-dev libxinerama-dev libx11-xcb-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install fpm for .deb packaging
-        if: runner.os == 'Linux'
-        # electron-builder bundles an x86_64-only fpm; on the arm64 runner it
-        # aborts the .deb target with "cannot execute binary file: Exec format
-        # error". Install fpm natively and set USE_SYSTEM_FPM (below) so both
-        # arches package their .deb with a host-native fpm. ruby-dev + make are
-        # needed for fpm's native gem dependencies.
-        run: |
-          sudo apt-get install -y ruby ruby-dev build-essential
-          sudo gem install --no-document fpm
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: swatinem/rust-cache@v2
         with:
-          version: 10.34.3
+          workspaces: clients/desktop/src-tauri
 
-      - name: Setup Node.js
-        # Matches .nvmrc, the CI matrix's upper leg and the node24 SDK the
-        # Flatpak build already packages this same app with. The desktop build
-        # toolchain has a Node 22 floor of its own -- @electron/fuses 2 declares
-        # `engines: >=22.12.0` -- so this job cannot drop back to 20 without
-        # violating it. This is the BUILD Node only; the shipped app runs on
-        # Electron's own bundled Node, which this does not touch.
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build shared package
-        run: pnpm --filter @backspace/shared build
-
-      - name: Compile desktop TypeScript
-        working-directory: packages/desktop
-        run: pnpm exec tsc
-
-      - name: Build and publish desktop app
-        working-directory: packages/desktop
-        run: pnpm exec electron-builder ${{ matrix.args }} --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # Use the host-native fpm installed above instead of electron-builder's
-          # bundled x86_64 fpm (which can't run on the arm64 runner). No-op on
-          # macOS/Windows, which don't build .deb.
-          USE_SYSTEM_FPM: "true"
-
-      - name: Verify Electron security fuses
-        working-directory: packages/desktop
+      - name: Determine Tauri build args (signed auto-update vs unsigned)
+        id: build_cfg
         shell: bash
-        # Backstop for the fuse flip done in scripts/afterPack.js. That hook
-        # resolves the Electron binary path *per platform* (Linux reads
-        # `packager.executableName`, mac/win read `appInfo.productFilename`),
-        # so "it worked on macOS arm64" proves nothing about the other five
-        # artifacts this matrix ships — a wrong path there means either a build
-        # error or, worse, a binary that quietly ships with the fuses still off.
-        # Read the wire back out of every packaged binary and fail the release
-        # if any of the three is not in the state afterPack claims to have set.
-        # Runs before the signature check below, mirroring afterPack's own
-        # order (fuses are flipped, then the bundle is sealed).
-        #
-        # `npx --no` is deliberate: it runs the @electron/fuses already pinned
-        # in this package's devDependencies and hard-fails instead of reaching
-        # the registry. A bare `npx` would verify the shipped binaries with
-        # whatever version the registry happens to serve, which is exactly the
-        # coupling this check must not have: the CLI's "<Fuse> is <State>"
-        # lines are parsed below, and afterPack.js flips the fuses using the
-        # pinned copy of the same package.
+        env:
+          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
         run: |
-          set -euo pipefail
-
-          # Expected artifacts per runner, matching the build matrix above.
-          # Listed explicitly rather than globbed: a glob that matches nothing
-          # would skip silently, and a check that verifies nothing is worse
-          # than no check at all because it still reads as coverage.
-          case "$RUNNER_OS" in
-            macOS)
-              artifacts=(
-                "dist-electron/mac/Backspace.app"
-                "dist-electron/mac-arm64/Backspace.app"
-              )
-              ;;
-            Windows)
-              artifacts=(
-                "dist-electron/win-unpacked/Backspace.exe"
-                "dist-electron/win-arm64-unpacked/Backspace.exe"
-              )
-              ;;
-            Linux)
-              # Was "@backspacedesktop" up to 1.0.2: electron-builder derived the
-              # Linux executable from package.json `name` ("@backspace/desktop"),
-              # dropping the slash but keeping the leading "@". electron-builder 26
-              # validates that name and rejects it outright, so the build now sets
-              # linux.executableName explicitly. Keep this path in step with
-              # packages/desktop/electron-builder.yml; nothing else couples them.
-              if [ "$RUNNER_ARCH" = "ARM64" ]; then
-                artifacts=("dist-electron/linux-arm64-unpacked/Backspace")
-              else
-                artifacts=("dist-electron/linux-unpacked/Backspace")
-              fi
-              ;;
-            *)
-              echo "::error::Unknown runner OS '$RUNNER_OS' — no expected artifact list, refusing to pass by default"
-              exit 1
-              ;;
-          esac
-
-          # Fuse name -> required state, exactly as scripts/afterPack.js sets them.
-          expected=(
-            "RunAsNode=Disabled"
-            "EnableNodeCliInspectArguments=Disabled"
-            "OnlyLoadAppFromAsar=Enabled"
-          )
-
-          esc="$(printf '\033')"
-          failed=0
-
-          for artifact in "${artifacts[@]}"; do
-            if [ ! -e "$artifact" ]; then
-              echo "::error::Expected packaged artifact not found: packages/desktop/$artifact — the fuses for this target were never checked"
-              failed=1
-              continue
-            fi
-
-            echo "==> $artifact"
-            # chalk colourises its output on GitHub Actions (it treats
-            # GITHUB_ACTIONS as a colour-capable terminal), and the escape
-            # codes wrap the very words matched below. FORCE_COLOR=0 turns
-            # that off; the sed strips any that survive anyway.
-            if ! fuses="$(FORCE_COLOR=0 npx --no @electron/fuses read --app "$artifact" 2>&1 \
-                | sed -e "s/${esc}\[[0-9;]*m//g")"; then
-              echo "$fuses"
-              echo "::error::${artifact}: could not read the Electron fuse wire (output above)"
-              failed=1
-              continue
-            fi
-            echo "$fuses"
-
-            for pair in "${expected[@]}"; do
-              name="${pair%%=*}"
-              want="${pair#*=}"
-              got="$(printf '%s\n' "$fuses" \
-                | sed -n -E "s/^[[:space:]]*${name} is ([A-Za-z]+)[[:space:]]*\$/\\1/p")"
-              if [ -z "$got" ]; then
-                echo "::error::${artifact}: fuse ${name} was not reported by @electron/fuses at all (expected ${want})"
-                failed=1
-              elif [ "$got" != "$want" ]; then
-                echo "::error::${artifact}: fuse ${name} is ${got}, expected ${want} — scripts/afterPack.js did not flip this binary"
-                failed=1
-              fi
-            done
-          done
-
-          if [ "$failed" -ne 0 ]; then
-            echo "::error::Electron security fuse verification failed on $RUNNER_OS/$RUNNER_ARCH — do not ship this release."
-            exit 1
+          if [ "$HAS_SIGNING_KEY" = "true" ]; then
+            echo "args=" >> "$GITHUB_OUTPUT"
+          else
+            echo "No TAURI_SIGNING_PRIVATE_KEY secret found; building installers without updater signatures."
+            echo 'args=--config {"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_OUTPUT"
           fi
-          echo "All three Electron security fuses verified on $RUNNER_OS/$RUNNER_ARCH."
 
-      - name: Verify macOS code signature
-        if: runner.os == 'macOS'
-        working-directory: packages/desktop
-        # Backstop for the ad-hoc signing done in scripts/macSign.js. A bundle
-        # whose signature does not validate is reported by macOS as "Backspace
-        # is damaged and can't be opened", which no user can work around from
-        # the UI — so a broken seal must fail the release loudly rather than
-        # ship. macSign.js already verifies before packaging; this re-checks the
-        # final bundle, and also covers the case where that hook no-ops.
+      - name: Build and attach Desktop installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: clients/desktop
+          tagName: ${{ needs.prepare-release.outputs.tag_name }}
+          releaseName: "Balacopapo ${{ needs.prepare-release.outputs.tag_name }}"
+          releaseDraft: false
+          prerelease: ${{ needs.prepare-release.outputs.is_prerelease == 'true' }}
+          args: ${{ steps.build_cfg.outputs.args }}
+
+  android-client:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: clients/android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+          gradle-home-cache-cleanup: true
+
+      - name: Decode Release Keystore (if configured)
+        id: signing
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          shopt -s nullglob
-          apps=(dist-electron/mac*/*.app)
-          if [ ${#apps[@]} -eq 0 ]; then
-            echo "::error::No packaged .app found under dist-electron/"
-            exit 1
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "${RUNNER_TEMP}/release.jks"
+          echo "keystore_file=${RUNNER_TEMP}/release.jks" >> "$GITHUB_OUTPUT"
+          echo "has_keystore=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run Android Unit Tests
+        run: gradle :core:model:test testDebugUnitTest
+
+      - name: Build Signed Release APK
+        if: steps.signing.outputs.has_keystore == 'true'
+        env:
+          KEYSTORE_FILE: ${{ steps.signing.outputs.keystore_file }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          gradle assembleRelease \
+            -PversionName="${{ needs.prepare-release.outputs.version }}" \
+            -PversionCode="${{ needs.prepare-release.outputs.version_code }}"
+
+      - name: Build Debug APK (Fallback when Release Keystore is not set)
+        if: steps.signing.outputs.has_keystore != 'true'
+        run: |
+          gradle assembleDebug \
+            -PversionName="${{ needs.prepare-release.outputs.version }}" \
+            -PversionCode="${{ needs.prepare-release.outputs.version_code }}"
+
+      - name: Package APK & Checksums
+        run: |
+          mkdir -p dist
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            SRC_APK="app/build/outputs/apk/release/app-release.apk"
+          else
+            SRC_APK="app/build/outputs/apk/debug/app-debug.apk"
           fi
-          for app in "${apps[@]}"; do
-            echo "==> $app"
-            codesign --verify --deep --strict --verbose=2 "$app"
-          done
+          OUT_APK="dist/Balacopapo-${{ needs.prepare-release.outputs.tag_name }}-android.apk"
+          cp "$SRC_APK" "$OUT_APK"
+          (cd dist && sha256sum "$(basename "$OUT_APK")" > SHA256SUMS-android.txt)
+          ls -lh dist/
+
+      - name: Attach Android APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          files: |
+            clients/android/dist/*.apk
+            clients/android/dist/SHA256SUMS-android.txt
+          prerelease: ${{ needs.prepare-release.outputs.is_prerelease == 'true' }}
