@@ -295,6 +295,33 @@ export async function applyOverdrive(
   }
 }
 
+/**
+ * Elevates the ScreenShareAudio RTCRtpSender priority so high-bitrate video
+ * keyframes do not starve or stall stream audio packets in Chromium's pacer.
+ */
+async function applyScreenShareAudioPriority(room: Room): Promise<void> {
+  try {
+    const pub = room.localParticipant.getTrackPublications().find((p) => p.source === Track.Source.ScreenShareAudio);
+    if (!pub?.track) return;
+    const pc = getPublisherPC(room);
+    if (!pc) return;
+    const mediaTrack = getMediaStreamTrack(pub.track);
+    const sender = pc.getSenders().find((s) => s.track?.id === mediaTrack?.id);
+    if (!sender) return;
+    const params = sender.getParameters();
+    if (!params.encodings?.length) return;
+    const enc = params.encodings[0]!;
+    enc.priority = 'high';
+    enc.networkPriority = 'high';
+    if (!enc.maxBitrate || enc.maxBitrate < 128_000) {
+      enc.maxBitrate = 192_000;
+    }
+    await sender.setParameters(params);
+  } catch {
+    // Non-fatal if browser ignores audio sender priority updates
+  }
+}
+
 /** Minimum floor (1.5 Mbps) so dynamic bandwidth budgeting never collapses a 720p+ share into 320p. */
 const DYNAMIC_STREAM_FLOOR_BPS = 1_500_000;
 
@@ -978,6 +1005,9 @@ export function scheduleScreenShareOverdrive(room: Room): void {
     }
 
     const applied = await applyOverdrive(room, Track.Source.ScreenShare, freshOpts.overdrive);
+    // Keep screen-share audio at high network priority so video keyframe bursts
+    // never starve or stutter the stream's audio packets on the publisher uplink.
+    void applyScreenShareAudioPriority(room);
     if (!useVoiceStore.getState().isScreenSharing) return;
 
     const lastIndex = OVERDRIVE_ATTEMPT_OFFSETS_MS.length - 1;

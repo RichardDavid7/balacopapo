@@ -52,7 +52,7 @@ export function VoicePanel() {
     room.remoteParticipants.forEach((rp) => {
       rp.trackPublications.forEach((pub) => {
         if (pub.track && pub.track.kind === Track.Kind.Audio) {
-          applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, ms);
+          applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, ms, pub.source);
         }
       });
     });

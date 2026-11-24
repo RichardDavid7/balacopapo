@@ -368,7 +368,22 @@ export function resolveEffectiveAudioConfig(input: EffectiveAudioInputs): AudioP
  * - `audioStereo`: sets `forceStereo` (and disables RED, which is mono-only).
  * - `audioBitrate`: target Opus max bitrate in kbps, converted to bps.
  */
-export function applyAudioReceiverJitterBuffer(track: RemoteAudioTrack, targetMs: number): void {
+/** Minimum jitter buffer (ms) for screen-share audio so video keyframe bursts never starve playback. */
+export const SCREEN_SHARE_AUDIO_MIN_JITTER_MS = 120;
+
+export function effectiveJitterBufferMs(targetMs: number, source?: Track.Source): number {
+  if (source === Track.Source.ScreenShareAudio) {
+    return Math.max(SCREEN_SHARE_AUDIO_MIN_JITTER_MS, targetMs);
+  }
+  return targetMs;
+}
+
+export function applyAudioReceiverJitterBuffer(
+  track: RemoteAudioTrack,
+  targetMs: number,
+  source?: Track.Source,
+): void {
+  const effectiveMs = effectiveJitterBufferMs(targetMs, source ?? track.source);
   const receiver = (track as unknown as { receiver?: RTCRtpReceiver }).receiver;
   if (!receiver) return;
   try {
@@ -377,10 +392,10 @@ export function applyAudioReceiverJitterBuffer(track: RemoteAudioTrack, targetMs
       playoutDelayHint?: number | null;
     };
     if ('jitterBufferTarget' in r) {
-      r.jitterBufferTarget = targetMs > 0 ? targetMs : null;
+      r.jitterBufferTarget = effectiveMs > 0 ? effectiveMs : null;
     }
     if ('playoutDelayHint' in r) {
-      r.playoutDelayHint = targetMs > 0 ? targetMs / 1000 : null;
+      r.playoutDelayHint = effectiveMs > 0 ? effectiveMs / 1000 : null;
     }
   } catch {
     // Non-fatal on browsers that restrict jitterBufferTarget writes
@@ -1222,7 +1237,7 @@ export function useLiveKit() {
         if (track.kind === Track.Kind.Audio) {
           const audioTrack = track as RemoteAudioTrack;
           audioTrack.detach();
-          applyAudioReceiverJitterBuffer(audioTrack, useVoiceStore.getState().jitterBufferMs);
+          applyAudioReceiverJitterBuffer(audioTrack, useVoiceStore.getState().jitterBufferMs, publication.source);
         }
         guardedUpdate();
       });
@@ -1415,7 +1430,7 @@ export function useLiveKit() {
             newRoom.remoteParticipants.forEach((rp) => {
               rp.trackPublications.forEach((pub) => {
                 if (pub.track && pub.track.kind === Track.Kind.Audio) {
-                  applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, currentJitterMs);
+                  applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, currentJitterMs, pub.source);
                 }
               });
             });
