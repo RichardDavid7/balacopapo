@@ -715,8 +715,11 @@ export interface DmCallUndeliverableFailure {
 }
 
 // Client → Server Events
+export type P2PSignalKind = 'offer' | 'answer' | 'ice' | 'hello' | 'bye';
+
 export type ClientEvent =
   | { type: 'auth'; token: string; client?: ClientKind }
+  | { type: 'p2p_signal'; targetUserId: string; roomKey: string; kind: P2PSignalKind; payload?: string }
   | { type: 'message_create'; channelId: string; content: string; replyToId?: string }
   | { type: 'message_edit'; messageId: string; content: string }
   | { type: 'message_delete'; messageId: string }
@@ -759,6 +762,7 @@ export interface PresenceIdentity {
 
 // Server → Client Events
 export type ServerEvent =
+  | { type: 'p2p_signal'; fromUserId: string; roomKey: string; kind: P2PSignalKind; payload?: string }
   | { type: 'channel_poke'; message: MessageWithUser }
   | { type: 'ready'; user: User; spaces: SpaceWithChannelsAndMembers[]; dmChannels: DmChannel[]; folders?: SpaceFolder[]; spaceLayout?: SpaceLayoutItem[] | null; layoutUpdatedAt?: number; voiceStates?: Record<string, string[]>; voiceChannelElapsedSeconds?: Record<string, number>; voiceUserStates?: Record<string, { isMuted: boolean; isDeafened: boolean; isCameraOn: boolean; isScreenSharing: boolean }>; supportsPoke?: boolean; unreadCounts?: Record<string, number>; readStates?: ReadState[]; activeCalls?: ActiveCallInfo[]; spaceVoiceStates?: Record<string, { spaceMuted: boolean; spaceDeafened: boolean }>; userActivities?: Record<string, Activity[]>; userActivityIdentities?: Record<string, PresenceIdentity>; rejectedPeerOrigins?: string[]; awaitingApprovalPeerOrigins?: string[]; activePeerOrigins?: string[]; pendingApprovalCount?: number }
   | { type: 'channel_unread_count'; counts: Record<string, number> }

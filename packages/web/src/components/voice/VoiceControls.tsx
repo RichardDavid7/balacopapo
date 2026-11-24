@@ -8,6 +8,7 @@ import { voiceSessionOrigin } from '../../utils/dmCall';
 import { ScreenShareSettingsPopover } from './ScreenShareSettingsPopover';
 import { ConnectionInfoPopover } from './ConnectionInfoPopover';
 import { SoundboardPopover } from './SoundboardPopover';
+import { P2PStatusButton, P2PMeshModal } from './P2PMeshModal';
 import { usePortalContainer } from '../../hooks/usePortalContainer';
 import { layoutPixels, layoutRect } from '../../platform/interfaceScale';
 import { hasPermissionBit, PermissionBits } from '../../utils/permissions';
@@ -184,13 +185,17 @@ export function VoiceControls() {
         </button>
 
         <div className="min-w-0 flex-1">
-          <div title={statusLabel} className={`truncate text-[13px] font-semibold leading-[18px] ${statusColor}`}>
-            {statusLabel}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div title={statusLabel} className={`truncate text-[13px] font-semibold leading-[18px] ${statusColor}`}>
+              {statusLabel}
+            </div>
+            <P2PStatusButton />
           </div>
           <div title={detailLabel} className="text-[12px] text-txt-tertiary truncate leading-[16px]">
             {detailLabel}
           </div>
         </div>
+        <P2PMeshModal />
 
         <div className="flex items-center gap-0.5 flex-shrink-0">
           {voiceConnectionStatus === 'disconnected' && connectionError && (

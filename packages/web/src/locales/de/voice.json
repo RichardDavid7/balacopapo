@@ -372,5 +372,22 @@
     "overrideVolume": "Space-Lautstärke",
     "resetOverride": "Zurücksetzen",
     "decibels": "{{value}} dB"
+  },
+  "p2p": {
+    "openMeshTitle": "P2P-Mesh-Karte & direkten Dateiversand öffnen",
+    "modalTitle": "P2P-Mesh & Direkte Dateien",
+    "enableLabel": "Direktes P2P-Mesh",
+    "enableDescription": "Verbindet direkt mit Anrufteilnehmern für Dateitransfers und Latenzkarte.",
+    "instanceNode": "Instanz",
+    "youNode": "Du",
+    "peersHeading": "Teilnehmer im Anruf",
+    "noPeers": "Noch keine anderen Teilnehmer im Anruf.",
+    "sendFile": "Datei per P2P senden",
+    "transfersHeading": "P2P-Übertragungen",
+    "downloadFile": "Datei herunterladen",
+    "transferSent": "{{name}} per P2P gesendet",
+    "transferFailed": "P2P-Dateitransfer fehlgeschlagen",
+    "statusOn": "Aktiv",
+    "statusOff": "Aus"
   }
 }

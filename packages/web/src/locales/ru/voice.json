@@ -376,5 +376,22 @@
     "overrideVolume": "Громкость в пространстве",
     "resetOverride": "Сбросить",
     "decibels": "{{value}} дБ"
+  },
+  "p2p": {
+    "openMeshTitle": "Открыть карту P2P-сети и прямую передачу файлов",
+    "modalTitle": "P2P-сеть и передача файлов",
+    "enableLabel": "Прямая P2P-сеть",
+    "enableDescription": "Прямое соединение с участниками звонка для передачи файлов и карты задержек.",
+    "instanceNode": "Сервер",
+    "youNode": "Вы",
+    "peersHeading": "Участники звонка",
+    "noPeers": "В этом звонке пока нет других участников.",
+    "sendFile": "Отправить файл P2P",
+    "transfersHeading": "P2P-передачи",
+    "downloadFile": "Скачать файл",
+    "transferSent": "{{name}} отправлен через P2P",
+    "transferFailed": "Ошибка передачи файла через P2P",
+    "statusOn": "Включено",
+    "statusOff": "Выключено"
   }
 }

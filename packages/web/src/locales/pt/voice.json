@@ -374,5 +374,22 @@
     "overrideVolume": "Volume no grupo",
     "resetOverride": "Redefinir",
     "decibels": "{{value}} dB"
+  },
+  "p2p": {
+    "openMeshTitle": "Abrir mapa da malha P2P e envio direto de arquivos",
+    "modalTitle": "Malha P2P e Arquivos Diretos",
+    "enableLabel": "Malha P2P Direta",
+    "enableDescription": "Conecta diretamente aos participantes da call para envio de arquivos e mapa de latência.",
+    "instanceNode": "Instância",
+    "youNode": "Você",
+    "peersHeading": "Participantes na call",
+    "noPeers": "Nenhum outro participante na call ainda.",
+    "sendFile": "Enviar arquivo P2P",
+    "transfersHeading": "Transferências P2P",
+    "downloadFile": "Baixar arquivo",
+    "transferSent": "{{name}} enviado via P2P",
+    "transferFailed": "Falha ao enviar arquivo via P2P",
+    "statusOn": "Ativado",
+    "statusOff": "Desativado"
   }
 }

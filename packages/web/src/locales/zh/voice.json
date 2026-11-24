@@ -370,5 +370,22 @@
     "overrideVolume": "空间音量",
     "resetOverride": "重置",
     "decibels": "{{value}} dB"
+  },
+  "p2p": {
+    "openMeshTitle": "打开 P2P 网格地图与直连文件传输",
+    "modalTitle": "P2P 网格与直连文件",
+    "enableLabel": "直连 P2P 网格",
+    "enableDescription": "与通话成员建立直连，用于文件传输和延迟监测。",
+    "instanceNode": "实例",
+    "youNode": "你",
+    "peersHeading": "通话成员",
+    "noPeers": "当前通话中还没有其他成员。",
+    "sendFile": "P2P 发送文件",
+    "transfersHeading": "P2P 传输记录",
+    "downloadFile": "下载文件",
+    "transferSent": "已通过 P2P 发送 {{name}}",
+    "transferFailed": "P2P 文件传输失败",
+    "statusOn": "已开启",
+    "statusOff": "已关闭"
   }
 }

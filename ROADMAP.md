@@ -48,8 +48,8 @@ Itens já identificados durante os testes e uso real:
 - [x] **Teste de microfone (loopback local)** — botão nas configurações de voz (`AudioInputSection` + `AudioManager.startMicLoopback`) para ouvir a própria voz já passando por RNNoise, ganho e AEC.
 
 ### Fase 2 — Malha P2P Híbrida (com Failover na Instância)
-- [ ] **2A · P2P para arquivos + Indicador P2P** — transferência direta via WebRTC DataChannel entre peers conectados (sem sobrecarregar a banda do servidor), com badge indicando conexão P2P ativa.
-- [ ] **2B · Mapa da malha P2P com latência** — grafo visual mostrando o ping (RTT) direto entre cada participante e a latência até a instância.
+- [x] **2A · P2P para arquivos + Indicador P2P** — sinalização WebSocket autenticada (`p2p_signal`), motor `P2PMeshManager` (WebRTC DataChannel com chunks de 64 KB + backpressure), indicador `P2P` na barra de voz e envio/download direto entre peers sem sobrecarregar a banda do servidor.
+- [x] **2B · Mapa da malha P2P com latência** — modal `P2PMeshModal` com grafo visual SVG mostrando o RTT direto (ping/pong a cada 3s) entre você e cada participante, tipo de rota (`LAN`/`NAT`/`Relay`) e latência até a instância.
 - [ ] **2C · P2P híbrido para chamadas (voz/vídeo):**
   1. Conecta normalmente via instância (sinalização + SFU).
   2. Tenta upgrade automático para P2P (`RTCPeerConnection` direto) entre participantes com P2P ativado.

@@ -372,5 +372,22 @@
     "overrideVolume": "Space volume",
     "resetOverride": "Reset",
     "decibels": "{{value}} dB"
+  },
+  "p2p": {
+    "openMeshTitle": "Open P2P mesh map & direct file transfer",
+    "modalTitle": "P2P Mesh & Direct Files",
+    "enableLabel": "Direct P2P Mesh",
+    "enableDescription": "Connect directly to call peers for file transfers and latency mapping.",
+    "instanceNode": "Instance",
+    "youNode": "You",
+    "peersHeading": "Peers in call",
+    "noPeers": "No remote peers in this call yet.",
+    "sendFile": "Send file P2P",
+    "transfersHeading": "P2P Transfers",
+    "downloadFile": "Download file",
+    "transferSent": "Sent {{name}} via P2P",
+    "transferFailed": "P2P file transfer failed",
+    "statusOn": "Enabled",
+    "statusOff": "Disabled"
   }
 }

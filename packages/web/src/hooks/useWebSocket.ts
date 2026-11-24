@@ -4,6 +4,7 @@ import { applySpaceMemberUpdate } from '../stores/spaceMemberUpdates';
 import { useUnreadCountStore } from '../stores/unreadCountStore';
 import React, { useEffect, useRef } from 'react';
 import { isMyIdentity, useAuthStore } from '../stores/authStore';
+import { P2PMeshManager } from '../p2p/P2PMeshManager';
 import { useSpaceStore, getChannelOrigin, getMyUserIdForOrigin } from '../stores/spaceStore';
 import { useChatStore } from '../stores/chatStore';
 import { useVoiceStore } from '../stores/voiceStore';
@@ -260,6 +261,14 @@ function handleEvent(origin: string, event: ServerEvent, readyAlreadyDelivered =
   const { addVoiceUser, removeVoiceUser, clearVoiceUsersForOrigin, setVoiceUsers, setVoiceChannelElapsedSeconds, setVoiceUserStatus, clearVoiceUserStatus } = useVoiceStore.getState();
 
   switch (event.type) {
+    case 'p2p_signal':
+      void P2PMeshManager.getInstance().handleIncomingSignal({
+        fromUserId: event.fromUserId,
+        roomKey: event.roomKey,
+        kind: event.kind,
+        payload: event.payload,
+      });
+      break;
     case 'channel_poke':
       // The stored row joins the timeline as a passive system message (no
       // unread dot, sound or notification; chatStore keeps channel system

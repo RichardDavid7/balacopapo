@@ -162,6 +162,9 @@ export function handleClientEvent(
     case 'typing_start':
       handleTypingStart(event, userId, username);
       break;
+    case 'p2p_signal':
+      handleP2PSignal(event, userId);
+      break;
     case 'presence_update':
       handlePresenceUpdate(event, userId);
       break;
@@ -2519,6 +2522,37 @@ function handleVoiceDisconnect(event: Record<string, unknown>, userId: string): 
  * (tests that exercise ring timeouts can register their own stub via
  * `connectionManager.setRingTimeoutFanoutHook`).
  */
+const VALID_P2P_SIGNAL_KINDS = new Set(['offer', 'answer', 'ice', 'hello', 'bye']);
+const MAX_P2P_SIGNAL_PAYLOAD_LEN = 32_768;
+
+/**
+ * Relays WebRTC P2P signaling (`offer`, `answer`, `ice`, `hello`, `bye`) between
+ * two authenticated users who share at least one Space, DM, or friendship.
+ * The server never inspects or stores any P2P media/file bytes.
+ */
+function handleP2PSignal(
+  event: Extract<ClientEvent, { type: 'p2p_signal' }>,
+  userId: string,
+): void {
+  if (!event.targetUserId || event.targetUserId === userId) return;
+  if (!event.roomKey || event.roomKey.length > 128) return;
+  if (!VALID_P2P_SIGNAL_KINDS.has(event.kind)) return;
+  if (event.payload !== undefined && (typeof event.payload !== 'string' || event.payload.length > MAX_P2P_SIGNAL_PAYLOAD_LEN)) {
+    return;
+  }
+
+  const allowedTargets = collectProfileBroadcastTargetIds(userId);
+  if (!allowedTargets.has(event.targetUserId)) return;
+
+  connectionManager.sendToUser(event.targetUserId, {
+    type: 'p2p_signal',
+    fromUserId: userId,
+    roomKey: event.roomKey,
+    kind: event.kind,
+    payload: event.payload,
+  });
+}
+
 export function registerCallRelayHooks(): void {
   connectionManager.setRingTimeoutFanoutHook(async (dmChannelId, callerId) => {
     const failures = await sendFederatedCallEnd(dmChannelId, [callerId]);
