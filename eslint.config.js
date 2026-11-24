@@ -103,6 +103,9 @@ module.exports = tseslint.config(
       '.metrics-data/**',
       '.metrics-init/**',
       'tests/.tmp/**',
+      // Native clients (Tauri/Rust desktop and Kotlin/Android) live in their own
+      // subtrees and are not part of the Node/pnpm workspace lint config.
+      'clients/**',
     ],
   },
 
