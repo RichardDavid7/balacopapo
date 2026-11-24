@@ -37,17 +37,17 @@ export interface ProjectLinks {
   community: CommunityTarget | null;
 }
 
-const REPOSITORY = 'https://github.com/TheZwiss/backspace';
+const REPOSITORY = 'https://github.com/RichardDavid7/balacopapo';
 
 export const PROJECT_LINKS: ProjectLinks = {
   repository: REPOSITORY,
-  insights: 'https://backspacechat.com/insights/',
-  installGuide: `${REPOSITORY}#installation`,
+  insights: `${REPOSITORY}/pulse`,
+  installGuide: `${REPOSITORY}#subindo-o-servidor-com-docker`,
   releases: `${REPOSITORY}/releases`,
   license: `${REPOSITORY}/blob/main/LICENSE`,
   security: `${REPOSITORY}/blob/main/SECURITY.md`,
   contributors: `${REPOSITORY}/graphs/contributors`,
-  funding: 'https://ko-fi.com/backspacechat',
+  funding: null,
   community: null,
 };
 
