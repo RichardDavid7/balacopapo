@@ -684,7 +684,11 @@ export async function soundboardRoutes(app: FastifyInstance): Promise<void> {
     }
 
     db.delete(schema.soundboardSounds).where(eq(schema.soundboardSounds.id, existing.id)).run();
-    await unlink(path.join(soundboardDir(), existing.fileName)).catch(() => {});
+    const deleteBase = path.resolve(soundboardDir());
+    const deleteTarget = path.resolve(deleteBase, path.basename(existing.fileName));
+    if (deleteTarget.startsWith(deleteBase + path.sep)) {
+      await unlink(deleteTarget).catch(() => {});
+    }
     return reply.code(200).send({ ok: true });
   });
 
@@ -694,9 +698,14 @@ export async function soundboardRoutes(app: FastifyInstance): Promise<void> {
     if (!SAFE_FILE_NAME.test(fileName)) {
       return sendError(reply, 400, 'validation_failed');
     }
-    const ext = path.extname(fileName).toLowerCase().replace(/^\./, '');
+    const baseDir = path.resolve(soundboardDir());
+    const filePath = path.resolve(baseDir, path.basename(fileName));
+    if (!filePath.startsWith(baseDir + path.sep)) {
+      return sendError(reply, 400, 'validation_failed');
+    }
+    const ext = path.extname(filePath).toLowerCase().replace(/^\./, '');
     try {
-      const data = await readFile(path.join(soundboardDir(), fileName));
+      const data = await readFile(filePath);
       return reply
         .header('Content-Type', EXT_TO_MIME[ext] ?? 'application/octet-stream')
         .header('Cache-Control', 'public, max-age=31536000, immutable')

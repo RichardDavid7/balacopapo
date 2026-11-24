@@ -93,12 +93,16 @@ id = "GHSA-67mh-4wv8-2f99"
 ignoreUntil = 2026-12-01
 reason = "esbuild 0.18.20, build-time only via drizzle-kit. The runtime copy is 0.28.2."
 
-# postcss-selector-parser 6.1.4 -> 7.1.6. Build-time only: tailwindcss 3 and
-# its postcss-nested, both devDependencies of @backspace/web. The parser runs
-# while Vite builds the stylesheet and is not in the bundle a browser loads. No
-# 6.x release carries the fix and tailwindcss 3 does not accept 7.x, so it is
-# gated behind the tailwindcss 4 port in the Dependabot table.
+# glob 10.5.0 / 11.1.0 -> 14.0.2 (major upgrade). Build-time / devDependencies only
+# (pulled by eslint/typescript-eslint/electron-builder); never ships to runtime server or web bundle.
 [[IgnoredVulns]]
-id = "CVE-2026-104844"
+id = "CVE-2026-118773"
 ignoreUntil = 2026-12-01
-reason = "postcss-selector-parser 6.1.4, fixed in 7.1.6 only. Build-time only via tailwindcss 3, which does not accept 7.x."
+reason = "glob 10.x/11.x, fixed in 14.0.2 (major). Dev/build-time only; does not ship to runtime."
+
+# minimatch 9.0.9 / 10.2.6 -> 11.0.1 (major upgrade). Build-time / devDependencies only
+# (pulled by eslint/glob/electron-builder); never ships to runtime server or web bundle.
+[[IgnoredVulns]]
+id = "CVE-2026-118764"
+ignoreUntil = 2026-12-01
+reason = "minimatch 9.x/10.x, fixed in 11.0.1 (major). Dev/build-time only; does not ship to runtime."
