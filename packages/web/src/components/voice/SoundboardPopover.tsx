@@ -8,6 +8,7 @@ import { AudioManager } from '../../audio/AudioManager';
 import { getActiveRoom } from '../../hooks/useLiveKit';
 import { voiceSessionOrigin } from '../../utils/dmCall';
 import { encodeSoundboardPlay } from '../../utils/soundboardProtocol';
+import { cacheSoundboardCatalog } from '../../utils/soundboardPlay';
 
 interface SoundboardPopoverProps {
   isOpen: boolean;
@@ -59,6 +60,13 @@ export function SoundboardPopover({ isOpen, onClose, className = '' }: Soundboar
       setMaxConcurrentSounds(data.maxConcurrentSounds ?? 3);
       setSoundboardEnabledInSpace(data.soundboardEnabled ?? true);
       setAllowInstanceSounds(data.spaceSettings?.allowInstanceSounds ?? true);
+      cacheSoundboardCatalog(
+        origin,
+        spaceId,
+        [...data.instanceSounds, ...data.scopedSounds],
+        data.maxConcurrentSounds ?? 3,
+        data.soundboardEnabled ?? true,
+      );
     } catch {
       addToast(t('soundboard.loadFailed'), 'warning');
     } finally {

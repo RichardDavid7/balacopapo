@@ -14,8 +14,21 @@ export const BINDABLE_ACTIONS = [
   { id: 'pushToTalk', label: 'Push to Talk', type: 'hold' as const },
   { id: 'toggleCamera', label: 'Toggle Camera', type: 'toggle' as const },
   { id: 'toggleScreenShare', label: 'Toggle Screen Share', type: 'toggle' as const },
+  { id: 'toggleSoundboardMute', label: 'Toggle Soundboard Mute', type: 'toggle' as const },
   { id: 'disconnect', label: 'Disconnect', type: 'toggle' as const },
 ] as const;
+
+export const SOUNDBOARD_ACTION_PREFIX = 'soundboard:';
+
+export function soundboardActionId(soundId: string): string {
+  return `${SOUNDBOARD_ACTION_PREFIX}${soundId}`;
+}
+
+export function parseSoundboardActionId(actionId: string): string | null {
+  return actionId.startsWith(SOUNDBOARD_ACTION_PREFIX)
+    ? actionId.slice(SOUNDBOARD_ACTION_PREFIX.length)
+    : null;
+}
 
 /** Mouse buttons that must not be bound (would break OS interaction) */
 const BLACKLISTED_MOUSE_BUTTONS = new Set([1, 2]); // left, right

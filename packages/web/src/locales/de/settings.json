@@ -345,7 +345,8 @@
       "webOnly": "Tastenkürzel funktionieren, solange dieser Tab im Vordergrund ist. Für globale Tastenkürzel, die auch in anderen Apps gelten, nutze die Desktop-App."
     },
     "section": {
-      "voice": "Sprach-Tastenkürzel"
+      "voice": "Sprach-Tastenkürzel",
+      "soundboard": "Soundboard-Tastenkürzel"
     },
     "action": {
       "toggleMute": "Mikrofon ein/aus",
@@ -353,7 +354,8 @@
       "pushToTalk": "Push-to-Talk",
       "toggleCamera": "Kamera ein/aus",
       "toggleScreenShare": "Bildschirmfreigabe ein/aus",
-      "disconnect": "Verbindung trennen"
+      "disconnect": "Verbindung trennen",
+      "toggleSoundboardMute": "Soundboard stummschalten"
     },
     "row": {
       "recordingPrompt": "Tastenkombination drücken…",
@@ -386,6 +388,11 @@
     "conflict": {
       "message": "<strong>{{combo}}</strong> ist bereits mit <strong>{{action}}</strong> belegt. Überschreiben?",
       "overwrite": "Überschreiben"
+    },
+    "soundboard": {
+      "description": "Soundboard-Clips im Sprachkanal direkt per Tastenkombination oder Maustaste auslösen.",
+      "empty": "In dieser Gruppe oder Instanz sind noch keine Soundboard-Clips verfügbar.",
+      "unknownSound": "Soundboard-Clip ({{id}})"
     }
   },
   "desktop": {

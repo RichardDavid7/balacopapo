@@ -344,7 +344,8 @@
       "webOnly": "快捷键在此标签页获得焦点时有效。如需在其他应用中使用全局快捷键，请使用桌面端应用。"
     },
     "section": {
-      "voice": "语音快捷键"
+      "voice": "语音快捷键",
+      "soundboard": "音效板快捷键"
     },
     "action": {
       "toggleMute": "切换静音",
@@ -352,7 +353,8 @@
       "pushToTalk": "按键发言",
       "toggleCamera": "切换摄像头",
       "toggleScreenShare": "切换屏幕共享",
-      "disconnect": "断开连接"
+      "disconnect": "断开连接",
+      "toggleSoundboardMute": "切换音效板静音"
     },
     "row": {
       "recordingPrompt": "请按下组合键…",
@@ -385,6 +387,11 @@
     "conflict": {
       "message": "<strong>{{combo}}</strong> 已绑定至 <strong>{{action}}</strong>。是否覆盖？",
       "overwrite": "覆盖"
+    },
+    "soundboard": {
+      "description": "在语音通话中直接通过快捷键或鼠标侧键播放音效板音频。",
+      "empty": "当前群组或实例暂无可用的音效板音频。",
+      "unknownSound": "音效板音频 ({{id}})"
     }
   },
   "desktop": {

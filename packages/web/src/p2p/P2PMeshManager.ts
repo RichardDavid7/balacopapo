@@ -8,11 +8,11 @@ const ICE_SERVERS: RTCIceServer[] = [
 
 const CTRL_CHANNEL_LABEL = 'balacopapo-ctrl';
 const FILE_CHANNEL_LABEL = 'balacopapo-files';
-const FILE_CHUNK_SIZE = 64 * 1024;
-const HIGH_WATER_MARK = 512 * 1024;
+const FILE_CHUNK_SIZE = 16 * 1024;
+const HIGH_WATER_MARK = 256 * 1024;
 const PING_INTERVAL_MS = 3_000;
 const DEGRADED_RTT_MS = 350;
-const CHANNEL_OPEN_TIMEOUT_MS = 12_000;
+const CHANNEL_OPEN_TIMEOUT_MS = 18_000;
 
 export interface IncomingP2PSignal {
   fromUserId: string;
@@ -61,6 +61,7 @@ interface PeerSession {
   rttMs: number | null;
   route: P2PRouteKind;
   fileChannelWaiters: Array<() => void>;
+  pendingIceCandidates: RTCIceCandidateInit[];
 }
 
 /**
@@ -177,6 +178,7 @@ export class P2PMeshManager {
           return;
         }
         await pc.setRemoteDescription(desc);
+        await this.flushPendingIceCandidates(session);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         this.emitSignal(session.userId, session.roomKey, 'answer', JSON.stringify(pc.localDescription));
@@ -187,11 +189,16 @@ export class P2PMeshManager {
         if (pc.signalingState !== 'have-local-offer') return;
         const desc = JSON.parse(signal.payload) as RTCSessionDescriptionInit;
         await pc.setRemoteDescription(desc);
+        await this.flushPendingIceCandidates(session);
         return;
       }
 
       if (signal.kind === 'ice' && signal.payload) {
         const candidate = JSON.parse(signal.payload) as RTCIceCandidateInit;
+        if (!pc.remoteDescription) {
+          session.pendingIceCandidates.push(candidate);
+          return;
+        }
         await pc.addIceCandidate(candidate);
       }
     } catch (err) {
@@ -208,6 +215,11 @@ export class P2PMeshManager {
       throw new Error('P2P is disabled');
     }
     const effectiveRoomKey = roomKey ?? this.sessions.get(peerUserId)?.roomKey ?? this.currentRoomKey ?? `dm:${peerUserId}`;
+    const existing = this.sessions.get(peerUserId);
+    if (existing && existing.fileChannel?.readyState !== 'open' && existing.pc.connectionState !== 'connected') {
+      // Stale/incomplete handshake from a prior attempt — start fresh so signaling re-fires.
+      this.closePeer(peerUserId, false);
+    }
     const session = this.ensureSession(peerUserId, effectiveRoomKey, true);
     const dc = await this.waitForFileChannel(session);
 
@@ -370,6 +382,7 @@ export class P2PMeshManager {
       rttMs: null,
       route: 'unknown',
       fileChannelWaiters: [],
+      pendingIceCandidates: [],
     };
 
     this.sessions.set(peerUserId, session);
@@ -414,6 +427,18 @@ export class P2PMeshManager {
     }
 
     return session;
+  }
+
+  private async flushPendingIceCandidates(session: PeerSession): Promise<void> {
+    if (session.pendingIceCandidates.length === 0) return;
+    const queued = session.pendingIceCandidates.splice(0);
+    for (const candidate of queued) {
+      try {
+        await session.pc.addIceCandidate(candidate);
+      } catch (err) {
+        console.warn(`[P2P] Deferred ICE candidate error with ${session.userId}:`, err);
+      }
+    }
   }
 
   private async createAndSendOffer(session: PeerSession): Promise<void> {
@@ -527,12 +552,19 @@ export class P2PMeshManager {
         return;
       }
 
-      if (e.data instanceof ArrayBuffer && session.activeIncomingFileId) {
+      const appendBinaryChunk = (chunk: ArrayBuffer) => {
+        if (!session.activeIncomingFileId) return;
         const buf = session.incomingFiles.get(session.activeIncomingFileId);
         if (!buf) return;
-        buf.chunks.push(e.data);
-        buf.receivedBytes += e.data.byteLength;
+        buf.chunks.push(chunk);
+        buf.receivedBytes += chunk.byteLength;
         store.updateTransferProgress(buf.id, buf.receivedBytes);
+      };
+
+      if (e.data instanceof ArrayBuffer) {
+        appendBinaryChunk(e.data);
+      } else if (e.data instanceof Blob) {
+        void e.data.arrayBuffer().then(appendBinaryChunk);
       }
     };
   }

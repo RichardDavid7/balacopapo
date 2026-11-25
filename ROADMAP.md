@@ -75,7 +75,7 @@ Itens já identificados durante os testes e uso real:
   - **Ícone quando alguém fala** (indicador flutuante sobre o jogo mostrando quem está falando no momento).
   - **Aviso quando alguém entra** (notificação discreta no overlay quando alguém entra/sai da call).
 - [x] **Áudio apenas da janela** — seletor **Apenas da janela / Sistema inteiro** (`audioScope`) em `StreamQualityControls` + `windowAudio: 'window'` (Windows 11 WASAPI Process Loopback / Chromium 130+) + isolamento PipeWire por aplicativo (`buildIncludeNodes` com fallback automático) no Linux (`packages/desktop/src/systemAudio.ts`).
-- [ ] **Atalhos globais de teclado no Desktop** — *Mute*, *Deafen*, *Push-to-Talk* e atalhos rápidos do Soundboard funcionando dentro de jogos sem precisar dar Alt+Tab.
+- [x] **Atalhos globais de teclado no Desktop** — *Mute*, *Deafen*, *Push-to-Talk*, silenciar Soundboard e atalhos rápidos individuais para qualquer som do Soundboard (`keybindStore.ts` + `useKeybinds.ts` + `soundboardPlay.ts` + `KeybindsPanel.tsx`) funcionando dentro de jogos sem precisar dar Alt+Tab.
 
 ### Fase 6 — Balacopapo Utilidades: Ponte de Voz com Discord (Ponto A ↔ Ponto B)
 - [ ] **App / serviço companheiro "Balacopapo Utilidades"** (base compartilhada que conecta como participante de áudio nas salas LiveKit, podendo rodar no Windows ou como container Docker).

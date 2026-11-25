@@ -345,7 +345,8 @@
       "webOnly": "Shortcuts work while this tab is focused. For global shortcuts that work in other apps, use the desktop app."
     },
     "section": {
-      "voice": "Voice Shortcuts"
+      "voice": "Voice Shortcuts",
+      "soundboard": "Soundboard Shortcuts"
     },
     "action": {
       "toggleMute": "Toggle Mute",
@@ -353,7 +354,8 @@
       "pushToTalk": "Push to Talk",
       "toggleCamera": "Toggle Camera",
       "toggleScreenShare": "Toggle Screen Share",
-      "disconnect": "Disconnect"
+      "disconnect": "Disconnect",
+      "toggleSoundboardMute": "Toggle Soundboard Mute"
     },
     "row": {
       "recordingPrompt": "Press a key combo…",
@@ -386,6 +388,11 @@
     "conflict": {
       "message": "<strong>{{combo}}</strong> is already bound to <strong>{{action}}</strong>. Overwrite?",
       "overwrite": "Overwrite"
+    },
+    "soundboard": {
+      "description": "Trigger soundboard clips directly with a keyboard combo or extra mouse button while in a voice call.",
+      "empty": "No soundboard clips available in this group or instance yet.",
+      "unknownSound": "Soundboard clip ({{id}})"
     }
   },
   "desktop": {

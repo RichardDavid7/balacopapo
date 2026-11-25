@@ -346,7 +346,8 @@
       "webOnly": "Os atalhos funcionam enquanto esta aba estiver em foco. Para atalhos globais que funcionam em outros apps, use o app para desktop."
     },
     "section": {
-      "voice": "Atalhos de voz"
+      "voice": "Atalhos de voz",
+      "soundboard": "Atalhos do Soundboard"
     },
     "action": {
       "toggleMute": "Alternar silenciamento do microfone",
@@ -354,7 +355,8 @@
       "pushToTalk": "Aperte para falar",
       "toggleCamera": "Alternar câmera",
       "toggleScreenShare": "Alternar compartilhamento de tela",
-      "disconnect": "Desconectar"
+      "disconnect": "Desconectar",
+      "toggleSoundboardMute": "Silenciar / reativar Soundboard"
     },
     "row": {
       "recordingPrompt": "Pressione uma combinação de teclas…",
@@ -387,6 +389,11 @@
     "conflict": {
       "message": "<strong>{{combo}}</strong> já está atribuído a <strong>{{action}}</strong>. Substituir?",
       "overwrite": "Substituir"
+    },
+    "soundboard": {
+      "description": "Dispare sons do Soundboard direto com um atalho de teclado ou botão extra do mouse durante a chamada.",
+      "empty": "Nenhum som do Soundboard disponível neste grupo ou instância ainda.",
+      "unknownSound": "Som do Soundboard ({{id}})"
     }
   },
   "desktop": {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useKeybindStore, Keybind } from '../stores/keybindStore';
+import { useKeybindStore, Keybind, parseSoundboardActionId } from '../stores/keybindStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import { isElectron } from '../platform/platform';
 import { toggleMuteFromControl, toggleDeafenFromControl, handleCameraAction, handleScreenShareAction, handleDisconnectAction } from '../utils/voiceActions';
@@ -21,7 +21,15 @@ function dispatchKeybindAction(actionId: string, pressed: boolean, deduplicate =
   lastDispatch[key] = now;
 
   const voice = useVoiceStore.getState();
-  if (!voice.currentVoiceChannelId) return;
+  if (!voice.currentVoiceChannelId && !voice.activeDmCall) return;
+
+  const soundboardId = parseSoundboardActionId(actionId);
+  if (soundboardId) {
+    if (pressed) {
+      void import('../utils/soundboardPlay').then(({ playSoundboardClipById }) => playSoundboardClipById(soundboardId));
+    }
+    return;
+  }
 
   switch (actionId) {
     case 'toggleMute':
@@ -35,6 +43,9 @@ function dispatchKeybindAction(actionId: string, pressed: boolean, deduplicate =
       break;
     case 'toggleScreenShare':
       if (pressed) handleScreenShareAction();
+      break;
+    case 'toggleSoundboardMute':
+      if (pressed) voice.setSoundboardMuted(!voice.soundboardMuted);
       break;
     case 'disconnect':
       if (pressed) handleDisconnectAction();

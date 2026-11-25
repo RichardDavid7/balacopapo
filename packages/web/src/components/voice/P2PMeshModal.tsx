@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '../ui/Modal';
 import { useP2PStore, type P2PPeerInfo } from '../../stores/p2pStore';
@@ -254,8 +255,8 @@ export function P2PTransferTray() {
     return userId.slice(0, 8);
   };
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(var(--vw)*100-2rem)] space-y-2 pointer-events-auto">
+  return createPortal(
+    <div className="fixed bottom-4 right-4 z-[9990] w-80 max-w-[calc(var(--vw)*100-2rem)] space-y-2 pointer-events-auto">
       {transfers.slice(0, 4).map((tr) => {
         const pct = tr.totalBytes > 0 ? Math.min(100, Math.round((tr.transferredBytes / tr.totalBytes) * 100)) : 100;
         const peerName = resolveName(tr.peerUserId);
@@ -341,7 +342,8 @@ export function P2PTransferTray() {
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

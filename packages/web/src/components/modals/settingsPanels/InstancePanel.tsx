@@ -4,7 +4,7 @@ import { useSettingsStore } from '../../../stores/settingsStore';
 import { useSettingsSections } from '../../../hooks/useSettingsSections';
 import { useInstanceUpdateBadge } from '../../../hooks/useInstanceUpdateBadge';
 import type { SettingsSection } from '../SettingsSectionsContext';
-import { SettingsTabBar } from '../SettingsTabBar';
+import { HiButton } from '../../telemetry/answers/HiButton';
 import { GeneralPanel } from '../instanceSettingsPanels/GeneralPanel';
 import { RegistrationPanel } from '../instanceSettingsPanels/RegistrationPanel';
 import { FederationPanel } from '../instanceSettingsPanels/FederationPanel';
@@ -70,20 +70,69 @@ export function InstancePanel() {
   }, [fetchInstanceSettings, fetchTelemetry]);
 
   return (
-    <div className="space-y-4">
-      <SettingsTabBar />
+    <div className="flex flex-col desktop:flex-row gap-4 desktop:gap-6 items-start">
+      {/* Mobile selector: single-tap jump across all 11 instance sections */}
+      <div className="w-full desktop:hidden">
+        <select
+          value={subTab}
+          onChange={(e) => setSubTab(e.target.value as SubTab)}
+          aria-label={t('settings:instance.tabs.general')}
+          className="w-full px-3 py-2 rounded-lg bg-surface-elevated border border-border-soft text-sm font-medium text-txt-primary focus:outline-none focus:border-accent-primary"
+        >
+          {sections.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}{s.badgeCount && s.badgeCount > 0 ? ` (${s.badgeCount})` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {subTab === 'general' && <GeneralPanel />}
-      {subTab === 'registration' && <RegistrationPanel />}
-      {subTab === 'oidc' && <OidcPanel />}
-      {subTab === 'ipBans' && <IpBansPanel />}
-      {subTab === 'federation' && <FederationPanel onApprovalCountChange={setApprovalCount} />}
-      {subTab === 'streaming' && <StreamingPanel />}
-      {subTab === 'audio' && <AudioPanel />}
-      {subTab === 'storage' && <StoragePanel />}
-      {subTab === 'users' && <UsersPanel />}
-      {subTab === 'updates' && <UpdatesPanel />}
-      {subTab === 'telemetry' && <TelemetryPanel />}
+      {/* Desktop vertical navigation column — replaces overcrowded top tabs */}
+      <nav className="hidden desktop:flex flex-col gap-0.5 w-44 shrink-0 sticky top-0 pr-3 border-r border-white/[0.06]">
+        {sections.map((s) =>
+          s.invite === true ? (
+            <div key={s.id} className="pt-1.5">
+              <HiButton onClick={() => setSubTab(s.id as SubTab)}>{s.label}</HiButton>
+            </div>
+          ) : (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSubTab(s.id as SubTab)}
+              className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-left transition-colors ${
+                subTab === s.id
+                  ? 'bg-accent-primary/15 text-txt-primary font-semibold'
+                  : 'text-txt-tertiary hover:text-txt-secondary hover:bg-white/[0.04]'
+              }`}
+            >
+              <span className="truncate">{s.label}</span>
+              {s.badgeCount !== undefined && s.badgeCount > 0 && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent-amber/15 text-accent-amber shrink-0">
+                  {s.badgeCount}
+                </span>
+              )}
+              {s.badgeDot === true && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-amber shrink-0" />
+              )}
+            </button>
+          ),
+        )}
+      </nav>
+
+      {/* Active section content */}
+      <div className="flex-1 min-w-0 w-full">
+        {subTab === 'general' && <GeneralPanel />}
+        {subTab === 'registration' && <RegistrationPanel />}
+        {subTab === 'oidc' && <OidcPanel />}
+        {subTab === 'ipBans' && <IpBansPanel />}
+        {subTab === 'federation' && <FederationPanel onApprovalCountChange={setApprovalCount} />}
+        {subTab === 'streaming' && <StreamingPanel />}
+        {subTab === 'audio' && <AudioPanel />}
+        {subTab === 'storage' && <StoragePanel />}
+        {subTab === 'users' && <UsersPanel />}
+        {subTab === 'updates' && <UpdatesPanel />}
+        {subTab === 'telemetry' && <TelemetryPanel />}
+      </div>
     </div>
   );
 }

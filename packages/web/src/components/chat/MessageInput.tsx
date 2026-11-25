@@ -853,6 +853,11 @@ export function MessageInput({ channelId, channelName, placeholder }: MessageInp
             }}
           />
 
+          {/* Dedicated P2P direct file button in 1-on-1 DMs (left side, next to attach) */}
+          {directDmPeerId && (
+            <DmP2PSendButton peerUserId={directDmPeerId} dmChannelId={channelId} variant="composer" />
+          )}
+
           {/* Text input */}
           <MentionTextarea
             textareaRef={textareaRef}
@@ -899,11 +904,6 @@ export function MessageInput({ channelId, channelName, placeholder }: MessageInp
             >
               {remaining}
             </span>
-          )}
-
-          {/* Dedicated P2P direct file button in 1-on-1 DMs (separate from normal server attach) */}
-          {directDmPeerId && (
-            <DmP2PSendButton peerUserId={directDmPeerId} dmChannelId={channelId} variant="composer" />
           )}
 
           {/* GIF button */}

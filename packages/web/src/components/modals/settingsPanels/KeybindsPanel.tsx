@@ -1,7 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { useKeybindStore, BINDABLE_ACTIONS, Keybind } from '../../../stores/keybindStore';
+import type { SoundboardSound } from '@backspace/shared';
+import {
+  useKeybindStore,
+  BINDABLE_ACTIONS,
+  Keybind,
+  soundboardActionId,
+  parseSoundboardActionId,
+} from '../../../stores/keybindStore';
 import { isElectron, isElectronMac } from '../../../platform/platform';
 import { useKeybindPortalStatus } from '../../../hooks/useKeybindPortalStatus';
 
@@ -149,6 +156,51 @@ export function KeybindsPanel() {
 
   const [accessibilityTrusted, setAccessibilityTrusted] = useState<boolean | null>(null);
   const [hookError, setHookError] = useState<string | null>(null);
+  const [soundboardSounds, setSoundboardSounds] = useState<SoundboardSound[]>([]);
+  const [loadingSounds, setLoadingSounds] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSounds(true);
+    void import('../../../stores/spaceStore')
+      .then(({ useSpaceStore, getApiForOrigin }) => {
+        const { currentSpaceId, spaces } = useSpaceStore.getState();
+        const origin = currentSpaceId ? (spaces.find((x) => x.id === currentSpaceId)?._instanceOrigin ?? '') : '';
+        return getApiForOrigin(origin).soundboard.list({ spaceId: currentSpaceId ?? undefined });
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const combined = [...data.instanceSounds, ...data.scopedSounds];
+        const deduped = Array.from(new Map(combined.map((s) => [s.id, s])).values());
+        setSoundboardSounds(deduped);
+      })
+      .catch(() => {
+        if (!cancelled) setSoundboardSounds([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSounds(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const soundboardRows = useMemo(() => {
+    const byId = new Map(soundboardSounds.map((s) => [s.id, s]));
+    const rows: Array<{ actionId: string; label: string }> = soundboardSounds.map((s) => ({
+      actionId: soundboardActionId(s.id),
+      label: s.emoji ? `${s.emoji} ${s.name}` : s.name,
+    }));
+    // Keep any already-bound sound from another group visible so the user can edit or delete it.
+    for (const kb of keybinds) {
+      const soundId = parseSoundboardActionId(kb.actionId);
+      if (soundId && !byId.has(soundId)) {
+        rows.push({
+          actionId: kb.actionId,
+          label: t('keybinds.soundboard.unknownSound', { id: soundId.slice(0, 8) }),
+        });
+      }
+    }
+    return rows;
+  }, [soundboardSounds, keybinds, t]);
 
   const pressedCodesRef = useRef(new Map<string, { numeric: number; display: string }>());
   const mouseButtonRef = useRef<number | null>(null);
@@ -159,6 +211,11 @@ export function KeybindsPanel() {
   for (const action of BINDABLE_ACTIONS) {
     if (!rowRefs.current[action.id]) {
       rowRefs.current[action.id] = React.createRef();
+    }
+  }
+  for (const row of soundboardRows) {
+    if (!rowRefs.current[row.actionId]) {
+      rowRefs.current[row.actionId] = React.createRef();
     }
   }
 
@@ -313,7 +370,12 @@ export function KeybindsPanel() {
   const conflictAction = conflict
     ? BINDABLE_ACTIONS.find((a) => a.id === conflict.existingKeybind.actionId)
     : undefined;
-  const conflictActionLabel = conflictAction ? t(`keybinds.action.${conflictAction.id}`) : '';
+  const conflictSoundRow = conflict
+    ? soundboardRows.find((r) => r.actionId === conflict.existingKeybind.actionId)
+    : undefined;
+  const conflictActionLabel = conflictAction
+    ? t(`keybinds.action.${conflictAction.id}`)
+    : (conflictSoundRow?.label ?? '');
 
   if (portal) {
     return (
@@ -410,6 +472,42 @@ export function KeybindsPanel() {
             />
           ))}
         </div>
+      </div>
+
+      {/* Soundboard quick-trigger keybinds */}
+      <div>
+        <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1">
+          {t('keybinds.section.soundboard')}
+        </div>
+        <p className="text-xs text-txt-tertiary mb-2.5">
+          {t('keybinds.soundboard.description')}
+        </p>
+        {loadingSounds && soundboardRows.length === 0 ? (
+          <div className="text-xs text-txt-tertiary px-1">{t('common:states.loading')}</div>
+        ) : soundboardRows.length === 0 ? (
+          <div className="rounded-lg bg-white/[0.02] border border-white/[0.05] px-4 py-3 text-xs text-txt-tertiary">
+            {t('keybinds.soundboard.empty')}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {soundboardRows.map((row) => (
+              <KeybindRow
+                key={row.actionId}
+                actionId={row.actionId}
+                label={row.label}
+                keybind={getKeybind(row.actionId)}
+                isRecording={recordingActionId === row.actionId}
+                recordingDisplay={recordingDisplay}
+                onStartRecording={() => {
+                  cancelRecording();
+                  setRecordingActionId(row.actionId);
+                }}
+                onDelete={() => removeKeybind(row.actionId)}
+                rowRef={rowRefs.current[row.actionId]!}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Conflict dialog */}
