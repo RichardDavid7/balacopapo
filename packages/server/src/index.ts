@@ -53,12 +53,7 @@ import { MESSAGE_PAGING_HEADER } from '@backspace/shared';
 
 async function main(): Promise<void> {
   const app = Fastify({
-    // A count of trusted hops, not `true`. `request.ip` is the address the
-    // nearest proxy appended rather than the left-most thing in
-    // `X-Forwarded-For`, so a client cannot pick the address its rate limits
-    // are counted under. `TRUSTED_PROXY_HOPS` in config.ts carries what the
-    // number means and when an operator changes it.
-    trustProxy: config.trustedProxyHops,
+    trustProxy: config.trustProxy,
     logger: {
       level: 'info',
     },
