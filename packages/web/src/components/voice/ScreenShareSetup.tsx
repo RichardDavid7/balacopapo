@@ -687,7 +687,17 @@ export function ScreenShareSetup() {
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-5 py-4">
-              <StreamQualityControls />
+              <StreamQualityControls
+                showAudioScope={
+                  selectedId
+                    ? !selectedId.startsWith('screen:')
+                    : staged
+                      ? ((staged.getVideoTracks()[0]?.getSettings?.() as { displaySurface?: string } | undefined)?.displaySurface !== 'monitor')
+                      : showGrid
+                        ? activeTab === 'windows'
+                        : true
+                }
+              />
             </div>
           </div>
         </div>

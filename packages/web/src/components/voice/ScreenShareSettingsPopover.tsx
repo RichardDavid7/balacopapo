@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useFloatingPosition } from '../../hooks/useFloatingPosition';
 import { usePortalContainer } from '../../hooks/usePortalContainer';
 import { StreamQualityControls, StreamSummary, StreamHostSubtitle } from './StreamQualityControls';
+import { Track } from 'livekit-client';
+import { getActiveRoom } from '../../hooks/useLiveKit';
 
 interface ScreenShareSettingsPopoverProps {
   open: boolean;
@@ -50,6 +52,15 @@ export function ScreenShareSettingsPopover({ open, onClose, anchorRef, onStopSha
 
   if (!open) return null;
 
+  const liveSurface = (
+    getActiveRoom()
+      ?.localParticipant
+      .getTrackPublication(Track.Source.ScreenShare)
+      ?.track
+      ?.mediaStreamTrack
+      ?.getSettings?.() as { displaySurface?: string } | undefined
+  )?.displaySurface;
+
   return createPortal(
     <div
       ref={popoverRef}
@@ -62,7 +73,7 @@ export function ScreenShareSettingsPopover({ open, onClose, anchorRef, onStopSha
       </div>
 
       <div className="px-3 py-3">
-        <StreamQualityControls />
+        <StreamQualityControls showAudioScope={liveSurface !== 'monitor'} />
       </div>
 
       {/* Footer — computed stats */}

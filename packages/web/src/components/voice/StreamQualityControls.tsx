@@ -119,7 +119,7 @@ const pillBase = 'px-2.5 py-1.5 rounded-full text-[13px] font-medium transition-
 const pillSelected = 'bg-accent-primary text-white';
 const pillUnselected = 'bg-surface-elevated text-txt-secondary hover:bg-interactive-hover';
 
-export function StreamQualityControls() {
+export function StreamQualityControls({ showAudioScope = true }: { showAudioScope?: boolean } = {}) {
   const { t } = useTranslation(['voice', 'common']);
   const config = useVoiceStore((s) => s.screenShareConfig);
   const setConfig = useVoiceStore((s) => s.setScreenShareConfig);
@@ -326,7 +326,7 @@ export function StreamQualityControls() {
         </div>
 
         {/* Audio scope: Window-only (WASAPI / PipeWire / Chromium windowAudio) vs Full System */}
-        {audioSwitch.checked && (
+        {audioSwitch.checked && showAudioScope && (
           <div className="mt-2.5 pt-2.5 border-t border-white/[0.04]">
             <div className="text-[10px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1.5">
               {t('voice:streamSettings.audioScope.label')}
