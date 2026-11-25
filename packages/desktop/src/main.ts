@@ -1199,8 +1199,12 @@ function initAutoUpdater(): void {
 
 // ─── Deep Linking ───────────────────────────────────────────────────────────
 
+function isAppDeepLink(url: string): boolean {
+  return url.startsWith('balacopapo://') || url.startsWith('backspace://');
+}
+
 function handleDeepLink(url: string): void {
-  if (!url.startsWith('backspace://')) return;
+  if (!isAppDeepLink(url)) return;
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('deep-link', url);
@@ -1241,7 +1245,8 @@ export function requestQuit(): void {
   app.quit();
 }
 
-// Set as default protocol handler
+// Set as default protocol handler (Balacopapo + legacy Backspace)
+app.setAsDefaultProtocolClient('balacopapo');
 app.setAsDefaultProtocolClient('backspace');
 
 // macOS: open-url event
@@ -1258,7 +1263,7 @@ if (!gotTheLock) {
 } else {
   app.on('second-instance', (_event, commandLine) => {
     // Find the deep link URL in the command line args
-    const deepLinkArg = commandLine.find((arg) => arg.startsWith('backspace://'));
+    const deepLinkArg = commandLine.find((arg) => isAppDeepLink(arg));
     if (deepLinkArg) {
       handleDeepLink(deepLinkArg);
     }

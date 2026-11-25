@@ -31,6 +31,8 @@ export function LoginPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const [oidcBrowserPending, setOidcBrowserPending] = useState(false);
+
   const oidcErrorMessage = oidcErrorCode
     ? t(`auth:oidc.errors.${oidcErrorCode}`, { defaultValue: t('auth:oidc.errors.generic') })
     : '';
@@ -42,6 +44,17 @@ export function LoginPage() {
     }
     const qs = params.toString();
     window.location.assign(`/api/auth/oidc/start${qs ? `?${qs}` : ''}`);
+  };
+
+  const handleOidcBrowserLogin = () => {
+    const params = new URLSearchParams();
+    params.set('client', 'desktop');
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      params.set('redirect', redirect);
+    }
+    const startUrl = `${window.location.origin}/api/auth/oidc/start?${params.toString()}`;
+    setOidcBrowserPending(true);
+    window.open(startUrl, '_blank', 'noopener,noreferrer');
   };
 
   useEffect(() => {
@@ -106,7 +119,7 @@ export function LoginPage() {
         )}
 
         {instanceInfo?.oidc?.enabled && (
-          <div className="mb-5">
+          <div className="mb-5 space-y-2">
             <button
               type="button"
               onClick={handleOidcLogin}
@@ -117,8 +130,23 @@ export function LoginPage() {
               </svg>
               {t('auth:oidc.signInWith', { provider: instanceInfo.oidc.displayName })}
             </button>
+            <button
+              type="button"
+              onClick={handleOidcBrowserLogin}
+              className="w-full py-2 bg-surface-base hover:bg-surface-overlay border border-border-soft text-txt-secondary hover:text-txt-primary text-xs font-medium rounded transition-colors flex items-center justify-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              {t('auth:oidc.openInBrowser')}
+            </button>
+            {oidcBrowserPending && (
+              <p className="text-xs text-txt-tertiary text-center">
+                {t('auth:oidc.waitingBrowser')}
+              </p>
+            )}
             {!instanceInfo.oidc.passwordLoginDisabled && (
-              <div className="flex items-center gap-3 my-4">
+              <div className="flex items-center gap-3 pt-2">
                 <div className="flex-1 h-px bg-border-soft" />
                 <span className="text-xs text-txt-tertiary uppercase">{t('auth:oidc.orPassword')}</span>
                 <div className="flex-1 h-px bg-border-soft" />

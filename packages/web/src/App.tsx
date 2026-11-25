@@ -90,6 +90,20 @@ function AuthRedirect({ children }: { children: React.ReactNode }) {
 }
 
 export function App() {
+  const navigate = useNavigate();
+
+  // Global deep-link listener (works even on /login for OIDC browser handoff)
+  useEffect(() => {
+    const onDeepLink = window.backspace?.onDeepLink;
+    if (typeof onDeepLink !== 'function') return;
+    return onDeepLink((rawUrl: string) => {
+      const target = parseDeepLinkUrl(rawUrl);
+      if (target) {
+        navigate(target, { replace: true });
+      }
+    });
+  }, [navigate]);
+
   // Boot-completion ping — disarms the main-process boot timer.
   // MUST be first hook on the unconditional render path. Single fire on
   // first commit; main owns "armed once" gating so duplicate calls (e.g.

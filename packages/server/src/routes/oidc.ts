@@ -446,7 +446,38 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
 
       const ticket = createOidcLoginTicket(user.id);
       if (pending.client === 'desktop' || pending.client === 'mobile') {
-        return reply.redirect(`balacopapo://auth/callback?oidc_ticket=${encodeURIComponent(ticket)}`);
+        const deepLink = `balacopapo://auth/callback?oidc_ticket=${encodeURIComponent(ticket)}`;
+        const webFallback = `/auth/callback?oidc_ticket=${encodeURIComponent(ticket)}`;
+        const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="refresh" content="0;url=${deepLink}" />
+  <title>Balacopapo</title>
+  <style>
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1117;color:#e5e7eb;font-family:system-ui,-apple-system,sans-serif;padding:24px}
+    .card{max-width:420px;width:100%;background:#181b24;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:28px;text-align:center}
+    h1{margin:0 0 8px;font-size:20px}
+    p{margin:0 0 20px;font-size:14px;color:#9ca3af;line-height:1.5}
+    .btn{display:inline-block;width:100%;box-sizing:border-box;padding:12px 16px;border-radius:8px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:600;font-size:14px}
+    .sub{display:inline-block;margin-top:14px;font-size:12px;color:#9ca3af;text-decoration:underline}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Balacopapo</h1>
+    <p>Authentication complete. Click below if the app does not open automatically.</p>
+    <a class="btn" href="${deepLink}">Open Balacopapo</a>
+    <a class="sub" href="${webFallback}">Continue in browser instead</a>
+  </div>
+</body>
+</html>`;
+        return reply
+          .code(200)
+          .header('Content-Type', 'text/html; charset=utf-8')
+          .header('Cache-Control', 'no-store')
+          .send(html);
       }
 
       const params = new URLSearchParams();
