@@ -390,42 +390,66 @@ export async function syncOidcAvatar(opts: {
   pictureUrl: string | undefined;
   currentAvatar: string | null;
   lastSourceUrl: string | null;
+  issuerUrl?: string;
+  accessToken?: string;
 }): Promise<{ avatar: string | null; lastAvatarSourceUrl: string | null; updated: boolean }> {
-  const { userId, pictureUrl, currentAvatar, lastSourceUrl } = opts;
-  if (!config.oidc.syncAvatar || !pictureUrl || typeof pictureUrl !== 'string') {
+  const { userId, pictureUrl, currentAvatar, lastSourceUrl, issuerUrl, accessToken } = opts;
+  if (!config.oidc.syncAvatar || !pictureUrl || typeof pictureUrl !== 'string' || !pictureUrl.trim()) {
     return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
   }
 
   let parsedUrl: URL;
   try {
-    parsedUrl = new URL(pictureUrl);
+    parsedUrl = issuerUrl ? new URL(pictureUrl.trim(), `${normalizeIssuer(issuerUrl)}/`) : new URL(pictureUrl.trim());
   } catch {
+    console.warn('[OIDC] Invalid picture URL:', pictureUrl);
     return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
   }
   if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
     return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
   }
 
-  // Skip re-downloading if the source URL hasn't changed and the local file still exists.
-  if (lastSourceUrl === pictureUrl && currentAvatar && currentAvatar.startsWith('/api/uploads/')) {
-    const existingName = path.basename(currentAvatar);
-    if (fs.existsSync(path.join(config.uploadDir, existingName))) {
-      return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
-    }
-  }
-
+  // Note: Providers like Pocket ID use a stable URL (/api/users/<id>/profile-picture.png)
+  // even after the user changes their profile picture. Therefore we always fetch the image
+  // on OIDC login and deduplicate by SHA-256 hash of the processed WebP bytes.
   try {
-    const res = await fetch(parsedUrl.toString(), {
-      signal: AbortSignal.timeout(6000),
+    const baseHeaders: Record<string, string> = {
+      Accept: 'image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8',
+    };
+    let res = await fetch(parsedUrl.toString(), {
+      headers: baseHeaders,
+      signal: AbortSignal.timeout(8000),
       redirect: 'follow',
     });
+
+    // If the provider protects the picture endpoint on the same origin, retry with the OIDC access_token.
+    if ((res.status === 401 || res.status === 403) && accessToken && issuerUrl) {
+      try {
+        const issuerOrigin = new URL(issuerUrl).origin;
+        if (parsedUrl.origin === issuerOrigin) {
+          res = await fetch(parsedUrl.toString(), {
+            headers: { ...baseHeaders, Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(8000),
+            redirect: 'follow',
+          });
+        }
+      } catch {
+        // Ignore malformed issuerUrl
+      }
+    }
+
     if (!res.ok) {
+      console.warn(`[OIDC] Avatar download returned HTTP ${res.status} from ${parsedUrl.origin}${parsedUrl.pathname}`);
       return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
     }
-    const contentType = res.headers.get('content-type') ?? '';
-    if (!contentType.toLowerCase().startsWith('image/')) {
+
+    const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+    // Reject obvious HTML/JSON error pages, but allow image/* and application/octet-stream (sharp validates actual image bytes).
+    if (contentType.includes('text/html') || contentType.includes('application/json')) {
+      console.warn(`[OIDC] Avatar endpoint returned non-image content-type "${contentType}"`);
       return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
     }
+
     const contentLength = Number(res.headers.get('content-length') ?? '0');
     if (contentLength > MAX_AVATAR_BYTES) {
       return { avatar: currentAvatar, lastAvatarSourceUrl: lastSourceUrl, updated: false };
@@ -446,19 +470,26 @@ export async function syncOidcAvatar(opts: {
     }
 
     const hash = crypto.createHash('sha256').update(webpBuffer).digest('hex').slice(0, 12);
+    // Store bare filename in users.avatar (matching routes/users.ts & federation conventions)
     const filename = `oidc-avatar-${userId}-${hash}.webp`;
     const filepath = path.join(config.uploadDir, filename);
-    fs.writeFileSync(filepath, webpBuffer);
 
-    const nextAvatarUrl = `/api/uploads/${filename}`;
-    if (currentAvatar && currentAvatar !== nextAvatarUrl && currentAvatar.startsWith('/api/uploads/oidc-avatar-')) {
-      deleteUploadFile(path.basename(currentAvatar));
+    const normalizedCurrent = currentAvatar?.startsWith('/api/uploads/')
+      ? currentAvatar.slice('/api/uploads/'.length)
+      : currentAvatar;
+
+    if (!fs.existsSync(filepath)) {
+      fs.writeFileSync(filepath, webpBuffer);
+    }
+
+    if (normalizedCurrent && normalizedCurrent !== filename && normalizedCurrent.startsWith('oidc-avatar-')) {
+      deleteUploadFile(path.basename(normalizedCurrent));
     }
 
     return {
-      avatar: nextAvatarUrl,
-      lastAvatarSourceUrl: pictureUrl,
-      updated: nextAvatarUrl !== currentAvatar,
+      avatar: filename,
+      lastAvatarSourceUrl: parsedUrl.toString(),
+      updated: currentAvatar !== filename,
     };
   } catch (err) {
     console.warn('[OIDC] Avatar sync failed (continuing login):', err);

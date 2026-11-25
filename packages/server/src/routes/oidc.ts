@@ -296,6 +296,8 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
           pictureUrl,
           currentAvatar: targetUser.avatar,
           lastSourceUrl: null,
+          issuerUrl: discovery.issuer,
+          accessToken: tokenData.access_token,
         });
 
         if (avatarSync.updated) {
@@ -303,6 +305,10 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
             .set({ avatar: avatarSync.avatar, profileUpdatedAt: now })
             .where(eq(schema.users.id, targetUser.id))
             .run();
+          const refreshed = db.select().from(schema.users).where(eq(schema.users.id, targetUser.id)).get();
+          if (refreshed) {
+            connectionManager.sendToUser(targetUser.id, { type: 'user_updated', user: sanitizeUser(refreshed) });
+          }
         }
 
         db.insert(schema.userOidcLinks).values({
@@ -348,6 +354,8 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
           pictureUrl,
           currentAvatar: user.avatar,
           lastSourceUrl: link?.lastAvatarSourceUrl ?? null,
+          issuerUrl: discovery.issuer,
+          accessToken: tokenData.access_token,
         });
 
         if (avatarSync.updated) {
@@ -355,6 +363,10 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
             .set({ avatar: avatarSync.avatar, profileUpdatedAt: now })
             .where(eq(schema.users.id, user.id))
             .run();
+          const refreshed = db.select().from(schema.users).where(eq(schema.users.id, user.id)).get();
+          if (refreshed) {
+            connectionManager.sendToUser(user.id, { type: 'user_updated', user: sanitizeUser(refreshed) });
+          }
         }
 
         db.update(schema.userOidcLinks)
@@ -397,6 +409,8 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
           pictureUrl,
           currentAvatar: null,
           lastSourceUrl: null,
+          issuerUrl: discovery.issuer,
+          accessToken: tokenData.access_token,
         });
 
         db.insert(schema.users).values({
