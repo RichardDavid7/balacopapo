@@ -327,7 +327,8 @@
       "updates": "Обновления",
       "telemetry": "Привет",
       "audio": "Аудио",
-      "oidc": "OIDC"
+      "oidc": "OIDC",
+      "ipBans": "Блокировка IP"
     }
   },
   "keybinds": {

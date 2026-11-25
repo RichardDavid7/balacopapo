@@ -324,6 +324,16 @@
       "deletedToast_many": "Удалено {{count}} файлов ({{size}})",
       "deletedToast_other": "Удалено {{count}} файла ({{size}})",
       "failed": "Не удалось очистить медиафайлы"
+    },
+    "retention": {
+      "title": "Хранение файлов чата по группам",
+      "description": "Выберите группы, которым разрешено включать сохранение файлов. Разрешённые группы могут защищать вложения от очистки старых медиа.",
+      "empty": "На этом сервере пока нет групп.",
+      "notAuthorized": "Не разрешено сервером",
+      "authorizedWaiting": "Разрешено · ещё не включено в группе",
+      "activeInSpace": "Разрешено · хранение активно в группе",
+      "authorize": "Разрешить",
+      "revoke": "Отозвать"
     }
   },
   "streaming": {
@@ -578,6 +588,40 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "Эл. почта (необязательно)"
+    }
+  },
+  "ipBans": {
+    "title": "Блокировка IP и фид брандмауэра",
+    "subtitle": "Блокируйте IP-адреса с автоматическим сроком действия в днях и экспортируйте список в OPNsense или Nginx.",
+    "loadFailed": "Не удалось загрузить блокировки IP.",
+    "ipRequired": "Укажите IP-адрес или подсеть CIDR.",
+    "daysInvalid": "Количество дней должно быть от 0 до 3650.",
+    "createFailed": "Не удалось заблокировать IP.",
+    "removeFailed": "Не удалось снять блокировку IP.",
+    "addTitle": "Заблокировать IP-адрес",
+    "listTitle": "Активные блокировки IP ({{total}})",
+    "empty": "Активных блокировок IP нет.",
+    "expiresOn": "Истекает {{date}}",
+    "permanent": "Навсегда",
+    "fields": {
+      "ip": "IP или CIDR",
+      "ipPlaceholder": "203.0.113.10 или 203.0.113.0/24",
+      "days": "Срок (дней, 0 = навсегда)",
+      "daysPlaceholder": "30",
+      "reason": "Причина (необязательно)",
+      "reasonPlaceholder": "Спам, обход бана…"
+    },
+    "actions": {
+      "ban": "Заблокировать IP",
+      "unban": "Разблокировать"
+    },
+    "feed": {
+      "title": "Интеграция с OPNsense и Nginx",
+      "description": "Используйте эти URL в OPNsense Firewall Alias (URL Table IPs) или списках deny Nginx. Укажите IP_BAN_FEED_TOKEN в Docker.",
+      "tokenSet": "Токен настроен",
+      "tokenMissing": "Задайте IP_BAN_FEED_TOKEN",
+      "opnsenseLabel": "URL OPNsense Alias (по одному IP/CIDR на строку)",
+      "nginxLabel": "URL списка deny для Nginx"
     }
   }
 }

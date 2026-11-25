@@ -148,6 +148,10 @@ export interface Space {
   allowMusicMode?: boolean | null;
   /** Optional per-space Opus Stereo policy (`null` = inherit from instance). */
   allowStereoAudio?: boolean | null;
+  /** Whether the instance admin authorized this space to enable file retention. */
+  allowFileRetention?: boolean;
+  /** Whether this space keeps chat attachments protected from old-media cleanup. */
+  fileRetentionEnabled?: boolean;
   createdAt: number;
 }
 
@@ -952,6 +956,8 @@ export interface UpdateSpaceRequest {
   allowMusicMode?: boolean | null;
   /** `null` inherits instance stereo policy. */
   allowStereoAudio?: boolean | null;
+  /** Enable/disable chat file retention (requires instance authorization). */
+  fileRetentionEnabled?: boolean;
 }
 
 export interface UpdateUserRequest {
@@ -1409,6 +1415,30 @@ export interface AdminOidcLinkRequest {
 export interface AdminOidcLinkTokenResponse {
   linkUrl: string;
   expiresAt: number;
+}
+
+export interface AdminSpaceRetentionItem {
+  id: string;
+  name: string;
+  allowFileRetention: boolean;
+  fileRetentionEnabled: boolean;
+}
+
+export interface AdminIpBan {
+  id: string;
+  ip: string;
+  reason: string | null;
+  bannedBy: string | null;
+  sourceUserId: string | null;
+  durationDays: number | null;
+  expiresAt: number | null;
+  createdAt: number;
+}
+
+export interface AdminIpBanFeedInfo {
+  configured: boolean;
+  opnsensePath: string;
+  nginxPath: string;
 }
 
 /**

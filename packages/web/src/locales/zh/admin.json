@@ -282,6 +282,16 @@
       "files_other": "{{count}} 个文件 ({{size}})",
       "deletedToast_other": "已删除 {{count}} 个文件 ({{size}})",
       "failed": "媒体清理失败"
+    },
+    "retention": {
+      "title": "按群组控制聊天文件保留",
+      "description": "选择允许启用聊天文件保留的群组。获得授权的群组可以保护其聊天附件不被旧媒体清理删除。",
+      "empty": "此实例上暂无群组。",
+      "notAuthorized": "实例未授权",
+      "authorizedWaiting": "已授权 · 群组尚未启用",
+      "activeInSpace": "已授权 · 群组已启用文件保留",
+      "authorize": "授权",
+      "revoke": "撤销"
     }
   },
   "streaming": {
@@ -533,6 +543,40 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "邮箱（可选）"
+    }
+  },
+  "ipBans": {
+    "title": "IP 封禁与防火墙订阅源",
+    "subtitle": "使用自动过期天数周期封禁恶意 IP，并直接导出到 OPNsense 或 Nginx。",
+    "loadFailed": "加载 IP 封禁列表失败。",
+    "ipRequired": "请输入 IP 地址或 CIDR 网段。",
+    "daysInvalid": "天数必须是 0 到 3650 之间的数字。",
+    "createFailed": "创建 IP 封禁失败。",
+    "removeFailed": "解除 IP 封禁失败。",
+    "addTitle": "封禁 IP 地址",
+    "listTitle": "生效中的 IP 封禁 ({{total}})",
+    "empty": "暂无生效的 IP 封禁。",
+    "expiresOn": "到期时间 {{date}}",
+    "permanent": "永久",
+    "fields": {
+      "ip": "IP 或 CIDR",
+      "ipPlaceholder": "203.0.113.10 或 203.0.113.0/24",
+      "days": "周期（天，0 = 永久）",
+      "daysPlaceholder": "30",
+      "reason": "原因（可选）",
+      "reasonPlaceholder": "垃圾信息、规避封禁…"
+    },
+    "actions": {
+      "ban": "封禁 IP",
+      "unban": "解封"
+    },
+    "feed": {
+      "title": "OPNsense 与 Nginx 集成源",
+      "description": "在 OPNsense 防火墙别名（URL Table IPs）或 Nginx deny 列表中使用这些 URL。请在 Docker 环境变量中设置 IP_BAN_FEED_TOKEN。",
+      "tokenSet": "已配置令牌",
+      "tokenMissing": "请设置 IP_BAN_FEED_TOKEN",
+      "opnsenseLabel": "OPNsense 别名 URL（每行一个 IP/CIDR）",
+      "nginxLabel": "Nginx deny 列表 URL"
     }
   }
 }

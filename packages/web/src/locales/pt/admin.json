@@ -310,6 +310,16 @@
       "deletedToast_many": "{{count}} arquivos excluídos ({{size}})",
       "deletedToast_other": "{{count}} arquivos excluídos ({{size}})",
       "failed": "Falha na limpeza de mídia"
+    },
+    "retention": {
+      "title": "Retenção de Arquivos por Grupo",
+      "description": "Escolha quais grupos têm permissão para ativar a retenção de arquivos no chat. Grupos autorizados podem proteger seus anexos contra a limpeza de mídia antiga.",
+      "empty": "Nenhum grupo criado nesta instância ainda.",
+      "notAuthorized": "Não autorizado pela instância",
+      "authorizedWaiting": "Autorizado · aguardando ativação no grupo",
+      "activeInSpace": "Autorizado · retenção ativa no grupo",
+      "authorize": "Autorizar",
+      "revoke": "Revogar"
     }
   },
   "streaming": {
@@ -563,6 +573,40 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "E-mail (opcional)"
+    }
+  },
+  "ipBans": {
+    "title": "Ban por IP e Feed de Firewall",
+    "subtitle": "Bloqueie IPs abusivos com ciclo automático de expiração em dias e integre diretamente ao OPNsense ou Nginx.",
+    "loadFailed": "Falha ao carregar bans de IP.",
+    "ipRequired": "Informe um endereço IP ou bloco CIDR.",
+    "daysInvalid": "Os dias devem ser um número entre 0 e 3650.",
+    "createFailed": "Falha ao banir o IP.",
+    "removeFailed": "Falha ao remover ban de IP.",
+    "addTitle": "Banir Endereço IP",
+    "listTitle": "IPs Banidos Ativos ({{total}})",
+    "empty": "Nenhum IP banido no momento.",
+    "expiresOn": "Expira em {{date}}",
+    "permanent": "Permanente",
+    "fields": {
+      "ip": "IP ou CIDR",
+      "ipPlaceholder": "203.0.113.10 ou 203.0.113.0/24",
+      "days": "Ciclo (dias, 0 = permanente)",
+      "daysPlaceholder": "30",
+      "reason": "Motivo (opcional)",
+      "reasonPlaceholder": "Spam, evasão de ban…"
+    },
+    "actions": {
+      "ban": "Banir IP",
+      "unban": "Desbanir"
+    },
+    "feed": {
+      "title": "Integração OPNsense e Nginx",
+      "description": "Use estas URLs no Firewall Alias (URL Table IPs) do OPNsense ou em listas deny do Nginx. Defina IP_BAN_FEED_TOKEN nas variáveis Docker.",
+      "tokenSet": "Token configurado",
+      "tokenMissing": "Defina IP_BAN_FEED_TOKEN",
+      "opnsenseLabel": "URL OPNsense Alias (um IP/CIDR por linha)",
+      "nginxLabel": "URL lista deny do Nginx"
     }
   }
 }

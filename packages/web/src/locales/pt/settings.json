@@ -326,7 +326,8 @@
       "updates": "Atualizações",
       "telemetry": "Oi",
       "audio": "Áudio",
-      "oidc": "OIDC"
+      "oidc": "OIDC",
+      "ipBans": "Ban IP"
     }
   },
   "keybinds": {

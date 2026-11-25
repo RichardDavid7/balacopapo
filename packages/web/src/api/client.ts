@@ -56,6 +56,9 @@ import type {
   AdminOidcUsersResponse,
   AdminOidcLinkRequest,
   AdminOidcLinkTokenResponse,
+  AdminSpaceRetentionItem,
+  AdminIpBan,
+  AdminIpBanFeedInfo,
   InstanceUpdateStatus,
   ExploreSpace,
   JoinRequest,
@@ -454,6 +457,16 @@ export class BackspaceApiClient {
       linkUser: (data: AdminOidcLinkRequest) => Promise<{ success: boolean }>;
       createLinkToken: (userId: string) => Promise<AdminOidcLinkTokenResponse>;
       unlinkUser: (userId: string) => Promise<{ success: boolean }>;
+    };
+    ipBans: {
+      list: () => Promise<{ bans: AdminIpBan[] }>;
+      create: (data: { ip: string; reason?: string; durationDays?: number | null }) => Promise<{ ban: AdminIpBan }>;
+      remove: (id: string) => Promise<{ ok: boolean }>;
+      getFeedInfo: () => Promise<AdminIpBanFeedInfo>;
+    };
+    spacesRetention: {
+      list: () => Promise<{ spaces: AdminSpaceRetentionItem[] }>;
+      setAllowed: (spaceId: string, allowFileRetention: boolean) => Promise<AdminSpaceRetentionItem>;
     };
   };
 
@@ -1103,6 +1116,18 @@ export class BackspaceApiClient {
           request<AdminOidcLinkTokenResponse>('POST', '/admin/oidc/link-token', { userId }),
         unlinkUser: (userId: string) =>
           request<{ success: boolean }>('DELETE', `/admin/oidc/links/${encodeURIComponent(userId)}`),
+      },
+      ipBans: {
+        list: () => request<{ bans: AdminIpBan[] }>('GET', '/admin/ip-bans'),
+        create: (data: { ip: string; reason?: string; durationDays?: number | null }) =>
+          request<{ ban: AdminIpBan }>('POST', '/admin/ip-bans', data),
+        remove: (id: string) => request<{ ok: boolean }>('DELETE', `/admin/ip-bans/${encodeURIComponent(id)}`),
+        getFeedInfo: () => request<AdminIpBanFeedInfo>('GET', '/admin/ip-bans/feed-info'),
+      },
+      spacesRetention: {
+        list: () => request<{ spaces: AdminSpaceRetentionItem[] }>('GET', '/admin/spaces/retention'),
+        setAllowed: (spaceId: string, allowFileRetention: boolean) =>
+          request<AdminSpaceRetentionItem>('PATCH', `/admin/spaces/${encodeURIComponent(spaceId)}/retention`, { allowFileRetention }),
       },
     };
   }

@@ -10,7 +10,7 @@ import { tombstoneUser, collectDeletionBroadcastTargets } from '../utils/userDel
 import { deleteUploadFile } from '../utils/fileCleanup.js';
 import { sanitizeUser } from '../utils/sanitize.js';
 import { sendError, ERROR_MESSAGES } from '../utils/httpErrors.js';
-import type { AdminUser, AdminUserListResponse, AdminResetPasswordResponse } from '@backspace/shared';
+import type { AdminUser, AdminUserListResponse, AdminResetPasswordResponse, Space } from '@backspace/shared';
 
 function reasonOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -421,6 +421,88 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         })
         .run();
       return reply.code(200).send({ ok: true, id });
+    },
+  );
+
+  // ─── Space File Retention Authorization ─────────────────────────────────
+
+  app.get('/api/admin/spaces/retention', { preHandler: [authenticate, requireAdmin] }, async (_request, reply) => {
+    const db = getDb();
+    const rows = db.select({
+      id: schema.spaces.id,
+      name: schema.spaces.name,
+      allowFileRetention: schema.spaces.allowFileRetention,
+      fileRetentionEnabled: schema.spaces.fileRetentionEnabled,
+    })
+      .from(schema.spaces)
+      .orderBy(asc(schema.spaces.name))
+      .all();
+
+    return reply.code(200).send({
+      spaces: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        allowFileRetention: r.allowFileRetention === 1,
+        fileRetentionEnabled: r.fileRetentionEnabled === 1,
+      })),
+    });
+  });
+
+  app.patch<{ Params: { spaceId: string }; Body: { allowFileRetention?: boolean } }>(
+    '/api/admin/spaces/:spaceId/retention',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const { spaceId } = request.params;
+      const { allowFileRetention } = request.body ?? {};
+      if (typeof allowFileRetention !== 'boolean') {
+        return sendError(reply, 400, 'field_not_boolean', { field: 'allowFileRetention' });
+      }
+      const db = getDb();
+      const existing = db.select().from(schema.spaces).where(eq(schema.spaces.id, spaceId)).get();
+      if (!existing) {
+        return sendError(reply, 404, 'space_not_found');
+      }
+
+      db.update(schema.spaces)
+        .set({
+          allowFileRetention: allowFileRetention ? 1 : 0,
+          // Revoking instance permission also disables retention on the space
+          ...(allowFileRetention ? {} : { fileRetentionEnabled: 0 }),
+        })
+        .where(eq(schema.spaces.id, spaceId))
+        .run();
+
+      const updated = db.select().from(schema.spaces).where(eq(schema.spaces.id, spaceId)).get()!;
+      connectionManager.sendToSpace(spaceId, {
+        type: 'space_updated',
+        space: {
+          id: updated.id,
+          name: updated.name,
+          icon: updated.icon,
+          banner: updated.banner,
+          avatarColor: (updated.avatarColor ?? null) as Space['avatarColor'],
+          ownerId: updated.ownerId,
+          ownerTitle: updated.ownerTitle ?? null,
+          inviteCode: updated.inviteCode,
+          visibility: (updated.visibility ?? 'private') as Space['visibility'],
+          directoryListed: updated.directoryListed === 1,
+          description: updated.description ?? null,
+          audioBitrateKbps: updated.audioBitrateKbps ?? null,
+          maxAudioBitrateKbps: updated.maxAudioBitrateKbps ?? null,
+          allowMusicMode: updated.allowMusicMode === null || updated.allowMusicMode === undefined ? null : updated.allowMusicMode === 1,
+          allowStereoAudio: updated.allowStereoAudio === null || updated.allowStereoAudio === undefined ? null : updated.allowStereoAudio === 1,
+          allowFileRetention: updated.allowFileRetention === 1,
+          fileRetentionEnabled: updated.fileRetentionEnabled === 1,
+          createdAt: updated.createdAt,
+        },
+      });
+
+      return reply.code(200).send({
+        id: updated.id,
+        name: updated.name,
+        allowFileRetention: updated.allowFileRetention === 1,
+        fileRetentionEnabled: updated.fileRetentionEnabled === 1,
+      });
     },
   );
 

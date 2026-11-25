@@ -374,10 +374,10 @@
     "decibels": "{{value}} dB"
   },
   "p2p": {
-    "openMeshTitle": "Open P2P mesh map & direct file transfer",
-    "modalTitle": "P2P Mesh & Direct Files",
+    "openMeshTitle": "Open P2P mesh latency map",
+    "modalTitle": "P2P Mesh Map",
     "enableLabel": "Direct P2P Mesh",
-    "enableDescription": "Connect directly to call peers for file transfers and latency mapping.",
+    "enableDescription": "Connects directly to call participants to measure peer-to-peer routes and latency.",
     "instanceNode": "Instance",
     "youNode": "You",
     "peersHeading": "Peers in call",

@@ -338,6 +338,11 @@
         "button": "Excluir grupo",
         "confirmAgain": "Clique novamente para confirmar a exclusão",
         "failed": "Falha ao excluir o grupo"
+      },
+      "fileRetention": {
+        "title": "Retenção de Arquivos no Chat",
+        "label": "Manter arquivos do chat protegidos",
+        "description": "Autorizado por esta instância. Quando ativado, os anexos enviados neste grupo são protegidos contra a limpeza automática de mídia antiga."
       }
     },
     "discovery": {

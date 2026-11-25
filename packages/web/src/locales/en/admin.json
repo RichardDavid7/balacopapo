@@ -296,6 +296,16 @@
       "deletedToast_one": "Deleted {{count}} file ({{size}})",
       "deletedToast_other": "Deleted {{count}} files ({{size}})",
       "failed": "Media cleanup failed"
+    },
+    "retention": {
+      "title": "Chat File Retention per Group",
+      "description": "Choose which groups are allowed to enable chat file retention. Authorized groups can protect their chat attachments from old-media cleanup.",
+      "empty": "No groups on this instance yet.",
+      "notAuthorized": "Not authorized by instance",
+      "authorizedWaiting": "Authorized · not enabled by group yet",
+      "activeInSpace": "Authorized · file retention active",
+      "authorize": "Authorize",
+      "revoke": "Revoke"
     }
   },
   "streaming": {
@@ -548,6 +558,40 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "Email (optional)"
+    }
+  },
+  "ipBans": {
+    "title": "IP Bans & Firewall Feed",
+    "subtitle": "Block abusive IP addresses with automatic expiry cycles and export them directly to OPNsense or Nginx.",
+    "loadFailed": "Failed to load IP bans.",
+    "ipRequired": "Enter an IP address or CIDR range.",
+    "daysInvalid": "Days must be a number between 0 and 3650.",
+    "createFailed": "Failed to create IP ban.",
+    "removeFailed": "Failed to remove IP ban.",
+    "addTitle": "Ban IP Address",
+    "listTitle": "Active IP Bans ({{total}})",
+    "empty": "No active IP bans.",
+    "expiresOn": "Expires {{date}}",
+    "permanent": "Permanent",
+    "fields": {
+      "ip": "IP or CIDR",
+      "ipPlaceholder": "203.0.113.10 or 203.0.113.0/24",
+      "days": "Cycle (days, 0 = permanent)",
+      "daysPlaceholder": "30",
+      "reason": "Reason (optional)",
+      "reasonPlaceholder": "Spam, ban evasion…"
+    },
+    "actions": {
+      "ban": "Ban IP",
+      "unban": "Unban"
+    },
+    "feed": {
+      "title": "OPNsense & Nginx Integration Feed",
+      "description": "Use these URLs in OPNsense Firewall Aliases (URL Table IPs) or Nginx deny lists. Set IP_BAN_FEED_TOKEN in Docker env vars.",
+      "tokenSet": "Token configured",
+      "tokenMissing": "Set IP_BAN_FEED_TOKEN",
+      "opnsenseLabel": "OPNsense Alias URL (one IP/CIDR per line)",
+      "nginxLabel": "Nginx deny list URL"
     }
   }
 }

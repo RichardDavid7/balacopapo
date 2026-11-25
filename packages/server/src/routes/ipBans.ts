@@ -61,6 +61,16 @@ export async function ipBanRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // GET /api/admin/ip-bans/feed-info — admin helper showing OPNsense/Nginx feed URLs and token status
+  app.get('/api/admin/ip-bans/feed-info', { preHandler: [authenticate, requireAdmin] }, async (_request, reply) => {
+    const configured = Boolean(process.env.IP_BAN_FEED_TOKEN?.trim());
+    return reply.code(200).send({
+      configured,
+      opnsensePath: '/api/admin/ip-bans/feed?format=opnsense',
+      nginxPath: '/api/admin/ip-bans/feed?format=nginx',
+    });
+  });
+
   // GET /api/admin/ip-bans/feed?format=opnsense|nginx(&token=...)
   // Designed for OPNsense Firewall Alias "URL Table (IPs)" and OPNsense/Nginx `deny` includes.
   // Authenticates via `IP_BAN_FEED_TOKEN` env var (Bearer header or `?token=` query param).

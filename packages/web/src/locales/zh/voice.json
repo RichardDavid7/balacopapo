@@ -372,10 +372,10 @@
     "decibels": "{{value}} dB"
   },
   "p2p": {
-    "openMeshTitle": "打开 P2P 网格地图与直连文件传输",
-    "modalTitle": "P2P 网格与直连文件",
+    "openMeshTitle": "打开 P2P 网格延迟地图",
+    "modalTitle": "P2P 网格地图",
     "enableLabel": "直连 P2P 网格",
-    "enableDescription": "与通话成员建立直连，用于文件传输和延迟监测。",
+    "enableDescription": "直接连接通话参与者以测量 P2P 路由和延迟。",
     "instanceNode": "实例",
     "youNode": "你",
     "peersHeading": "通话成员",

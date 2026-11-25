@@ -325,7 +325,8 @@
       "updates": "Updates",
       "telemetry": "Hallo sagen",
       "audio": "Ton",
-      "oidc": "OIDC"
+      "oidc": "OIDC",
+      "ipBans": "IP-Sperren"
     }
   },
   "keybinds": {

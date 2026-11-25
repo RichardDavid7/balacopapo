@@ -335,6 +335,11 @@
         "button": "Delete Space",
         "confirmAgain": "Click again to confirm deletion",
         "failed": "Failed to delete space"
+      },
+      "fileRetention": {
+        "title": "Chat File Retention",
+        "label": "Keep chat files protected",
+        "description": "Authorized by this instance. When enabled, attachments sent in this group are skipped during old-media cleanup."
       }
     },
     "discovery": {

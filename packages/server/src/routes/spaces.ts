@@ -53,6 +53,8 @@ function rowToSpace(row: typeof schema.spaces.$inferSelect): Space {
     maxAudioBitrateKbps: row.maxAudioBitrateKbps ?? null,
     allowMusicMode: row.allowMusicMode === null || row.allowMusicMode === undefined ? null : row.allowMusicMode === 1,
     allowStereoAudio: row.allowStereoAudio === null || row.allowStereoAudio === undefined ? null : row.allowStereoAudio === 1,
+    allowFileRetention: row.allowFileRetention === 1,
+    fileRetentionEnabled: row.fileRetentionEnabled === 1,
     createdAt: row.createdAt,
   };
 }
@@ -543,6 +545,7 @@ export async function spaceRoutes(app: FastifyInstance): Promise<void> {
       maxAudioBitrateKbps,
       allowMusicMode,
       allowStereoAudio,
+      fileRetentionEnabled,
     } = request.body;
     const db = getDb();
 
@@ -695,6 +698,16 @@ export async function spaceRoutes(app: FastifyInstance): Promise<void> {
 
     if (Object.keys(updates).length === 0) {
       return sendError(reply, 400, 'no_fields_to_update');
+    }
+
+    if (fileRetentionEnabled !== undefined) {
+      if (typeof fileRetentionEnabled !== 'boolean') {
+        return sendError(reply, 400, 'field_not_boolean', { field: 'fileRetentionEnabled' });
+      }
+      if (fileRetentionEnabled && server.allowFileRetention !== 1) {
+        return reply.code(403).send({ error: 'file_retention_not_allowed' });
+      }
+      updates.fileRetentionEnabled = fileRetentionEnabled ? 1 : 0;
     }
 
     db.update(schema.spaces).set(updates).where(eq(schema.spaces.id, id)).run();

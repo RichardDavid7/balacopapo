@@ -394,12 +394,18 @@ export function cleanupOldMedia(maxAgeDays: number, dryRun: boolean): CleanupRes
   let freedBytes = 0;
   let deletedAttachmentRecords = 0;
 
-  // Find message attachments older than the cutoff
+  // Find message attachments older than the cutoff, excluding spaces where
+  // instance-authorized file retention is enabled.
   const rawDb = getRawDb();
   const oldMedia = rawDb.prepare(`
-    SELECT id, filename, size FROM attachments
-    WHERE (message_id IS NOT NULL OR dm_message_id IS NOT NULL)
-      AND created_at < ?
+    SELECT a.id, a.filename, a.size
+    FROM attachments a
+    LEFT JOIN messages m ON a.message_id = m.id
+    LEFT JOIN channels c ON m.channel_id = c.id
+    LEFT JOIN spaces s ON c.space_id = s.id
+    WHERE (a.message_id IS NOT NULL OR a.dm_message_id IS NOT NULL)
+      AND a.created_at < ?
+      AND NOT (s.allow_file_retention = 1 AND s.file_retention_enabled = 1)
   `).all(cutoff) as { id: string; filename: string; size: number }[];
 
   for (const att of oldMedia) {

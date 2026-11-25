@@ -324,7 +324,8 @@
       "updates": "更新",
       "telemetry": "打个招呼",
       "audio": "音频",
-      "oidc": "OIDC"
+      "oidc": "OIDC",
+      "ipBans": "IP 封禁"
     }
   },
   "keybinds": {

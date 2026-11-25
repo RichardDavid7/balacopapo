@@ -296,6 +296,16 @@
       "deletedToast_one": "{{count}} Datei gelöscht ({{size}})",
       "deletedToast_other": "{{count}} Dateien gelöscht ({{size}})",
       "failed": "Medien konnten nicht aufgeräumt werden"
+    },
+    "retention": {
+      "title": "Chat-Dateiaufbewahrung pro Gruppe",
+      "description": "Lege fest, welche Gruppen die Dateiaufbewahrung aktivieren dürfen. Berechtigte Gruppen können Chat-Anhänge vor der Bereinigung schützen.",
+      "empty": "Noch keine Gruppen auf dieser Instanz.",
+      "notAuthorized": "Nicht von der Instanz erlaubt",
+      "authorizedWaiting": "Erlaubt · in der Gruppe noch nicht aktiviert",
+      "activeInSpace": "Erlaubt · Aufbewahrung in der Gruppe aktiv",
+      "authorize": "Erlauben",
+      "revoke": "Entziehen"
     }
   },
   "streaming": {
@@ -548,6 +558,40 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "E-Mail (optional)"
+    }
+  },
+  "ipBans": {
+    "title": "IP-Sperren & Firewall-Feed",
+    "subtitle": "Blockiere missbräuchliche IP-Adressen mit automatischem Ablaufzyklus und exportiere sie an OPNsense oder Nginx.",
+    "loadFailed": "IP-Sperren konnten nicht geladen werden.",
+    "ipRequired": "Bitte eine IP-Adresse oder CIDR angeben.",
+    "daysInvalid": "Tage müssen zwischen 0 und 3650 liegen.",
+    "createFailed": "IP-Sperre konnte nicht erstellt werden.",
+    "removeFailed": "IP-Sperre konnte nicht entfernt werden.",
+    "addTitle": "IP-Adresse sperren",
+    "listTitle": "Aktive IP-Sperren ({{total}})",
+    "empty": "Keine aktiven IP-Sperren.",
+    "expiresOn": "Läuft ab am {{date}}",
+    "permanent": "Dauerhaft",
+    "fields": {
+      "ip": "IP oder CIDR",
+      "ipPlaceholder": "203.0.113.10 oder 203.0.113.0/24",
+      "days": "Zyklus (Tage, 0 = dauerhaft)",
+      "daysPlaceholder": "30",
+      "reason": "Grund (optional)",
+      "reasonPlaceholder": "Spam, Sperrumgehung…"
+    },
+    "actions": {
+      "ban": "IP sperren",
+      "unban": "Entsperren"
+    },
+    "feed": {
+      "title": "OPNsense- & Nginx-Feed",
+      "description": "Nutze diese URLs in OPNsense Firewall-Aliasen (URL Table IPs) oder Nginx deny-Listen. Setze IP_BAN_FEED_TOKEN per Docker-Env.",
+      "tokenSet": "Token gesetzt",
+      "tokenMissing": "IP_BAN_FEED_TOKEN setzen",
+      "opnsenseLabel": "OPNsense Alias-URL (eine IP/CIDR pro Zeile)",
+      "nginxLabel": "Nginx deny-Listen-URL"
     }
   }
 }

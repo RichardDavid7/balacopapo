@@ -57,12 +57,13 @@ Itens já identificados durante os testes e uso real:
   4. **Sobrevivência:** se a instância cair, as conexões P2P já abertas continuam funcionando entre os participantes.
   5. **Failover:** se a rota P2P degradar (perda de pacote/ping alto/queda), volta automaticamente para o LiveKit da instância.
 
-### Fase 3 — Administração, Retenção de Arquivos e Segurança
-- [x] **OIDC (SSO)** — login integrado com provedores OpenID Connect (Authentik, Keycloak, Pocket ID, Authelia, etc.) configurado via variáveis de ambiente Docker (fora do banco), migração `0040_oidc_links.sql` (`(issuer, sub) -> users.id`), sync de foto de perfil (`OIDC_SYNC_AVATAR`), grupos de administradores (`OIDC_ADMIN_GROUPS`), painel **OIDC / SSO** nas Configurações da Instância para vincular usuários existentes (manualmente por `sub` ou via link de vínculo de 1 clique), e callback web/deep link (`balacopapo://auth/callback`).
-- [x] **Ban por IP + ciclo automático + integração OPNsense/Nginx** — migração `0039_ip_bans.sql`, expiração automática em dias (`durationDays` / `expiresAt`), auto-ban de evasão se uma conta banida tentar entrar de um novo IP, e feed `GET /api/admin/ip-bans/feed?format=opnsense|nginx` (compatível nativamente com Firewall Alias `URL Table (IPs)` do OPNsense e `deny` do Nginx).
-- [ ] **Retenção de arquivos no chat (controlada pela instância):**
-  - A **instância define quais grupos têm permissão para ativar a retenção de arquivos**.
-  - Apenas nos grupos autorizados pela instância, o chat/grupo pode ativar a função de manter arquivos (protegendo-os contra expiração/limpeza automática).
+### Fase 3 — Administração, Retenção de Arquivos e Segurança *(Concluída)*
+- [x] **OIDC (SSO)** — login integrado com provedores OpenID Connect (Authentik, Keycloak, Pocket ID, Authelia, etc.) configurado via variáveis de ambiente Docker (fora do banco), migração `0040_oidc_links.sql` (`(issuer, sub) -> users.id`), sync de foto de perfil (`OIDC_SYNC_AVATAR`), grupos de administradores (`OIDC_ADMIN_GROUPS`), painel **OIDC** nas Configurações da Instância para vincular usuários existentes (manualmente por `sub` ou via link de vínculo de 1 clique), e callback web/deep link (`balacopapo://auth/callback`).
+- [x] **Ban por IP + ciclo automático + integração OPNsense/Nginx** — migração `0039_ip_bans.sql`, expiração automática em dias (`durationDays` / `expiresAt`), auto-ban de evasão se uma conta banida tentar entrar de um novo IP, painel **Ban IP** nas Configurações da Instância e feed `GET /api/admin/ip-bans/feed?format=opnsense|nginx` (compatível nativamente com Firewall Alias `URL Table (IPs)` do OPNsense e `deny` do Nginx).
+- [x] **Retenção de arquivos no chat (controlada pela instância):**
+  - Migração `0041_file_retention.sql` (`spaces.allow_file_retention` e `spaces.file_retention_enabled`).
+  - A **instância autoriza ou revoga quais grupos têm permissão** na aba Armazenamento (`StoragePanel` → `GET/PATCH /api/admin/spaces/:spaceId/retention`).
+  - Apenas nos grupos autorizados pela instância, o grupo pode ativar **Retenção de Arquivos no Chat** (`OverviewPanel`), protegendo os anexos do grupo em `cleanupOldMedia()`.
 
 ### Fase 4 — Interação em Call, Presença e Acessibilidade
 - [ ] **Clicar e apontar na stream** — marcação visual temporária (coordenadas normalizadas X/Y via LiveKit DataChannel) no desktop e **arrastar alvo no mobile**.

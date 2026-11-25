@@ -15,8 +15,9 @@ import { UpdatesPanel } from '../instanceSettingsPanels/UpdatesPanel';
 import { TelemetryPanel } from '../instanceSettingsPanels/TelemetryPanel';
 import { AudioPanel } from '../instanceSettingsPanels/AudioPanel';
 import { OidcPanel } from '../instanceSettingsPanels/OidcPanel';
+import { IpBansPanel } from '../instanceSettingsPanels/IpBansPanel';
 
-type SubTab = 'general' | 'registration' | 'oidc' | 'federation' | 'streaming' | 'audio' | 'storage' | 'users' | 'updates' | 'telemetry';
+type SubTab = 'general' | 'registration' | 'oidc' | 'ipBans' | 'federation' | 'streaming' | 'audio' | 'storage' | 'users' | 'updates' | 'telemetry';
 
 export function InstancePanel() {
   const { t } = useTranslation(['settings']);
@@ -35,6 +36,7 @@ export function InstancePanel() {
     { id: 'general', label: t('settings:instance.tabs.general') },
     { id: 'registration', label: t('settings:instance.tabs.registration') },
     { id: 'oidc', label: t('settings:instance.tabs.oidc') },
+    { id: 'ipBans', label: t('settings:instance.tabs.ipBans') },
     { id: 'federation', label: t('settings:instance.tabs.federation'), badgeCount: approvalCount },
     { id: 'streaming', label: t('settings:instance.tabs.streaming') },
     { id: 'audio', label: t('settings:instance.tabs.audio') },
@@ -74,6 +76,7 @@ export function InstancePanel() {
       {subTab === 'general' && <GeneralPanel />}
       {subTab === 'registration' && <RegistrationPanel />}
       {subTab === 'oidc' && <OidcPanel />}
+      {subTab === 'ipBans' && <IpBansPanel />}
       {subTab === 'federation' && <FederationPanel onApprovalCountChange={setApprovalCount} />}
       {subTab === 'streaming' && <StreamingPanel />}
       {subTab === 'audio' && <AudioPanel />}

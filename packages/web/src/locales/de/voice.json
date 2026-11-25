@@ -374,10 +374,10 @@
     "decibels": "{{value}} dB"
   },
   "p2p": {
-    "openMeshTitle": "P2P-Mesh-Karte & direkten Dateiversand öffnen",
-    "modalTitle": "P2P-Mesh & Direkte Dateien",
+    "openMeshTitle": "P2P-Mesh-Latenzkarte öffnen",
+    "modalTitle": "P2P-Mesh-Karte",
     "enableLabel": "Direktes P2P-Mesh",
-    "enableDescription": "Verbindet direkt mit Anrufteilnehmern für Dateitransfers und Latenzkarte.",
+    "enableDescription": "Verbindet direkt mit Anrufteilnehmern, um P2P-Routen und Latenz zu messen.",
     "instanceNode": "Instanz",
     "youNode": "Du",
     "peersHeading": "Teilnehmer im Anruf",

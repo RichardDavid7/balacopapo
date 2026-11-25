@@ -80,6 +80,8 @@ export const spaces = sqliteTable('spaces', {
   maxAudioBitrateKbps: integer('max_audio_bitrate_kbps'),
   allowMusicMode: integer('allow_music_mode'),
   allowStereoAudio: integer('allow_stereo_audio'),
+  allowFileRetention: integer('allow_file_retention').notNull().default(0),
+  fileRetentionEnabled: integer('file_retention_enabled').notNull().default(0),
   createdAt: integer('created_at').notNull(),
 });
 

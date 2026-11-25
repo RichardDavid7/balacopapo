@@ -376,10 +376,10 @@
     "decibels": "{{value}} dB"
   },
   "p2p": {
-    "openMeshTitle": "Abrir mapa da malha P2P e envio direto de arquivos",
-    "modalTitle": "Malha P2P e Arquivos Diretos",
+    "openMeshTitle": "Abrir mapa da malha P2P",
+    "modalTitle": "Mapa da Malha P2P",
     "enableLabel": "Malha P2P Direta",
-    "enableDescription": "Conecta diretamente aos participantes da call para envio de arquivos e mapa de latência.",
+    "enableDescription": "Conecta diretamente aos participantes da call para medir rotas e latência P2P.",
     "instanceNode": "Instância",
     "youNode": "Você",
     "peersHeading": "Participantes na call",

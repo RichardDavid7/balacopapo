@@ -335,6 +335,11 @@
         "button": "Space löschen",
         "confirmAgain": "Noch einmal klicken, um das Löschen zu bestätigen",
         "failed": "Space konnte nicht gelöscht werden"
+      },
+      "fileRetention": {
+        "title": "Chat-Dateiaufbewahrung",
+        "label": "Chat-Dateien geschützt behalten",
+        "description": "Von dieser Instanz erlaubt. Wenn aktiviert, werden Anhänge dieser Gruppe bei der Bereinigung alter Medien übersprungen."
       }
     },
     "discovery": {

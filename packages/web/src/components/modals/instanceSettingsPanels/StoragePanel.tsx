@@ -3,7 +3,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { useFormatters } from '../../../i18n/formatters';
 import { describeError } from '../../../i18n/errors';
 import { api } from '../../../api/client';
-import type { StorageStats, CleanupResult } from '@backspace/shared';
+import type { StorageStats, CleanupResult, AdminSpaceRetentionItem } from '@backspace/shared';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { useUIStore } from '../../../stores/uiStore';
 
@@ -53,6 +53,32 @@ export function StoragePanel() {
   const [tusCleaning, setTusCleaning] = useState(false);
   const [tusPreviewDone, setTusPreviewDone] = useState(false);
 
+  // Per-space file retention authorization (instance admin controls which spaces may enable retention)
+  const [retentionSpaces, setRetentionSpaces] = useState<AdminSpaceRetentionItem[]>([]);
+  const [retentionSavingId, setRetentionSavingId] = useState<string | null>(null);
+
+  const fetchRetentionSpaces = useCallback(async () => {
+    try {
+      const res = await api.admin.spacesRetention.list();
+      setRetentionSpaces(res.spaces);
+    } catch {
+      // Non-critical if older server
+    }
+  }, []);
+
+  const handleToggleSpaceRetention = async (item: AdminSpaceRetentionItem) => {
+    setRetentionSavingId(item.id);
+    try {
+      const updated = await api.admin.spacesRetention.setAllowed(item.id, !item.allowFileRetention);
+      setRetentionSpaces((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      addToast(t('common:states.settingsSaved'), 'success', 2000);
+    } catch {
+      addToast(t('common:states.saveFailed'), 'warning');
+    } finally {
+      setRetentionSavingId(null);
+    }
+  };
+
   const fetchStats = useCallback(async () => {
     setLoading(true);
     setLoadError('');
@@ -68,7 +94,8 @@ export function StoragePanel() {
 
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    void fetchRetentionSpaces();
+  }, [fetchStats, fetchRetentionSpaces]);
 
   useEffect(() => {
     const mb = instanceSettings?.maxUploadSizeMb;
@@ -473,8 +500,50 @@ export function StoragePanel() {
         </div>
       </div>
 
+      {/* Space file retention authorization */}
+      <div>
+        <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1.5">
+          {t('admin:storage.retention.title')}
+        </div>
+        <div className="rounded-lg bg-white/[0.02] p-3.5 space-y-3">
+          <p className="text-xs text-txt-tertiary">{t('admin:storage.retention.description')}</p>
+          {retentionSpaces.length === 0 ? (
+            <div className="text-xs text-txt-tertiary">{t('admin:storage.retention.empty')}</div>
+          ) : (
+            <div className="divide-y divide-border-soft border border-border-soft rounded-lg overflow-hidden bg-surface-elevated">
+              {retentionSpaces.map((sp) => (
+                <div key={sp.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-txt-primary truncate">{sp.name}</div>
+                    <div className="text-xs text-txt-tertiary">
+                      {!sp.allowFileRetention
+                        ? t('admin:storage.retention.notAuthorized')
+                        : sp.fileRetentionEnabled
+                          ? t('admin:storage.retention.activeInSpace')
+                          : t('admin:storage.retention.authorizedWaiting')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={retentionSavingId === sp.id}
+                    onClick={() => void handleToggleSpaceRetention(sp)}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors shrink-0 disabled:opacity-50 ${
+                      sp.allowFileRetention
+                        ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
+                        : 'bg-surface-overlay text-txt-secondary hover:text-txt-primary border border-border-soft'
+                    }`}
+                  >
+                    {sp.allowFileRetention ? t('admin:storage.retention.revoke') : t('admin:storage.retention.authorize')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <button
-        onClick={() => { setCleanupResult(null); setPreviewDone(false); fetchStats(); }}
+        onClick={() => { setCleanupResult(null); setPreviewDone(false); fetchStats(); void fetchRetentionSpaces(); }}
         className="text-sm text-accent-primary hover:underline"
       >
         {t('admin:storage.refresh')}

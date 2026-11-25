@@ -475,6 +475,48 @@ export function OverviewPanel({ spaceId }: OverviewPanelProps) {
         {saveError && (
           <div className="p-2 bg-accent-rose/10 border border-accent-rose/30 rounded text-txt-danger text-sm">{saveError}</div>
         )}
+
+        {/* Chat File Retention (only available when authorized by the Instance) */}
+        {canManageSpace && space.allowFileRetention && (
+          <div>
+            <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1.5">
+              {t('spaces:settings.overview.fileRetention.title')}
+            </div>
+            <div className="rounded-lg bg-white/[0.02] p-3.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-txt-primary">
+                  {t('spaces:settings.overview.fileRetention.label')}
+                </div>
+                <div className="text-xs text-txt-tertiary mt-0.5">
+                  {t('spaces:settings.overview.fileRetention.description')}
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(space.fileRetentionEnabled)}
+                onClick={async () => {
+                  try {
+                    await updateSpace(spaceId, { fileRetentionEnabled: !space.fileRetentionEnabled });
+                    addToast(t('common:states.settingsSaved'), 'success', 2000);
+                  } catch (err) {
+                    addToast(describeError(err), 'warning', 3000);
+                  }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+                  space.fileRetentionEnabled ? 'bg-accent-primary' : 'bg-white/10'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                    space.fileRetentionEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Danger Zone */}
         {isOwner && (
           <div>
