@@ -66,8 +66,8 @@ Itens já identificados durante os testes e uso real:
   - Apenas nos grupos autorizados pela instância, o grupo pode ativar **Retenção de Arquivos no Chat** (`OverviewPanel`), protegendo os anexos do grupo em `cleanupOldMedia()`.
 
 ### Fase 4 — Interação em Call, Presença e Acessibilidade
-- [ ] **Clicar e apontar na stream** — marcação visual temporária (coordenadas normalizadas X/Y via LiveKit DataChannel) no desktop e **arrastar alvo no mobile**.
-- [ ] **Indicar qual jogo está jogando** — permitir escolher/indicar manualmente (ou detectar no desktop) qual jogo aparece no seu perfil/presença.
+- [x] **Clicar e apontar na stream** — marcação visual temporária (coordenadas normalizadas X/Y via LiveKit DataChannel em `streamPointerProtocol.ts` + `streamPointerStore.ts` + `StreamTile.tsx`) com `Shift+clique` (ou modo Apontar) no desktop e **botão de mira arrastável deslocada 64px acima do dedo no mobile** (dispara ao soltar), acompanhando zoom/pan e `object-contain`.
+- [ ] **Indicar qual jogo está jogando** — permitir escolher/indicar manualmente (ou detectar no desktop) qual jogo aparece no seu perfil/presença *(acompanhar/integrar PR upstream `TheZwiss/backspace#482`)*.
 - [ ] **Modo leigo / acessível no Android (mobile)** — layout simplificado com botões grandes, alto contraste e fluxo direto pensado para idosos e usuários iniciantes.
 
 ### Fase 5 — Desktop Nativo: Sobreposição (Overlay) e Áudio da Janela

@@ -9,6 +9,15 @@ import { stopScreenShare, changeScreenShare, effectiveScreenShareConfig } from '
 import { useStreamHostLimits } from '../../utils/streamHostLimits';
 import { DEFAULT_STREAMING_LIMITS } from '../../stores/settingsStore';
 import { encodeStreamWatch, streamWatchFor, type StreamWatchTarget } from '../../utils/streamWatchProtocol';
+import {
+  clientPointToNormalizedVideo,
+  computeVideoContentBox,
+  encodeStreamPointer,
+  pointerColorForIdentity,
+  type StreamPointerMode,
+} from '../../utils/streamPointerProtocol';
+import { useStreamPointerStore } from '../../stores/streamPointerStore';
+import { useAuthStore } from '../../stores/authStore';
 import { AudioManager } from '../../audio/AudioManager';
 import { getSfxVolume } from '../../utils/sfx';
 import { ScreenShareSettingsPopover } from './ScreenShareSettingsPopover';
@@ -233,6 +242,22 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
+  // Point-on-stream state:
+  // - Desktop: Shift+click (or click when pointMode is active) sends an immediate ping.
+  // - Touch / mobile: dragging the floating aim button moves a crosshair offset 64px
+  //   above the finger so the finger never covers the target; releasing sends the ping.
+  const [pointMode, setPointMode] = useState(false);
+  const [touchAim, setTouchAim] = useState<{ fingerX: number; fingerY: number; targetX: number; targetY: number } | null>(null);
+  const touchAimActiveRef = useRef(false);
+  const [boxDims, setBoxDims] = useState({ w: 0, h: 0, vw: 0, vh: 0 });
+
+  const TOUCH_AIM_OFFSET_Y = 64;
+
+  const localUser = useAuthStore((s) => s.user);
+  const allPointers = useStreamPointerStore((s) => s.pointers);
+  const activePointers = Object.values(allPointers).filter((p) => p.streamIdentity === participant.identity);
+  const contentBox = computeVideoContentBox(boxDims.w, boxDims.h, boxDims.vw, boxDims.vh);
+
   const clampPan = useCallback((x: number, y: number, scale: number) => {
     const el = containerRef.current;
     if (!el || scale <= 1) return { x: 0, y: 0 };
@@ -254,8 +279,60 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
   useEffect(() => {
     if (!large || !liveScreenTrack || !isWatching) {
       resetZoom();
+      setPointMode(false);
     }
   }, [large, liveScreenTrack, isWatching, participant.identity, resetZoom]);
+
+  // Track container + video natural dimensions so normalized pointers map exactly onto the object-contain video box
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const sync = () => {
+      const v = videoRef.current;
+      setBoxDims({
+        w: el.clientWidth,
+        h: el.clientHeight,
+        vw: v?.videoWidth ?? 0,
+        vh: v?.videoHeight ?? 0,
+      });
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [large, liveScreenTrack, isWatching]);
+
+  const sendStreamPointer = useCallback(
+    (x: number, y: number, mode: StreamPointerMode) => {
+      const room = getActiveRoom();
+      const senderIdentity = room?.localParticipant?.identity ?? localUser?.id ?? 'local';
+      const senderName = localUser?.displayName || localUser?.username || room?.localParticipant?.name || 'You';
+      const color = pointerColorForIdentity(senderIdentity);
+
+      useStreamPointerStore.getState().upsertPointer({
+        streamIdentity: participant.identity,
+        senderIdentity,
+        senderName,
+        x,
+        y,
+        mode,
+        color,
+      });
+
+      if (room?.localParticipant) {
+        const bytes = encodeStreamPointer({
+          type: 'stream_pointer',
+          streamIdentity: participant.identity,
+          x,
+          y,
+          mode,
+          color,
+        });
+        room.localParticipant.publishData(bytes, { reliable: mode !== 'drag' }).catch(() => { /* ignore transient send errors */ });
+      }
+    },
+    [participant.identity, localUser?.id, localUser?.displayName, localUser?.username],
+  );
 
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLDivElement>) => {
@@ -289,12 +366,35 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!large || zoom <= 1 || e.button !== 0) return;
+      if (!large || !liveScreenTrack || !isWatching) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+      // Ignore clicks on overlay buttons
+      if ((e.target as HTMLElement | null)?.closest('button')) return;
+
+      // Desktop Shift+click or active Point Mode: send ping immediately
+      if (pointMode || e.shiftKey) {
+        const videoEl = videoRef.current;
+        if (!videoEl) return;
+        const norm = clientPointToNormalizedVideo(
+          e.clientX,
+          e.clientY,
+          videoEl.getBoundingClientRect(),
+          videoEl.videoWidth,
+          videoEl.videoHeight,
+        );
+        if (!norm) return;
+        e.preventDefault();
+        sendStreamPointer(norm.x, norm.y, 'ping');
+        return;
+      }
+
+      if (zoom <= 1) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       setIsPanning(true);
       panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
     },
-    [large, zoom, pan.x, pan.y],
+    [large, liveScreenTrack, isWatching, pointMode, zoom, pan.x, pan.y, sendStreamPointer],
   );
 
   const handlePointerMove = useCallback(
@@ -311,6 +411,65 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
     setIsPanning(false);
     panStartRef.current = null;
   }, []);
+
+  // Mobile / touch draggable crosshair handle: offset 64px above the finger, fires ping on release
+  const updateTouchAimFromClient = useCallback((clientX: number, clientY: number) => {
+    const el = containerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const fingerX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+    const fingerY = Math.max(0, Math.min(rect.height, clientY - rect.top));
+    const targetX = fingerX;
+    const targetY = Math.max(8, fingerY - TOUCH_AIM_OFFSET_Y);
+    const next = { fingerX, fingerY, targetX, targetY };
+    setTouchAim(next);
+    return { clientTargetX: rect.left + targetX, clientTargetY: rect.top + targetY };
+  }, []);
+
+  const handleAimButtonPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (!large || !liveScreenTrack || !isWatching) return;
+      e.stopPropagation();
+      e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      touchAimActiveRef.current = true;
+      updateTouchAimFromClient(e.clientX, e.clientY);
+    },
+    [large, liveScreenTrack, isWatching, updateTouchAimFromClient],
+  );
+
+  const handleAimButtonPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (!touchAimActiveRef.current) return;
+      e.stopPropagation();
+      updateTouchAimFromClient(e.clientX, e.clientY);
+    },
+    [updateTouchAimFromClient],
+  );
+
+  const handleAimButtonPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (!touchAimActiveRef.current) return;
+      e.stopPropagation();
+      touchAimActiveRef.current = false;
+      const pos = updateTouchAimFromClient(e.clientX, e.clientY);
+      setTouchAim(null);
+      if (!pos) return;
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+      const norm = clientPointToNormalizedVideo(
+        pos.clientTargetX,
+        pos.clientTargetY,
+        videoEl.getBoundingClientRect(),
+        videoEl.videoWidth,
+        videoEl.videoHeight,
+      );
+      if (norm) {
+        sendStreamPointer(norm.x, norm.y, 'ping');
+      }
+    },
+    [updateTouchAimFromClient, sendStreamPointer],
+  );
 
   const openContextMenu = useContextMenuStore((s) => s.open);
 
@@ -515,21 +674,25 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
         edgeToEdge
           ? 'bg-black rounded-none ring-0'
           : 'bg-surface-base rounded-xl ring-1 ring-white/[0.06] hover:ring-white/10'
-      } ${large && hasVideo && isWatching && zoom > 1 ? (isPanning ? 'cursor-grabbing select-none' : 'cursor-grab select-none') : ''}`}
+      } ${
+        large && hasVideo && isWatching
+          ? pointMode
+            ? 'cursor-crosshair select-none touch-none'
+            : zoom > 1
+              ? (isPanning ? 'cursor-grabbing select-none' : 'cursor-grab select-none')
+              : ''
+          : ''
+      }`}
       onContextMenu={handleContextMenu}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      onDoubleClick={() => { if (large && zoom > 1) resetZoom(); }}
+      onDoubleClick={() => { if (large && !pointMode && zoom > 1) resetZoom(); }}
     >
       {hasVideo && isWatching ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
+        <div
           style={
             large && zoom > 1
               ? {
@@ -539,8 +702,69 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
                 }
               : undefined
           }
-          className="w-full h-full object-contain bg-black"
-        />
+          className="relative w-full h-full"
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              const el = containerRef.current;
+              if (el) setBoxDims({ w: el.clientWidth, h: el.clientHeight, vw: v.videoWidth, vh: v.videoHeight });
+            }}
+            onResize={(e) => {
+              const v = e.currentTarget;
+              const el = containerRef.current;
+              if (el) setBoxDims({ w: el.clientWidth, h: el.clientHeight, vw: v.videoWidth, vh: v.videoHeight });
+            }}
+            className="w-full h-full object-contain bg-black"
+          />
+
+          {/* Temporary point-on-stream markers (synced via LiveKit DataChannel) */}
+          {activePointers.length > 0 && contentBox.width > 0 && contentBox.height > 0 && (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {activePointers.map((ptr) => {
+                const leftPx = contentBox.left + ptr.x * contentBox.width;
+                const topPx = contentBox.top + ptr.y * contentBox.height;
+                const isClearing = ptr.mode === 'clear';
+                return (
+                  <div
+                    key={`${ptr.id}-${ptr.pulseKey}`}
+                    style={{ left: `${leftPx}px`, top: `${topPx}px` }}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 transition-opacity duration-300 ${
+                      isClearing ? 'opacity-0' : 'opacity-100'
+                    }`}
+                  >
+                    {/* Animated ping ring */}
+                    <span
+                      style={{ borderColor: ptr.color }}
+                      className="absolute inset-0 -m-3 rounded-full border-2 animate-ping opacity-75"
+                    />
+                    {/* Target reticle */}
+                    <span
+                      style={{ borderColor: ptr.color, backgroundColor: `${ptr.color}33` }}
+                      className="relative flex items-center justify-center w-6 h-6 rounded-full border-2 shadow-lg"
+                    >
+                      <span
+                        style={{ backgroundColor: ptr.color }}
+                        className="w-2 h-2 rounded-full"
+                      />
+                    </span>
+                    {/* Sender label */}
+                    <span
+                      style={{ borderColor: `${ptr.color}88` }}
+                      className="absolute left-1/2 top-full mt-1.5 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 rounded bg-black/80 border text-[10px] font-semibold text-white shadow"
+                    >
+                      {ptr.senderName}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       ) : (
         <div data-testid="stream-tile-placeholder" className={`w-full h-full min-h-0 flex items-center justify-center bg-surface-channel ${large ? 'px-4 py-6' : 'px-4 pt-9 pb-3'}`}>
           <div className={large ? 'flex flex-col items-center gap-3 min-w-0' : 'flex w-full max-w-[280px] min-w-0 items-center gap-3'}>
@@ -565,11 +789,31 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
         </div>
       )}
 
-      {/* LIVE badge + Zoom reset pill — top left */}
+      {/* LIVE badge + Point-on-stream toggle + Zoom reset pill — top left */}
       <div className={`absolute top-2 left-2 flex items-center gap-1.5 transition-opacity duration-300 ease-out ${overlayFade}`}>
         <div className="px-1.5 py-0.5 bg-accent-rose rounded text-[11px] font-bold text-white uppercase tracking-wide">
           {t('voice:badges.live')}
         </div>
+        {large && hasVideo && isWatching && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setPointMode((prev) => !prev); }}
+            title={t('voice:stream.pointModeHint')}
+            aria-pressed={pointMode}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-colors ${
+              pointMode
+                ? 'bg-accent-primary border-accent-primary text-white'
+                : 'bg-black/75 hover:bg-black/90 border-white/15 text-white/90'
+            }`}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+              <circle cx="12" cy="12" r="7" />
+              <circle cx="12" cy="12" r="2" fill="currentColor" />
+              <path strokeLinecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
+            <span>{t('voice:stream.pointMode')}</span>
+          </button>
+        )}
         {large && hasVideo && isWatching && zoom > 1 && (
           <button
             type="button"
@@ -601,6 +845,59 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
             </div>
           )}
         </div>
+      )}
+
+      {/* Draggable offset-crosshair aim overlay while dragging from the mobile aim handle */}
+      {touchAim && (
+        <div className="absolute inset-0 pointer-events-none z-20">
+          <svg className="absolute inset-0 w-full h-full">
+            <line
+              x1={touchAim.fingerX}
+              y1={touchAim.fingerY}
+              x2={touchAim.targetX}
+              y2={touchAim.targetY}
+              stroke="#a78bfa"
+              strokeWidth="2"
+              strokeDasharray="4 3"
+            />
+          </svg>
+          {/* Crosshair target (64px above the finger) */}
+          <div
+            style={{ left: `${touchAim.targetX}px`, top: `${touchAim.targetY}px` }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-accent-primary bg-accent-primary/20 flex items-center justify-center shadow-lg"
+          >
+            <span className="w-2 h-2 rounded-full bg-accent-primary" />
+          </div>
+          {/* Finger grip indicator */}
+          <div
+            style={{ left: `${touchAim.fingerX}px`, top: `${touchAim.fingerY}px` }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border border-white/60 bg-black/50"
+          />
+        </div>
+      )}
+
+      {/* Draggable mobile/touch aim handle — bottom right (offset crosshair fires ping on release) */}
+      {large && hasVideo && isWatching && (
+        <button
+          type="button"
+          onPointerDown={handleAimButtonPointerDown}
+          onPointerMove={handleAimButtonPointerMove}
+          onPointerUp={handleAimButtonPointerUp}
+          onPointerCancel={handleAimButtonPointerUp}
+          title={t('voice:stream.dragAimHint')}
+          aria-label={t('voice:stream.dragAimHint')}
+          className={`absolute bottom-12 right-3 z-20 touch-none select-none w-11 h-11 rounded-full border flex items-center justify-center shadow-lg transition-all duration-200 ${
+            touchAim
+              ? 'bg-accent-primary border-accent-primary text-white scale-110 opacity-100'
+              : `bg-black/75 hover:bg-black/90 border-white/20 text-white/90 ${overlayFade}`
+          }`}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+            <circle cx="12" cy="12" r="7" />
+            <circle cx="12" cy="12" r="2" fill="currentColor" />
+            <path strokeLinecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
+        </button>
       )}
 
       {/* Bottom overlay */}

@@ -172,7 +172,10 @@
     "watchShort": "观看",
     "mute": "静音直播",
     "isStreaming": "{{name}} 正在直播",
-    "resetZoom": "重置缩放 (1x)"
+    "resetZoom": "重置缩放 (1x)",
+    "pointMode": "指向",
+    "pointModeHint": "Shift+点击（或开启指向模式）在画面上标记位置",
+    "dragAimHint": "拖动准星（位于手指上方）并在松开时标记位置"
   },
   "streamDiagnostics": {
     "publisherNetwork": "推流端网络不稳定",

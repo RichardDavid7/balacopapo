@@ -29,6 +29,8 @@ import { consumeIntentionalCameraOff, markIntentionalCameraOff } from '../utils/
 import { dmCallChannelId, dmCallOrigin, dmCallRoomKey, voiceSessionOrigin } from '../utils/dmCall';
 import { AudioManager } from '../audio/AudioManager';
 import { SpeakingDetector } from '../audio/SpeakingDetector';
+import { parseStreamPointer } from '../utils/streamPointerProtocol';
+import { useStreamPointerStore } from '../stores/streamPointerStore';
 import { resolveAudioPolicyHierarchy } from '../utils/audioPolicy';
 import {
   CAMERA_OVERDRIVE,
@@ -776,6 +778,19 @@ export function useLiveKit() {
         resume.stopAnnounced(participant.identity);
         return;
       }
+      const ptr = parseStreamPointer(payload);
+      if (ptr) {
+        useStreamPointerStore.getState().upsertPointer({
+          streamIdentity: ptr.streamIdentity,
+          senderIdentity: participant.identity,
+          senderName: participant.name || participant.identity,
+          x: ptr.x,
+          y: ptr.y,
+          mode: ptr.mode,
+          color: ptr.color,
+        });
+        return;
+      }
       const sb = decodeSoundboardPlay(payload);
       if (sb) {
         if (!isSafeSoundboardFileUrl(sb.fileUrl)) return;
@@ -1459,6 +1474,7 @@ export function useLiveKit() {
         // Keep that attempt current so its catch can report the failure.
         if (!initialConnectPending) _connectGeneration++;
         AudioManager.getInstance().releaseInputStream();
+    useStreamPointerStore.getState().reset();
         SpeakingDetector.getInstance().clear();
         setConnectionState(ConnectionState.Disconnected);
         setIsConnecting(false);
@@ -1529,6 +1545,7 @@ export function useLiveKit() {
       releaseRoomAudioLease(createdRoom);
       if (gen === _connectGeneration) {
         AudioManager.getInstance().releaseInputStream();
+    useStreamPointerStore.getState().reset();
         setConnectionError('connect_failed');
         useVoiceStore.getState().leaveVoice();
         useVoiceStore.getState().setConnectionError('connect_failed');
@@ -1542,6 +1559,7 @@ export function useLiveKit() {
     // Release before SDK teardown, even if token fetching has not made a Room
     // yet. A late teardown must never stop a subsequent call's fresh capture.
     AudioManager.getInstance().releaseInputStream();
+    useStreamPointerStore.getState().reset();
     releasePendingAudioLease();
     releaseRoomAudioLease(roomRef.current || _activeRoom);
     SpeakingDetector.getInstance().clear();
@@ -1629,6 +1647,7 @@ export function useLiveKit() {
       SpeakingDetector.getInstance().clear();
       deactivateHwOverdrive();
       AudioManager.getInstance().releaseInputStream();
+    useStreamPointerStore.getState().reset();
       releasePendingAudioLease();
       const roomToDestroy = roomRef.current;
       roomRef.current = null;

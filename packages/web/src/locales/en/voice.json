@@ -172,7 +172,10 @@
     "watchShort": "Watch",
     "mute": "Mute Stream",
     "isStreaming": "{{name}} is streaming",
-    "resetZoom": "Reset zoom (1x)"
+    "resetZoom": "Reset zoom (1x)",
+    "pointMode": "Point",
+    "pointModeHint": "Shift+click (or toggle Point) to mark a spot on the stream",
+    "dragAimHint": "Drag to aim above your finger, release to point on the stream"
   },
   "streamDiagnostics": {
     "publisherNetwork": "The streamer's network is unstable",
