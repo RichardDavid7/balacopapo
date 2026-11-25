@@ -562,7 +562,12 @@
       "empty": "Nenhum usuário local encontrado.",
       "adminBadge": "Admin",
       "linkedSummary": "Vinculado · sub: {{subject}} ({{email}})",
-      "notLinked": "Não vinculado ao OIDC"
+      "notLinked": "Não vinculado ao OIDC",
+      "summary": "{{total}} no total · {{linked}} vinculados · {{unlinked}} sem vínculo",
+      "statusLinked": "Vinculado",
+      "lastLogin": "Último login OIDC em {{date}}",
+      "subLabel": "Subject:",
+      "emailLabel": "E-mail:"
     },
     "actions": {
       "generateLink": "Link de vínculo",
@@ -573,6 +578,17 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "E-mail (opcional)"
+    },
+    "filters": {
+      "all": "Todos",
+      "linked": "Vinculados",
+      "unlinked": "Não vinculados",
+      "allRoles": "Todos os cargos",
+      "adminsOnly": "Admins",
+      "membersOnly": "Membros",
+      "sortUnlinkedFirst": "Sem vínculo primeiro",
+      "sortNewest": "Mais recentes",
+      "sortAZ": "A–Z"
     }
   },
   "ipBans": {

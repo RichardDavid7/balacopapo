@@ -80,5 +80,8 @@
   "Client ID",
   "Issuer URL",
   "OIDC Subject (sub)",
-  "Admin"
+  "Admin",
+  "Admins",
+  "Subject:",
+  "A–Z"
 ]

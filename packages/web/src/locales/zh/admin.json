@@ -532,7 +532,12 @@
       "empty": "未找到本地用户。",
       "adminBadge": "管理员",
       "linkedSummary": "已关联 · sub: {{subject}} ({{email}})",
-      "notLinked": "未关联 OIDC"
+      "notLinked": "未关联 OIDC",
+      "summary": "共 {{total}} · 已关联 {{linked}} · 未关联 {{unlinked}}",
+      "statusLinked": "已关联",
+      "lastLogin": "上次 OIDC 登录 {{date}}",
+      "subLabel": "Subject:",
+      "emailLabel": "邮箱："
     },
     "actions": {
       "generateLink": "一键关联链接",
@@ -543,6 +548,17 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "邮箱（可选）"
+    },
+    "filters": {
+      "all": "全部",
+      "linked": "已关联",
+      "unlinked": "未关联",
+      "allRoles": "全部角色",
+      "adminsOnly": "管理员",
+      "membersOnly": "成员",
+      "sortUnlinkedFirst": "未关联优先",
+      "sortNewest": "最新",
+      "sortAZ": "A–Z"
     }
   },
   "ipBans": {

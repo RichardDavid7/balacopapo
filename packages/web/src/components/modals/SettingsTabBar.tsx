@@ -11,22 +11,22 @@ export function SettingsTabBar() {
   if (!ctx || ctx.sections.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-white/[0.06] -mt-2 mb-4">
+    <div className="flex flex-nowrap items-center gap-1 overflow-x-auto no-scrollbar border-b border-white/[0.06] -mt-2 mb-4 pb-2">
       {ctx.sections.map((s) => (
         s.invite === true ? (
           // The invitation wears the answer button's material so it reads as
           // an offer rather than as one more tab, but it only navigates here.
-          <div key={s.id} className="flex w-36 items-center pb-1.5 self-center shrink-0">
+          <div key={s.id} className="flex items-center self-center shrink-0 pl-1">
             <HiButton onClick={() => ctx.scrollToSection(s.id)}>{s.label}</HiButton>
           </div>
         ) : (
         <button
           key={s.id}
           onClick={() => ctx.scrollToSection(s.id)}
-          className={`pb-2.5 text-sm whitespace-nowrap transition-colors relative ${
+          className={`px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap shrink-0 transition-colors relative ${
             ctx.activeSection === s.id
-              ? 'text-txt-primary font-medium'
-              : 'text-txt-tertiary hover:text-txt-secondary'
+              ? 'bg-accent-primary/15 text-txt-primary font-semibold'
+              : 'text-txt-tertiary hover:text-txt-secondary hover:bg-white/[0.04]'
           }`}
         >
           {s.label}
@@ -37,9 +37,6 @@ export function SettingsTabBar() {
           )}
           {s.badgeDot === true && (
             <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-amber align-middle" />
-          )}
-          {ctx.activeSection === s.id && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-primary rounded-full" />
           )}
         </button>
         )

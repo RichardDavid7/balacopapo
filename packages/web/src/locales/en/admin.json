@@ -547,7 +547,12 @@
       "empty": "No local users found.",
       "adminBadge": "Admin",
       "linkedSummary": "Linked · sub: {{subject}} ({{email}})",
-      "notLinked": "Not linked to OIDC"
+      "notLinked": "Not linked to OIDC",
+      "summary": "{{total}} total · {{linked}} linked · {{unlinked}} unlinked",
+      "statusLinked": "Linked",
+      "lastLogin": "Last OIDC login {{date}}",
+      "subLabel": "Subject:",
+      "emailLabel": "Email:"
     },
     "actions": {
       "generateLink": "One-click link",
@@ -558,6 +563,17 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "Email (optional)"
+    },
+    "filters": {
+      "all": "All",
+      "linked": "Linked",
+      "unlinked": "Unlinked",
+      "allRoles": "All roles",
+      "adminsOnly": "Admins",
+      "membersOnly": "Members",
+      "sortUnlinkedFirst": "Unlinked first",
+      "sortNewest": "Newest",
+      "sortAZ": "A–Z"
     }
   },
   "ipBans": {

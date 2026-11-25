@@ -577,7 +577,12 @@
       "empty": "Локальные пользователи не найдены.",
       "adminBadge": "Админ",
       "linkedSummary": "Привязан · sub: {{subject}} ({{email}})",
-      "notLinked": "Не привязан к OIDC"
+      "notLinked": "Не привязан к OIDC",
+      "summary": "Всего {{total}} · привязано {{linked}} · без привязки {{unlinked}}",
+      "statusLinked": "Привязан",
+      "lastLogin": "Последний вход OIDC: {{date}}",
+      "subLabel": "Subject:",
+      "emailLabel": "Почта:"
     },
     "actions": {
       "generateLink": "Ссылка привязки",
@@ -588,6 +593,17 @@
     "fields": {
       "subjectPlaceholder": "OIDC Subject (sub)",
       "emailPlaceholder": "Эл. почта (необязательно)"
+    },
+    "filters": {
+      "all": "Все",
+      "linked": "Привязанные",
+      "unlinked": "Без привязки",
+      "allRoles": "Все роли",
+      "adminsOnly": "Админы",
+      "membersOnly": "Участники",
+      "sortUnlinkedFirst": "Сначала без привязки",
+      "sortNewest": "Сначала новые",
+      "sortAZ": "А–Я"
     }
   },
   "ipBans": {

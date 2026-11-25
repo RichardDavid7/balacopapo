@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AdminOidcConfigResponse, AdminOidcUser } from '@backspace/shared';
 import { api } from '../../../api/client';
 import { Avatar } from '../../ui/Avatar';
 import { describeError } from '../../../i18n/errors';
 import { useFormatters } from '../../../i18n/formatters';
+
+type LinkFilter = 'all' | 'linked' | 'unlinked';
+type RoleFilter = 'all' | 'admin' | 'member';
+type SortMode = 'unlinkedFirst' | 'newest' | 'az';
 
 export function OidcPanel() {
   const { t } = useTranslation(['admin', 'common']);
@@ -13,6 +17,9 @@ export function OidcPanel() {
   const [oidcConfig, setOidcConfig] = useState<AdminOidcConfigResponse | null>(null);
   const [users, setUsers] = useState<AdminOidcUser[]>([]);
   const [search, setSearch] = useState('');
+  const [linkFilter, setLinkFilter] = useState<LinkFilter>('all');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [sortBy, setSortBy] = useState<SortMode>('unlinkedFirst');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [copiedCallback, setCopiedCallback] = useState(false);
@@ -32,13 +39,13 @@ export function OidcPanel() {
   } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const loadData = useCallback(async (q = '') => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const [cfg, list] = await Promise.all([
         api.admin.oidc.getConfig(),
-        api.admin.oidc.listUsers(q || undefined),
+        api.admin.oidc.listUsers(),
       ]);
       setOidcConfig(cfg);
       setUsers(list.users);
@@ -53,10 +60,40 @@ export function OidcPanel() {
     void loadData();
   }, [loadData]);
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    void loadData(value);
-  };
+  const stats = useMemo(() => {
+    const linked = users.filter((u) => u.oidcLink !== null).length;
+    return { total: users.length, linked, unlinked: users.length - linked };
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = users.filter((u) => {
+      if (linkFilter === 'linked' && !u.oidcLink) return false;
+      if (linkFilter === 'unlinked' && u.oidcLink) return false;
+      if (roleFilter === 'admin' && !u.isAdmin) return false;
+      if (roleFilter === 'member' && u.isAdmin) return false;
+      if (!q) return true;
+      return (
+        u.username.toLowerCase().includes(q)
+        || (u.displayName?.toLowerCase().includes(q) ?? false)
+        || (u.oidcLink?.subject.toLowerCase().includes(q) ?? false)
+        || (u.oidcLink?.email?.toLowerCase().includes(q) ?? false)
+      );
+    });
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'unlinkedFirst') {
+        const aLinked = a.oidcLink ? 1 : 0;
+        const bLinked = b.oidcLink ? 1 : 0;
+        if (aLinked !== bLinked) return aLinked - bLinked;
+        return a.username.localeCompare(b.username);
+      }
+      if (sortBy === 'az') {
+        return a.username.localeCompare(b.username);
+      }
+      return b.createdAt - a.createdAt;
+    });
+  }, [users, search, linkFilter, roleFilter, sortBy]);
 
   const handleCopyCallback = async () => {
     if (!oidcConfig?.callbackUrl) return;
@@ -92,7 +129,7 @@ export function OidcPanel() {
       setEditingUserId(null);
       setSubjectInput('');
       setEmailInput('');
-      await loadData(search);
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? describeError(err) : t('admin:oidc.linkFailed'));
     } finally {
@@ -135,13 +172,20 @@ export function OidcPanel() {
     setError('');
     try {
       await api.admin.oidc.unlinkUser(userId);
-      await loadData(search);
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? describeError(err) : t('admin:oidc.unlinkFailed'));
     } finally {
       setSavingUserId(null);
     }
   };
+
+  const pillClass = (active: boolean) =>
+    `px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+      active
+        ? 'bg-accent-primary text-white'
+        : 'bg-surface-overlay text-txt-secondary hover:text-txt-primary'
+    }`;
 
   return (
     <div className="space-y-6">
@@ -165,7 +209,7 @@ export function OidcPanel() {
           </div>
           {oidcConfig && (
             <span
-              className={`px-2 py-0.5 rounded text-xs font-medium ${
+              className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${
                 oidcConfig.configured
                   ? 'bg-accent-mint/15 text-accent-mint'
                   : 'bg-surface-overlay text-txt-tertiary'
@@ -187,7 +231,7 @@ export function OidcPanel() {
                 <button
                   type="button"
                   onClick={handleCopyCallback}
-                  className="px-3 py-1.5 rounded bg-surface-overlay hover:bg-surface-elevated text-txt-primary border border-border-soft transition-colors shrink-0"
+                  className="px-3 py-1.5 rounded bg-surface-overlay hover:bg-surface-base text-txt-primary border border-border-soft transition-colors shrink-0"
                 >
                   {copiedCallback ? t('common:actions.copied') : t('common:actions.copy')}
                 </button>
@@ -242,7 +286,7 @@ export function OidcPanel() {
 
       {/* Generated one-click link banner */}
       {generatedLink && (
-        <div className="p-3 bg-accent-primary/10 border border-accent-primary/30 rounded-lg space-y-2 text-xs">
+        <div className="p-3.5 bg-accent-primary/10 border border-accent-primary/30 rounded-lg space-y-2 text-xs">
           <div className="flex items-center justify-between gap-2">
             <span className="font-semibold text-txt-primary">
               {t('admin:oidc.generatedLink.title', { username: generatedLink.username })}
@@ -259,7 +303,7 @@ export function OidcPanel() {
             {t('admin:oidc.generatedLink.hint', { time: f.formatTime(generatedLink.expiresAt) })}
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 px-2 py-1.5 rounded bg-surface-base border border-border-soft text-txt-primary font-mono break-all">
+            <code className="flex-1 px-2.5 py-1.5 rounded bg-surface-base border border-border-soft text-txt-primary font-mono break-all">
               {generatedLink.url}
             </code>
             <button
@@ -273,45 +317,101 @@ export function OidcPanel() {
         </div>
       )}
 
-      {/* Existing Users Linking List */}
+      {/* Existing Users Linking Section */}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-txt-primary">{t('admin:oidc.users.title')}</h3>
             <p className="text-xs text-txt-tertiary">{t('admin:oidc.users.subtitle')}</p>
           </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder={t('admin:oidc.users.searchPlaceholder')}
-            className="input-standard text-sm py-1.5 px-3 w-64 max-w-full"
-          />
+          <div className="text-xs text-txt-tertiary tabular-nums">
+            {t('admin:oidc.users.summary', {
+              total: stats.total,
+              linked: stats.linked,
+              unlinked: stats.unlinked,
+            })}
+          </div>
         </div>
 
+        {/* Search + Filters toolbar */}
+        <div className="bg-surface-elevated border border-border-soft rounded-lg p-3 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('admin:oidc.users.searchPlaceholder')}
+              className="input-standard text-xs py-1.5 px-3 flex-1 min-w-[200px]"
+            />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortMode)}
+              aria-label={t('common:actions.sortBy')}
+              className="input-standard text-xs py-1.5 px-2.5"
+            >
+              <option value="unlinkedFirst">{t('admin:oidc.filters.sortUnlinkedFirst')}</option>
+              <option value="newest">{t('admin:oidc.filters.sortNewest')}</option>
+              <option value="az">{t('admin:oidc.filters.sortAZ')}</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button type="button" onClick={() => setLinkFilter('all')} className={pillClass(linkFilter === 'all')}>
+                {t('admin:oidc.filters.all')} ({stats.total})
+              </button>
+              <button type="button" onClick={() => setLinkFilter('unlinked')} className={pillClass(linkFilter === 'unlinked')}>
+                {t('admin:oidc.filters.unlinked')} ({stats.unlinked})
+              </button>
+              <button type="button" onClick={() => setLinkFilter('linked')} className={pillClass(linkFilter === 'linked')}>
+                {t('admin:oidc.filters.linked')} ({stats.linked})
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button type="button" onClick={() => setRoleFilter('all')} className={pillClass(roleFilter === 'all')}>
+                {t('admin:oidc.filters.allRoles')}
+              </button>
+              <button type="button" onClick={() => setRoleFilter('admin')} className={pillClass(roleFilter === 'admin')}>
+                {t('admin:oidc.filters.adminsOnly')}
+              </button>
+              <button type="button" onClick={() => setRoleFilter('member')} className={pillClass(roleFilter === 'member')}>
+                {t('admin:oidc.filters.membersOnly')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Clean user cards list */}
         {loading ? (
-          <div className="text-sm text-txt-tertiary py-6 text-center">{t('common:states.loading')}</div>
-        ) : users.length === 0 ? (
-          <div className="text-sm text-txt-tertiary py-6 text-center">{t('admin:oidc.users.empty')}</div>
+          <div className="text-sm text-txt-tertiary py-8 text-center">{t('common:states.loading')}</div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="text-sm text-txt-tertiary py-8 text-center bg-surface-elevated border border-border-soft rounded-lg">
+            {t('admin:oidc.users.empty')}
+          </div>
         ) : (
-          <div className="divide-y divide-border-soft border border-border-soft rounded-lg overflow-hidden bg-surface-elevated">
-            {users.map((user) => {
+          <div className="space-y-2">
+            {filteredUsers.map((user) => {
               const isEditing = editingUserId === user.id;
               const isBusy = savingUserId === user.id;
 
               return (
-                <div key={user.id} className="p-3 space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <div
+                  key={user.id}
+                  className="bg-surface-elevated border border-border-soft rounded-lg p-3.5 space-y-3"
+                >
+                  {/* Top row: identity + status badge */}
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar
                         src={user.avatar}
                         name={user.displayName || user.username}
                         avatarColor={user.avatarColor}
-                        size={36}
+                        size={40}
                       />
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-txt-primary truncate">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-semibold text-txt-primary truncate">
                             {user.displayName || user.username}
                           </span>
                           <span className="text-xs text-txt-tertiary font-mono truncate">@{user.username}</span>
@@ -321,28 +421,33 @@ export function OidcPanel() {
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-txt-tertiary mt-0.5 truncate">
-                          {user.oidcLink ? (
-                            <span className="text-accent-mint">
-                              {t('admin:oidc.users.linkedSummary', {
-                                subject: user.oidcLink.subject,
-                                email: user.oidcLink.email ?? t('admin:oidc.noEmail'),
-                              })}
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              user.oidcLink
+                                ? 'bg-accent-mint/15 text-accent-mint'
+                                : 'bg-surface-overlay text-txt-tertiary'
+                            }`}
+                          >
+                            {user.oidcLink ? t('admin:oidc.users.statusLinked') : t('admin:oidc.users.notLinked')}
+                          </span>
+                          {user.oidcLink?.lastLoginAt && (
+                            <span className="text-[11px] text-txt-tertiary">
+                              {t('admin:oidc.users.lastLogin', { date: f.formatMediumDate(user.oidcLink.lastLoginAt) })}
                             </span>
-                          ) : (
-                            <span>{t('admin:oidc.users.notLinked')}</span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
                       {oidcConfig?.configured && (
                         <button
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleGenerateLinkToken(user)}
-                          className="px-2.5 py-1 rounded text-xs font-medium bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25 transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1.5 rounded-md text-xs font-medium bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25 transition-colors disabled:opacity-50"
                         >
                           {t('admin:oidc.actions.generateLink')}
                         </button>
@@ -352,7 +457,7 @@ export function OidcPanel() {
                           type="button"
                           disabled={isBusy}
                           onClick={() => (isEditing ? setEditingUserId(null) : handleStartManualLink(user))}
-                          className="px-2.5 py-1 rounded text-xs font-medium bg-surface-overlay text-txt-primary hover:bg-surface-elevated border border-border-soft transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1.5 rounded-md text-xs font-medium bg-surface-overlay text-txt-primary hover:bg-surface-base border border-border-soft transition-colors disabled:opacity-50"
                         >
                           {user.oidcLink ? t('admin:oidc.actions.editLink') : t('admin:oidc.actions.manualLink')}
                         </button>
@@ -362,7 +467,7 @@ export function OidcPanel() {
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleUnlink(user.id)}
-                          className="px-2.5 py-1 rounded text-xs font-medium bg-accent-rose/10 text-txt-danger hover:bg-accent-rose/20 transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1.5 rounded-md text-xs font-medium bg-accent-rose/10 text-txt-danger hover:bg-accent-rose/20 transition-colors disabled:opacity-50"
                         >
                           {t('admin:oidc.actions.unlink')}
                         </button>
@@ -370,8 +475,27 @@ export function OidcPanel() {
                     </div>
                   </div>
 
+                  {/* Linked metadata details */}
+                  {user.oidcLink && (
+                    <div className="px-2.5 py-2 rounded bg-surface-base border border-border-soft flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="text-txt-tertiary">{t('admin:oidc.users.subLabel')}</span>
+                        <code className="text-txt-secondary font-mono truncate max-w-[260px]" title={user.oidcLink.subject}>
+                          {user.oidcLink.subject}
+                        </code>
+                      </div>
+                      {user.oidcLink.email && (
+                        <div className="min-w-0 flex items-center gap-1.5">
+                          <span className="text-txt-tertiary">{t('admin:oidc.users.emailLabel')}</span>
+                          <span className="text-txt-secondary truncate">{user.oidcLink.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Inline manual Subject editor */}
                   {isEditing && (
-                    <div className="pt-2 border-t border-border-soft grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2">
+                    <div className="pt-2.5 border-t border-border-soft grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2">
                       <input
                         type="text"
                         value={subjectInput}
