@@ -235,6 +235,12 @@ export class BackspaceApiClient {
     checkInvite: (token: string) => Promise<CheckInviteResponse>;
     attachProof: (targetDomain: string) => Promise<AttachProofResponse>;
     exchangeOidcTicket: (ticket: string) => Promise<AuthResponse>;
+    createOidcHandoff: () => Promise<{ handoffId: string; pollToken: string; expiresInMs: number }>;
+    pollOidcHandoff: (handoffId: string, token: string) => Promise<
+      | { status: 'pending' }
+      | { status: 'ready'; ticket: string; redirect: string }
+      | { status: 'error'; error: string }
+    >;
   };
 
   readonly users: {
@@ -666,6 +672,14 @@ export class BackspaceApiClient {
         request<AttachProofResponse>('POST', '/auth/attach-proof', { targetDomain }),
       exchangeOidcTicket: (ticket: string) =>
         request<AuthResponse>('POST', '/auth/oidc/exchange', { ticket }, false),
+      createOidcHandoff: () =>
+        request<{ handoffId: string; pollToken: string; expiresInMs: number }>('POST', '/auth/oidc/handoff', {}, false),
+      pollOidcHandoff: (handoffId: string, token: string) =>
+        request<
+          | { status: 'pending' }
+          | { status: 'ready'; ticket: string; redirect: string }
+          | { status: 'error'; error: string }
+        >('GET', `/auth/oidc/handoff/${encodeURIComponent(handoffId)}?token=${encodeURIComponent(token)}`, undefined, false),
     };
 
     this.users = {

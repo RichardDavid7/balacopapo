@@ -1,14 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
+  completeOidcHandoff,
   consumeAdminOidcLinkToken,
   consumeOidcAuthState,
   consumeOidcLoginTicket,
   createAdminOidcLinkToken,
   createOidcAuthState,
+  createOidcHandoff,
   createOidcLoginTicket,
   extractOidcGroups,
+  failOidcHandoff,
+  hasActiveOidcHandoff,
   matchesAdminGroups,
   normalizeIssuer,
+  pollOidcHandoff,
   sanitizeOidcUsername,
 } from './oidc.js';
 
@@ -54,5 +59,29 @@ describe('OIDC helpers', () => {
     const ticket = createOidcLoginTicket('user-456');
     expect(consumeOidcLoginTicket(ticket)).toBe('user-456');
     expect(consumeOidcLoginTicket(ticket)).toBeNull();
+  });
+
+  it('tracks OIDC browser handoff through pending, ready, error, and single-use consumption', () => {
+    const { handoffId, pollToken } = createOidcHandoff();
+    expect(hasActiveOidcHandoff(handoffId)).toBe(true);
+    expect(pollOidcHandoff(handoffId, 'wrong-token')).toBeNull();
+    expect(pollOidcHandoff(handoffId, pollToken)).toEqual({ status: 'pending' });
+
+    expect(completeOidcHandoff(handoffId, { ticket: 'tkt-1', redirect: '/channels/@me' })).toBe(true);
+    expect(hasActiveOidcHandoff(handoffId)).toBe(false);
+    expect(pollOidcHandoff(handoffId, pollToken)).toEqual({
+      status: 'ready',
+      ticket: 'tkt-1',
+      redirect: '/channels/@me',
+    });
+    expect(pollOidcHandoff(handoffId, pollToken)).toBeNull();
+
+    const failed = createOidcHandoff();
+    expect(failOidcHandoff(failed.handoffId, 'not_linked')).toBe(true);
+    expect(pollOidcHandoff(failed.handoffId, failed.pollToken)).toEqual({
+      status: 'error',
+      error: 'not_linked',
+    });
+    expect(pollOidcHandoff(failed.handoffId, failed.pollToken)).toBeNull();
   });
 });

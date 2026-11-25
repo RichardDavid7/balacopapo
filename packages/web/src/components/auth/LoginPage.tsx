@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../stores/authStore';
@@ -32,10 +32,30 @@ export function LoginPage() {
   }, []);
 
   const [oidcBrowserPending, setOidcBrowserPending] = useState(false);
+  const [oidcHandoffError, setOidcHandoffError] = useState('');
+  const handoffTimerRef = useRef<number | null>(null);
+  const handoffActiveRef = useRef(false);
 
-  const oidcErrorMessage = oidcErrorCode
+  const stopOidcHandoff = () => {
+    handoffActiveRef.current = false;
+    if (handoffTimerRef.current !== null) {
+      window.clearInterval(handoffTimerRef.current);
+      handoffTimerRef.current = null;
+    }
+    setOidcBrowserPending(false);
+  };
+
+  useEffect(() => () => {
+    handoffActiveRef.current = false;
+    if (handoffTimerRef.current !== null) {
+      window.clearInterval(handoffTimerRef.current);
+      handoffTimerRef.current = null;
+    }
+  }, []);
+
+  const oidcErrorMessage = oidcHandoffError || (oidcErrorCode
     ? t(`auth:oidc.errors.${oidcErrorCode}`, { defaultValue: t('auth:oidc.errors.generic') })
-    : '';
+    : '');
 
   const handleOidcLogin = () => {
     const params = new URLSearchParams();
@@ -46,15 +66,80 @@ export function LoginPage() {
     window.location.assign(`/api/auth/oidc/start${qs ? `?${qs}` : ''}`);
   };
 
-  const handleOidcBrowserLogin = () => {
-    const params = new URLSearchParams();
-    params.set('client', 'desktop');
-    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-      params.set('redirect', redirect);
-    }
-    const startUrl = `${window.location.origin}/api/auth/oidc/start?${params.toString()}`;
+  const handleOidcBrowserLogin = async () => {
+    stopOidcHandoff();
+    setOidcHandoffError('');
+
+    // Open a blank window synchronously in browser/PWA contexts to avoid mobile popup blockers.
+    // In Electron, window.open is intercepted by setWindowOpenHandler -> shell.openExternal.
+    const isDesktopApp = Boolean((window as unknown as { backspace?: unknown }).backspace);
+    const popup = isDesktopApp ? null : window.open('about:blank', '_blank');
+
     setOidcBrowserPending(true);
-    window.open(startUrl, '_blank', 'noopener,noreferrer');
+    handoffActiveRef.current = true;
+
+    try {
+      const { handoffId, pollToken, expiresInMs } = await api.auth.createOidcHandoff();
+      if (!handoffActiveRef.current) {
+        popup?.close();
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set('client', 'desktop');
+      params.set('handoff', handoffId);
+      if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+        params.set('redirect', redirect);
+      }
+      const startUrl = `${window.location.origin}/api/auth/oidc/start?${params.toString()}`;
+
+      if (popup && !popup.closed) {
+        popup.location.href = startUrl;
+      } else {
+        window.open(startUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      const deadline = Date.now() + expiresInMs;
+      let inFlight = false;
+
+      handoffTimerRef.current = window.setInterval(() => {
+        if (!handoffActiveRef.current || inFlight) return;
+        if (Date.now() >= deadline) {
+          stopOidcHandoff();
+          setOidcHandoffError(t('auth:oidc.errors.state_expired'));
+          return;
+        }
+        inFlight = true;
+        api.auth.pollOidcHandoff(handoffId, pollToken)
+          .then(async (pollRes) => {
+            if (!handoffActiveRef.current) return;
+            if (pollRes.status === 'ready') {
+              stopOidcHandoff();
+              const auth = await api.auth.exchangeOidcTicket(pollRes.ticket);
+              useAuthStore.getState().initSession(auth.token, auth.user);
+              const safeTarget = pollRes.redirect && pollRes.redirect.startsWith('/') && !pollRes.redirect.startsWith('//')
+                ? pollRes.redirect
+                : '/channels/@me';
+              navigate(safeTarget, { replace: true });
+            } else if (pollRes.status === 'error') {
+              stopOidcHandoff();
+              setOidcHandoffError(
+                t(`auth:oidc.errors.${pollRes.error}`, { defaultValue: t('auth:oidc.errors.generic') }),
+              );
+            }
+          })
+          .catch(() => {
+            // Transient network error while user is in external browser; keep polling until deadline.
+          })
+          .finally(() => {
+            inFlight = false;
+          });
+      }, 1500);
+    } catch {
+      popup?.close();
+      stopOidcHandoff();
+      setOidcHandoffError(t('auth:oidc.errors.provider_unreachable'));
+    }
   };
 
   useEffect(() => {
@@ -141,9 +226,16 @@ export function LoginPage() {
               {t('auth:oidc.openInBrowser')}
             </button>
             {oidcBrowserPending && (
-              <p className="text-xs text-txt-tertiary text-center">
-                {t('auth:oidc.waitingBrowser')}
-              </p>
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded bg-surface-base border border-border-soft text-xs text-txt-tertiary">
+                <span>{t('auth:oidc.waitingBrowser')}</span>
+                <button
+                  type="button"
+                  onClick={stopOidcHandoff}
+                  className="text-txt-secondary hover:text-txt-primary underline flex-shrink-0"
+                >
+                  {t('common:actions.cancel')}
+                </button>
+              </div>
             )}
             {!instanceInfo.oidc.passwordLoginDisabled && (
               <div className="flex items-center gap-3 pt-2">

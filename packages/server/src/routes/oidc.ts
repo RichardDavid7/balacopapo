@@ -9,17 +9,22 @@ import { sendError } from '../utils/httpErrors.js';
 import { autoBanEvadingAccount, isUserSourceOfActiveIpBan } from '../utils/ipBans.js';
 import { connectionManager } from '../ws/handler.js';
 import {
+  completeOidcHandoff,
   consumeAdminOidcLinkToken,
   consumeOidcAuthState,
   consumeOidcLoginTicket,
   createAdminOidcLinkToken,
   createOidcAuthState,
+  createOidcHandoff,
   createOidcLoginTicket,
   extractOidcGroups,
+  failOidcHandoff,
   fetchOidcDiscovery,
+  hasActiveOidcHandoff,
   isOidcConfigured,
   matchesAdminGroups,
   normalizeIssuer,
+  pollOidcHandoff,
   resolveOidcRedirectUri,
   resolvePublicBaseOrigin,
   sanitizeOidcUsername,
@@ -104,8 +109,48 @@ function syncAdminRoleFromOidc(userId: string, claims: Record<string, unknown>):
 export async function oidcRoutes(app: FastifyInstance): Promise<void> {
   // ─── Public OIDC Flow ────────────────────────────────────────────────────
 
+  app.post('/api/auth/oidc/handoff', {
+    config: {
+      rateLimit: {
+        max: 30,
+        timeWindow: '5 minutes',
+        keyGenerator: (request: FastifyRequest) => request.ip,
+      },
+    },
+  }, async (_request, reply) => {
+    if (!isOidcConfigured()) {
+      return reply.code(404).send({ error: 'oidc_not_configured' });
+    }
+    const handoff = createOidcHandoff();
+    return reply.code(200).header('Cache-Control', 'no-store').send(handoff);
+  });
+
   app.get<{
-    Querystring: { redirect?: string; client?: string; linkToken?: string };
+    Params: { handoffId: string };
+    Querystring: { token?: string };
+  }>('/api/auth/oidc/handoff/:handoffId', {
+    config: {
+      rateLimit: {
+        max: 240,
+        timeWindow: '5 minutes',
+        keyGenerator: (request: FastifyRequest) => request.ip,
+      },
+    },
+  }, async (request, reply) => {
+    const { handoffId } = request.params;
+    const token = request.query.token;
+    if (!handoffId || !token) {
+      return reply.code(400).send({ error: 'invalid_handoff_request' });
+    }
+    const result = pollOidcHandoff(handoffId, token);
+    if (!result) {
+      return reply.code(404).header('Cache-Control', 'no-store').send({ status: 'expired' });
+    }
+    return reply.code(200).header('Cache-Control', 'no-store').send(result);
+  });
+
+  app.get<{
+    Querystring: { redirect?: string; client?: string; linkToken?: string; handoff?: string };
   }>('/api/auth/oidc/start', {
     config: {
       rateLimit: {
@@ -131,6 +176,10 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
     const client: 'web' | 'desktop' | 'mobile' =
       clientParam === 'desktop' || clientParam === 'mobile' ? clientParam : 'web';
 
+    const handoffId = request.query.handoff && hasActiveOidcHandoff(request.query.handoff)
+      ? request.query.handoff
+      : null;
+
     try {
       const discovery = await fetchOidcDiscovery(config.oidc.issuerUrl);
       const redirectUri = resolveOidcRedirectUri(inferRequestOrigin(request));
@@ -138,6 +187,7 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
         redirect: request.query.redirect,
         client,
         linkUserId,
+        handoffId,
       });
 
       const authUrl = new URL(discovery.authorization_endpoint);
@@ -214,6 +264,7 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
       if (!tokenRes.ok) {
         const text = await tokenRes.text().catch(() => '');
         request.log.error({ status: tokenRes.status, body: text.slice(0, 300) }, 'OIDC token exchange failed');
+        if (pending.handoffId) failOidcHandoff(pending.handoffId, 'token_exchange_failed');
         return reply.redirect('/login?oidc_error=token_exchange_failed');
       }
 
@@ -223,6 +274,7 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
       };
 
       if (!tokenData.id_token) {
+        if (pending.handoffId) failOidcHandoff(pending.handoffId, 'missing_id_token');
         return reply.redirect('/login?oidc_error=missing_id_token');
       }
 
@@ -382,6 +434,7 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
         syncAdminRoleFromOidc(user.id, mergedClaims);
       } else {
         if (!config.oidc.autoRegister) {
+          if (pending.handoffId) failOidcHandoff(pending.handoffId, 'not_linked');
           return reply.redirect('/login?oidc_error=not_linked');
         }
 
@@ -444,6 +497,59 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
+      if (pending.handoffId) {
+        const appTicket = createOidcLoginTicket(user.id);
+        const browserTicket = createOidcLoginTicket(user.id);
+        completeOidcHandoff(pending.handoffId, {
+          ticket: appTicket,
+          redirect: pending.redirect,
+        });
+        const webParams = new URLSearchParams();
+        webParams.set('oidc_ticket', browserTicket);
+        if (pending.redirect && pending.redirect !== '/channels/@me') {
+          webParams.set('redirect', pending.redirect);
+        }
+        const webFallback = `/auth/callback?${webParams.toString()}`;
+        const isPt = /\bpt\b/i.test(String(request.headers['accept-language'] ?? ''));
+        const heading = isPt ? 'Login concluído!' : 'Authentication complete!';
+        const subtitle = isPt
+          ? 'Volte para o aplicativo Balacopapo — sua conta já está sendo conectada automaticamente. Você já pode fechar esta aba.'
+          : 'Return to the Balacopapo app — your account is signing in automatically. You can close this tab now.';
+        const fallbackLabel = isPt ? 'Ou continuar aqui no navegador' : 'Or continue here in the browser';
+        const html = `<!doctype html>
+<html lang="${isPt ? 'pt-BR' : 'en'}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Balacopapo</title>
+  <style>
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1117;color:#e5e7eb;font-family:system-ui,-apple-system,sans-serif;padding:24px}
+    .card{max-width:420px;width:100%;background:#181b24;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:32px 28px;text-align:center}
+    .icon{width:52px;height:52px;margin:0 auto 16px;border-radius:999px;background:rgba(16,185,129,.15);color:#34d399;display:flex;align-items:center;justify-content:center}
+    h1{margin:0 0 10px;font-size:20px;font-weight:700}
+    p{margin:0 0 22px;font-size:14px;color:#9ca3af;line-height:1.55}
+    .sub{display:inline-block;padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.12);color:#d1d5db;text-decoration:none;font-size:13px;font-weight:500}
+    .sub:hover{background:rgba(255,255,255,.06)}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <h1>${heading}</h1>
+    <p>${subtitle}</p>
+    <a class="sub" href="${webFallback}">${fallbackLabel}</a>
+  </div>
+</body>
+</html>`;
+        return reply
+          .code(200)
+          .header('Content-Type', 'text/html; charset=utf-8')
+          .header('Cache-Control', 'no-store')
+          .send(html);
+      }
+
       const ticket = createOidcLoginTicket(user.id);
       if (pending.client === 'desktop' || pending.client === 'mobile') {
         const deepLink = `balacopapo://auth/callback?oidc_ticket=${encodeURIComponent(ticket)}`;
@@ -488,6 +594,9 @@ export async function oidcRoutes(app: FastifyInstance): Promise<void> {
       return reply.redirect(`/auth/callback?${params.toString()}`);
     } catch (err) {
       request.log.error({ err }, 'OIDC callback failed');
+      if (pending.handoffId) {
+        failOidcHandoff(pending.handoffId, 'callback_failed');
+      }
       return reply.redirect('/login?oidc_error=callback_failed');
     }
   });

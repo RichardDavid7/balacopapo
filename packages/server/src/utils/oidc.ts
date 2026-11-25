@@ -35,6 +35,16 @@ interface PendingAuthState {
   redirect: string;
   client: 'web' | 'desktop' | 'mobile';
   linkUserId: string | null;
+  handoffId: string | null;
+  expiresAt: number;
+}
+
+interface PendingOidcHandoff {
+  pollToken: string;
+  status: 'pending' | 'ready' | 'error';
+  ticket?: string;
+  redirect?: string;
+  error?: string;
   expiresAt: number;
 }
 
@@ -63,6 +73,8 @@ const JWKS_TTL_MS = 15 * 60 * 1000;
 const AUTH_STATE_TTL_MS = 5 * 60 * 1000;
 const LINK_TOKEN_TTL_MS = 15 * 60 * 1000;
 const LOGIN_TICKET_TTL_MS = 60 * 1000;
+const HANDOFF_TTL_MS = 5 * 60 * 1000;
+const MAX_PENDING_HANDOFFS = 500;
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
 const discoveryCache = new Map<string, CachedDiscovery>();
@@ -70,6 +82,7 @@ const jwksCache = new Map<string, CachedJwks>();
 const pendingStates = new Map<string, PendingAuthState>();
 const pendingLinkTokens = new Map<string, PendingLinkToken>();
 const pendingLoginTickets = new Map<string, PendingLoginTicket>();
+const pendingHandoffs = new Map<string, PendingOidcHandoff>();
 
 export function normalizeIssuer(url: string): string {
   return url.trim().replace(/\/+$/, '');
@@ -104,12 +117,16 @@ function sweepExpired(): void {
   for (const [k, v] of pendingLoginTickets) {
     if (v.expiresAt <= now) pendingLoginTickets.delete(k);
   }
+  for (const [k, v] of pendingHandoffs) {
+    if (v.expiresAt <= now) pendingHandoffs.delete(k);
+  }
 }
 
 export function createOidcAuthState(opts: {
   redirect?: string;
   client?: 'web' | 'desktop' | 'mobile';
   linkUserId?: string | null;
+  handoffId?: string | null;
 }): { state: string; nonce: string; codeChallenge: string } {
   sweepExpired();
   const state = crypto.randomBytes(24).toString('base64url');
@@ -126,6 +143,7 @@ export function createOidcAuthState(opts: {
     redirect: safeRedirect,
     client: opts.client ?? 'web',
     linkUserId: opts.linkUserId ?? null,
+    handoffId: opts.handoffId ?? null,
     expiresAt: Date.now() + AUTH_STATE_TTL_MS,
   });
 
@@ -175,6 +193,75 @@ export function consumeOidcLoginTicket(ticket: string): string | null {
   pendingLoginTickets.delete(ticket);
   if (entry.expiresAt <= Date.now()) return null;
   return entry.userId;
+}
+
+export function createOidcHandoff(): { handoffId: string; pollToken: string; expiresInMs: number } {
+  sweepExpired();
+  // Cap map size against abuse by evicting the oldest entry if full.
+  if (pendingHandoffs.size >= MAX_PENDING_HANDOFFS) {
+    const oldest = pendingHandoffs.keys().next().value;
+    if (oldest) pendingHandoffs.delete(oldest);
+  }
+  const handoffId = crypto.randomBytes(24).toString('base64url');
+  const pollToken = crypto.randomBytes(24).toString('base64url');
+  pendingHandoffs.set(handoffId, {
+    pollToken,
+    status: 'pending',
+    expiresAt: Date.now() + HANDOFF_TTL_MS,
+  });
+  return { handoffId, pollToken, expiresInMs: HANDOFF_TTL_MS };
+}
+
+export function hasActiveOidcHandoff(handoffId: string): boolean {
+  sweepExpired();
+  const entry = pendingHandoffs.get(handoffId);
+  return Boolean(entry && entry.status === 'pending' && entry.expiresAt > Date.now());
+}
+
+export function completeOidcHandoff(handoffId: string, payload: { ticket: string; redirect: string }): boolean {
+  sweepExpired();
+  const entry = pendingHandoffs.get(handoffId);
+  if (!entry || entry.expiresAt <= Date.now() || entry.status !== 'pending') return false;
+  entry.status = 'ready';
+  entry.ticket = payload.ticket;
+  entry.redirect = payload.redirect;
+  return true;
+}
+
+export function failOidcHandoff(handoffId: string, error: string): boolean {
+  sweepExpired();
+  const entry = pendingHandoffs.get(handoffId);
+  if (!entry || entry.expiresAt <= Date.now() || entry.status !== 'pending') return false;
+  entry.status = 'error';
+  entry.error = error;
+  return true;
+}
+
+export type OidcHandoffPollResult =
+  | { status: 'pending' }
+  | { status: 'ready'; ticket: string; redirect: string }
+  | { status: 'error'; error: string };
+
+export function pollOidcHandoff(handoffId: string, pollToken: string): OidcHandoffPollResult | null {
+  sweepExpired();
+  const entry = pendingHandoffs.get(handoffId);
+  if (!entry || entry.expiresAt <= Date.now()) return null;
+
+  const expected = Buffer.from(entry.pollToken, 'utf8');
+  const actual = Buffer.from(pollToken, 'utf8');
+  if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+    return null;
+  }
+
+  if (entry.status === 'ready' && entry.ticket) {
+    pendingHandoffs.delete(handoffId);
+    return { status: 'ready', ticket: entry.ticket, redirect: entry.redirect ?? '/channels/@me' };
+  }
+  if (entry.status === 'error') {
+    pendingHandoffs.delete(handoffId);
+    return { status: 'error', error: entry.error ?? 'generic' };
+  }
+  return { status: 'pending' };
 }
 
 export async function fetchOidcDiscovery(issuerUrl: string): Promise<OidcDiscoveryDoc> {
