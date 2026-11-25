@@ -157,7 +157,14 @@
       "maintainFramerate": "приоритет частоты кадров",
       "balanced": "сбалансировано"
     },
-    "summary": "{{bitrate}} · {{degradation}}"
+    "summary": "{{bitrate}} · {{degradation}}",
+    "audioScope": {
+      "label": "Источник звука",
+      "window": "Только окно",
+      "system": "Вся система",
+      "windowHint": "Захватывает звук только выбранного окна/приложения (Windows 11 WASAPI, Chrome/Edge или Linux PipeWire).",
+      "systemHint": "Захватывает весь системный звук (исключая голоса Balacopapo, где поддерживается)."
+    }
   },
   "stream": {
     "quality": "Качество трансляции",

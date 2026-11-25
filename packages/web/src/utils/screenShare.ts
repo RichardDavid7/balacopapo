@@ -359,6 +359,7 @@ function buildCaptureConstraints(config: ScreenShareConfig, opts: ScreenShareBui
     video.width = { ideal: opts.capture.width };
     video.height = { ideal: opts.capture.height };
   }
+  const audioScope = config.audioScope ?? 'window';
   return {
     video,
     audio: config.shareAudio ? {
@@ -370,7 +371,13 @@ function buildCaptureConstraints(config: ScreenShareConfig, opts: ScreenShareBui
       autoGainControl: false,
       channelCount: 2,
     } : false,
-  };
+    ...(config.shareAudio ? {
+      // Chromium 130+ / Windows 11 WASAPI Process Loopback: capture only the shared window's audio
+      // when audioScope === 'window', or full system audio when 'system'.
+      windowAudio: audioScope === 'window' ? 'window' : 'system',
+      systemAudio: 'include',
+    } as Record<string, unknown> : {}),
+  } as DisplayMediaStreamOptions;
 }
 
 // ---------------------------------------------------------------------------
@@ -398,7 +405,7 @@ export function isCaptureCancellation(err: unknown): boolean {
 }
 
 /** Must run inside a user gesture in browsers (getDisplayMedia requires transient activation). */
-export async function stageScreenCapture(): Promise<MediaStream> {
+export async function stageScreenCapture(captureOpts?: { targetAppName?: string }): Promise<MediaStream> {
   const config = useVoiceStore.getState().screenShareConfig;
   const opts = buildScreenShareOptions(config);
   if (!isScreenCaptureSupported()) {
@@ -406,8 +413,14 @@ export async function stageScreenCapture(): Promise<MediaStream> {
   }
   try {
     // Where the desktop app can build the system audio without Backspace's own
-    // playback, that track stands in for the loopback one.
-    const ownFree = config.shareAudio ? await acquireAppExcludedSystemAudio() : null;
+    // playback, that track stands in for the loopback one. When window-only
+    // audio is selected, pass the window title so PipeWire isolates that app.
+    const wantWindowOnly = (config.audioScope ?? 'window') === 'window';
+    const ownFree = config.shareAudio
+      ? await acquireAppExcludedSystemAudio(
+          wantWindowOnly && captureOpts?.targetAppName ? { targetAppName: captureOpts.targetAppName } : undefined,
+        )
+      : null;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia(

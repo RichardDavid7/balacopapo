@@ -13,6 +13,7 @@ import { TypingIndicator } from './TypingIndicator';
 import { InputPopover, type InputPopoverTab } from './InputPopover';
 import { StagedTransferTiles } from './StagedTransferTiles';
 import { ChatDropOverlay } from './ChatDropOverlay';
+import { DmP2PSendButton } from '../voice/P2PMeshModal';
 import { useFileDropZone } from '../../hooks/useFileDropZone';
 import { hasPermissionBit, PermissionBits } from '../../utils/permissions';
 import { MAX_MESSAGE_LENGTH } from '@backspace/shared';
@@ -738,6 +739,16 @@ export function MessageInput({ channelId, channelName, placeholder }: MessageInp
     },
   });
 
+  const dmChannels = useSpaceStore((s) => s.dmChannels);
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+  const directDmPeerId = useMemo(() => {
+    const dm = dmChannels.find((d) => d.id === channelId);
+    if (!dm || dm.ownerId) return null;
+    const other = dm.members.find((m) => m.id !== currentUserId);
+    if (!other || other.isDeleted) return null;
+    return other.id;
+  }, [dmChannels, channelId, currentUserId]);
+
   if (!canSendMessages) {
     return (
       <div ref={setComposerRef} data-pip-obstacle="bottom" className={composerClass} style={composerStyle}>
@@ -888,6 +899,11 @@ export function MessageInput({ channelId, channelName, placeholder }: MessageInp
             >
               {remaining}
             </span>
+          )}
+
+          {/* Dedicated P2P direct file button in 1-on-1 DMs (separate from normal server attach) */}
+          {directDmPeerId && (
+            <DmP2PSendButton peerUserId={directDmPeerId} dmChannelId={channelId} variant="composer" />
           )}
 
           {/* GIF button */}

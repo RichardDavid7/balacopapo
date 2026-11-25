@@ -157,9 +157,11 @@ export function P2PStatusButton() {
 export function DmP2PSendButton({
   peerUserId,
   dmChannelId,
+  variant = 'header',
 }: {
   peerUserId: string;
   dmChannelId: string;
+  variant?: 'header' | 'composer';
 }) {
   const { t } = useTranslation(['voice']);
   const enabled = useP2PStore((s) => s.enabled);
@@ -184,6 +186,28 @@ export function DmP2PSendButton({
     }
   };
 
+  if (variant === 'composer') {
+    return (
+      <>
+        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => fileInputRef.current?.click()}
+          title={t('voice:p2p.sendFileDmTitle')}
+          aria-label={t('voice:p2p.sendFileDmTitle')}
+          className="h-8 desktop:h-[28px] px-2 mr-1 inline-flex items-center gap-1 rounded-[6px] bg-accent-mint/10 hover:bg-accent-mint/20 border border-accent-mint/25 text-accent-mint text-[11px] font-semibold transition-colors flex-shrink-0 disabled:opacity-50"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+          </svg>
+          {/* i18n-check: allow-literal "P2P" is the protocol acronym */}
+          <span>P2P</span>
+        </button>
+      </>
+    );
+  }
+
   return (
     <>
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
@@ -192,11 +216,14 @@ export function DmP2PSendButton({
         disabled={busy}
         onClick={() => fileInputRef.current?.click()}
         title={t('voice:p2p.sendFileDmTitle')}
-        className="w-8 h-8 flex items-center justify-center text-txt-tertiary hover:text-accent-mint transition-colors rounded-[6px] hover:bg-interactive-hover disabled:opacity-50"
+        aria-label={t('voice:p2p.sendFileDmTitle')}
+        className="h-7 px-2 inline-flex items-center gap-1 text-accent-mint bg-accent-mint/10 hover:bg-accent-mint/20 border border-accent-mint/25 text-[11px] font-semibold transition-colors rounded-[6px] disabled:opacity-50"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
         </svg>
+        {/* i18n-check: allow-literal "P2P" is the protocol acronym */}
+        <span>P2P</span>
       </button>
     </>
   );

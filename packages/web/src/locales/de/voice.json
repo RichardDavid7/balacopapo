@@ -157,7 +157,14 @@
       "maintainFramerate": "Framerate halten",
       "balanced": "ausgewogen"
     },
-    "summary": "{{bitrate}} · {{degradation}}"
+    "summary": "{{bitrate}} · {{degradation}}",
+    "audioScope": {
+      "label": "Audioquelle",
+      "window": "Nur Fenster",
+      "system": "Gesamtes System",
+      "windowHint": "Erfasst nur den Ton des geteilten Fensters/Programms (Windows 11 WASAPI, Chrome/Edge oder Linux PipeWire).",
+      "systemHint": "Erfasst das gesamte Systemaudio (ohne Balacopapo-Stimmen, sofern unterstützt)."
+    }
   },
   "stream": {
     "quality": "Stream-Qualität",

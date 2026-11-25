@@ -58,7 +58,7 @@ let holders = 0;
 let starting: Promise<StartResult> | null = null;
 
 /** `null` when the desktop app has no such source (or this is a browser): the caller keeps the loopback capture. */
-export async function acquireAppExcludedSystemAudio(): Promise<MediaStreamTrack | null> {
+export async function acquireAppExcludedSystemAudio(opts?: { targetAppName?: string }): Promise<MediaStreamTrack | null> {
   const api = getElectronAPI();
   if (!api?.startSystemAudio || !api.stopSystemAudio) return null;
 
@@ -74,7 +74,7 @@ export async function acquireAppExcludedSystemAudio(): Promise<MediaStreamTrack 
   };
 
   try {
-    starting ??= api.startSystemAudio();
+    starting ??= opts?.targetAppName ? api.startSystemAudio({ targetAppName: opts.targetAppName }) : api.startSystemAudio();
     const result = await starting;
     if (!result.ok) {
       drop(false);

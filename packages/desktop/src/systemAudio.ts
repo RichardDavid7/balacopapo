@@ -22,7 +22,7 @@ export type NodeMatch = Record<string, string>;
 
 /** The part of `@vencord/venmic`'s `PatchBay` used here. */
 export interface PatchBayLike {
-  link(data: { exclude: NodeMatch[]; only_speakers: boolean; ignore_devices: boolean }): boolean;
+  link(data: { include?: NodeMatch[]; exclude?: NodeMatch[]; only_speakers: boolean; ignore_devices: boolean }): boolean;
   unlink(): void;
 }
 
@@ -34,10 +34,15 @@ export type SystemAudioStart =
   | { ok: true; label: string }
   | { ok: false; reason: 'unsupported-platform' | 'sandboxed' | 'module-missing' | 'no-pipewire' | 'link-failed' };
 
+export interface SystemAudioStartOptions {
+  /** Optional window/app title for PipeWire window-only audio isolation. */
+  targetAppName?: string;
+}
+
 export interface SystemAudioController {
   /** Whether `start` can work on this machine (platform, module, PipeWire). The module load is cached, the probe is not: PipeWire may come up later. */
   isAvailable(): boolean;
-  start(): SystemAudioStart;
+  start(opts?: SystemAudioStartOptions): SystemAudioStart;
   stop(): void;
 }
 
@@ -77,6 +82,28 @@ export function buildExcludeNodes(pids: readonly number[], executablePath: strin
   return nodes;
 }
 
+/**
+ * Candidate PipeWire node matches for isolating audio to a single shared window/app.
+ * Window titles often take the form "Document — App Name" or "App Name - Page",
+ * so we include both the full title and the trailing app segment.
+ */
+export function buildIncludeNodes(targetAppName: string): NodeMatch[] {
+  const trimmed = targetAppName.trim();
+  if (!trimmed) return [];
+  const candidates = new Set<string>([trimmed]);
+  const segments = trimmed.split(/\s[-—–|]\s/).map((s) => s.trim()).filter(Boolean);
+  if (segments.length > 1) {
+    candidates.add(segments[segments.length - 1]!);
+    candidates.add(segments[0]!);
+  }
+  const nodes: NodeMatch[] = [];
+  for (const name of candidates) {
+    nodes.push({ 'application.name': name });
+    nodes.push({ 'media.name': name });
+  }
+  return nodes;
+}
+
 export function createSystemAudioController(deps: SystemAudioDeps): SystemAudioController {
   const log = deps.log ?? (() => undefined);
   let module: PatchBayModule | null | undefined;
@@ -112,17 +139,32 @@ export function createSystemAudioController(deps: SystemAudioDeps): SystemAudioC
   return {
     isAvailable: () => reason() === null,
 
-    start(): SystemAudioStart {
+    start(opts?: SystemAudioStartOptions): SystemAudioStart {
       const unavailable = reason();
       if (unavailable) return { ok: false, reason: unavailable };
       try {
         bay ??= new (module as PatchBayModule).PatchBay();
-        // A second start relinks with the pids as they are now.
-        const ok = bay.link({
-          exclude: buildExcludeNodes(deps.getPids(), deps.executablePath),
-          only_speakers: true,
-          ignore_devices: true,
-        });
+        const exclude = buildExcludeNodes(deps.getPids(), deps.executablePath);
+        const include = opts?.targetAppName ? buildIncludeNodes(opts.targetAppName) : [];
+
+        // If window-only isolation was requested, try linking only the target app first,
+        // falling back to app-excluded system audio if no matching PipeWire node exists.
+        let ok = false;
+        if (include.length > 0) {
+          ok = bay.link({
+            include,
+            exclude,
+            only_speakers: true,
+            ignore_devices: true,
+          });
+        }
+        if (!ok) {
+          ok = bay.link({
+            exclude,
+            only_speakers: true,
+            ignore_devices: true,
+          });
+        }
         linked = ok;
         if (!ok) return { ok: false, reason: 'link-failed' };
         return { ok: true, label: SYSTEM_AUDIO_SOURCE_LABEL };

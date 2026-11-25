@@ -151,7 +151,7 @@ interface BackspaceElectronAPI {
    * renderer opens as a microphone (`label` names the device). Optional: only
    * desktop builds that ship it have it.
    */
-  startSystemAudio?: () => Promise<
+  startSystemAudio?: (opts?: { targetAppName?: string }) => Promise<
     | { ok: true; label: string }
     | { ok: false; reason: 'unsupported-platform' | 'sandboxed' | 'module-missing' | 'no-pipewire' | 'link-failed' }
   >;

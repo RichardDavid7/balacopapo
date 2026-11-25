@@ -74,7 +74,7 @@ Itens já identificados durante os testes e uso real:
 - [ ] **Sobreposição (Overlay in-game):**
   - **Ícone quando alguém fala** (indicador flutuante sobre o jogo mostrando quem está falando no momento).
   - **Aviso quando alguém entra** (notificação discreta no overlay quando alguém entra/sai da call).
-- [ ] **Áudio apenas da janela** — captura isolada de áudio apenas da janela/aplicativo selecionado ao compartilhar tela (Windows WASAPI Application Loopback no app desktop nativo).
+- [x] **Áudio apenas da janela** — seletor **Apenas da janela / Sistema inteiro** (`audioScope`) em `StreamQualityControls` + `windowAudio: 'window'` (Windows 11 WASAPI Process Loopback / Chromium 130+) + isolamento PipeWire por aplicativo (`buildIncludeNodes` com fallback automático) no Linux (`packages/desktop/src/systemAudio.ts`).
 - [ ] **Atalhos globais de teclado no Desktop** — *Mute*, *Deafen*, *Push-to-Talk* e atalhos rápidos do Soundboard funcionando dentro de jogos sem precisar dar Alt+Tab.
 
 ### Fase 6 — Balacopapo Utilidades: Ponte de Voz com Discord (Ponto A ↔ Ponto B)

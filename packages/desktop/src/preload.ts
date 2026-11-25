@@ -107,7 +107,7 @@ contextBridge.exposeInMainWorld('backspace', {
   // itself; an older client passes nothing and gets the loopback's answer.
   getSystemAudioCapability: (usesAppSource?: boolean) =>
     ipcRenderer.invoke('get-system-audio-capability', usesAppSource === true),
-  startSystemAudio: () => ipcRenderer.invoke('system-audio-start'),
+  startSystemAudio: (opts?: { targetAppName?: string }) => ipcRenderer.invoke('system-audio-start', opts),
   stopSystemAudio: () => ipcRenderer.invoke('system-audio-stop'),
   setScreenShareAudioPreference: (shareAudio: boolean) => {
     ipcRenderer.send('screen-share-audio-preference', shareAudio);

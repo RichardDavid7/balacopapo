@@ -157,7 +157,14 @@
       "maintainFramerate": "保持帧率",
       "balanced": "平衡"
     },
-    "summary": "{{bitrate}} · {{degradation}}"
+    "summary": "{{bitrate}} · {{degradation}}",
+    "audioScope": {
+      "label": "音频来源",
+      "window": "仅窗口音频",
+      "system": "整个系统",
+      "windowHint": "仅捕获共享窗口/应用的音频（Windows 11 WASAPI、Chrome/Edge 或 Linux PipeWire）。",
+      "systemHint": "捕获整个系统的音频（支持时自动排除 Balacopapo 语音）。"
+    }
   },
   "stream": {
     "quality": "推流画质",

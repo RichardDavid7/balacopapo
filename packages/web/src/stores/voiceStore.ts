@@ -12,6 +12,8 @@ export interface ScreenShareConfig {
   mode: 'gaming' | 'text';
   customBitrateKbps: number | null;
   shareAudio: boolean;
+  /** 'window' requests per-window audio isolation (WASAPI / PipeWire / Chromium windowAudio); 'system' captures full system audio. */
+  audioScope?: 'window' | 'system';
   codec: 'vp9' | 'h264';
 }
 

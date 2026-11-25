@@ -157,7 +157,14 @@
       "maintainFramerate": "manter taxa de quadros",
       "balanced": "equilibrado"
     },
-    "summary": "{{bitrate}} · {{degradation}}"
+    "summary": "{{bitrate}} · {{degradation}}",
+    "audioScope": {
+      "label": "Origem do Áudio",
+      "window": "Apenas da janela",
+      "system": "Sistema inteiro",
+      "windowHint": "Captura somente o som da janela/aplicativo compartilhado (Windows 11 WASAPI, Chrome/Edge ou Linux PipeWire).",
+      "systemHint": "Captura todo o áudio do computador (excluindo as vozes do Balacopapo onde suportado)."
+    }
   },
   "stream": {
     "quality": "Qualidade da transmissão",

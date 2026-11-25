@@ -324,6 +324,41 @@ export function StreamQualityControls() {
             ariaLabel={t('voice:streamSettings.systemAudio')}
           />
         </div>
+
+        {/* Audio scope: Window-only (WASAPI / PipeWire / Chromium windowAudio) vs Full System */}
+        {audioSwitch.checked && (
+          <div className="mt-2.5 pt-2.5 border-t border-white/[0.04]">
+            <div className="text-[10px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1.5">
+              {t('voice:streamSettings.audioScope.label')}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {(['window', 'system'] as const).map((scope) => {
+                const active = (config.audioScope ?? 'window') === scope;
+                return (
+                  <button
+                    key={scope}
+                    type="button"
+                    onClick={() => setConfig({ audioScope: scope })}
+                    className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                      active
+                        ? 'bg-accent-primary text-white'
+                        : 'bg-surface-base text-txt-secondary hover:text-txt-primary'
+                    }`}
+                  >
+                    {scope === 'window'
+                      ? t('voice:streamSettings.audioScope.window')
+                      : t('voice:streamSettings.audioScope.system')}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-[10px] text-txt-tertiary mt-1">
+              {(config.audioScope ?? 'window') === 'window'
+                ? t('voice:streamSettings.audioScope.windowHint')
+                : t('voice:streamSettings.audioScope.systemHint')}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

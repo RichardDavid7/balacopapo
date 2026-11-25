@@ -160,7 +160,7 @@ export function ScreenShareSetup() {
    * `claimed` reuses a generation already taken by stageSource; a direct call
    * (the "Choose screen" button) takes a fresh one.
    */
-  const stage = useCallback(async (claimed?: number) => {
+  const stage = useCallback(async (claimed?: number, targetAppName?: string) => {
     const generation = claimed ?? ++stageGenerationRef.current;
     setError(null);
     setStaging(true);
@@ -168,7 +168,7 @@ export function ScreenShareSetup() {
     // System picker: no tile carries the audio preference, so send it ahead of the request
     api?.setScreenShareAudioPreference?.(shareAudioAtStage);
     try {
-      const stream = await stageScreenCapture();
+      const stream = await stageScreenCapture(targetAppName ? { targetAppName } : undefined);
       if (generation !== stageGenerationRef.current) {
         // Superseded while the picker was open: never adopt it, and never
         // leave the OS capturing for a stream nothing will publish.
@@ -229,8 +229,10 @@ export function ScreenShareSetup() {
       // Older desktop: the main process will push sources; answer with this id when it does.
       pendingPromptIdRef.current = sourceId;
     }
-    void stage(generation);
-  }, [api, stage]);
+    const matchedSource = sources.find((s) => s.id === sourceId);
+    const targetAppName = matchedSource && sourceId.startsWith('window:') ? matchedSource.name : undefined;
+    void stage(generation, targetAppName);
+  }, [api, stage, sources]);
 
   // Ask the desktop who picks, once per open
   useEffect(() => {

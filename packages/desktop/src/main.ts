@@ -829,9 +829,10 @@ function registerIpcHandlers(): void {
   // The virtual source that carries every other app's playback (Linux). The
   // renderer opens it like a microphone and calls stop when the share, or its
   // audio, ends.
-  ipcMain.handle('system-audio-start', (event) => {
+  ipcMain.handle('system-audio-start', (event, opts?: { targetAppName?: string }) => {
     if (event.sender !== mainWindow?.webContents) return { ok: false, reason: 'unsupported-platform' };
-    return systemAudio.start();
+    const targetAppName = typeof opts?.targetAppName === 'string' ? opts.targetAppName.slice(0, 200) : undefined;
+    return systemAudio.start(targetAppName ? { targetAppName } : undefined);
   });
   ipcMain.handle('system-audio-stop', (event) => {
     if (event.sender !== mainWindow?.webContents) return;

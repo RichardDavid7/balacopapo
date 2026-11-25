@@ -157,7 +157,14 @@
       "maintainFramerate": "hold framerate",
       "balanced": "balanced"
     },
-    "summary": "{{bitrate}} · {{degradation}}"
+    "summary": "{{bitrate}} · {{degradation}}",
+    "audioScope": {
+      "label": "Audio Source",
+      "window": "Window only",
+      "system": "Full system",
+      "windowHint": "Captures audio only from the shared window/app (Windows 11 WASAPI, Chrome/Edge, or Linux PipeWire).",
+      "systemHint": "Captures all system audio (excluding Balacopapo voices where supported)."
+    }
   },
   "stream": {
     "quality": "Stream Quality",
