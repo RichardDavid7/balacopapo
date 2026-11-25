@@ -287,7 +287,7 @@ export function SoundboardPopover({ isOpen, onClose, className = '' }: Soundboar
 
   return (
     <div
-      className={`glass-bubble w-80 max-w-[calc(100vw-2rem)] rounded-xl p-3.5 text-txt-primary shadow-2xl border border-border-soft space-y-3 ${className}`}
+      className={`glass-bubble w-80 max-w-[calc(var(--vw)*100-2rem)] rounded-xl p-3.5 text-txt-primary shadow-2xl border border-border-soft space-y-3 ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}

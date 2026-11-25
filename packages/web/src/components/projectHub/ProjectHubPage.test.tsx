@@ -87,7 +87,7 @@ const EMPTY: ProjectLinks = { ...PROJECT_LINKS, funding: null, community: null }
 
 const CARD_ORDER = [
   "What's new",
-  'Join the Backspace community',
+  'Join the Balacopapo community',
   'Support the project',
   'Insights',
   'Report a bug or request a feature',
@@ -183,7 +183,7 @@ describe('ProjectHubPage: What\'s new', () => {
     await waitFor(() => expect(card("What's new")).toHaveTextContent("You're on 1.5.1"));
     const link = within(card("What's new")).getByRole('link', { name: /Read the release notes/ });
     expect(link).toHaveAttribute('href', releaseNotesUrl('1.5.1'));
-    expect(link.getAttribute('href')).toBe('https://github.com/TheZwiss/backspace/releases/tag/v1.5.1');
+    expect(link.getAttribute('href')).toBe('https://github.com/RichardDavid7/balacopapo/releases/tag/v1.5.1');
   });
 
   it('with failed info says noVersion, links to the release list and marks nothing', async () => {
@@ -300,7 +300,7 @@ describe('ProjectHubPage: cards', () => {
     renderPage({ links: EMPTY });
 
     await waitFor(() => expect(card("What's new")).toHaveTextContent('1.5.1'));
-    expect(screen.queryByRole('article', { name: 'Join the Backspace community' })).toBeNull();
+    expect(screen.queryByRole('article', { name: 'Join the Balacopapo community' })).toBeNull();
     expect(fetchMyRequests).not.toHaveBeenCalled();
     expect(cardNames()).toEqual([
       "What's new",
@@ -316,7 +316,7 @@ describe('ProjectHubPage: cards', () => {
 
     renderPage({ links: FILLED });
 
-    const community = await screen.findByRole('article', { name: 'Join the Backspace community' });
+    const community = await screen.findByRole('article', { name: 'Join the Balacopapo community' });
     expect(within(community).getByRole('button', { name: 'Join' })).toBeEnabled();
   });
 
@@ -414,7 +414,7 @@ describe('ProjectHubPage: frame', () => {
 
     renderPage();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Backspace' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Balacopapo' })).toBeInTheDocument();
     expect(screen.getByText('Open-source chat you can host yourself.')).toBeInTheDocument();
     expect(document.querySelector('img[src="/icons/logo-mark.svg"]')).not.toBeNull();
   });
@@ -433,7 +433,7 @@ describe('ProjectHubPage: frame', () => {
     renderPage({ showTopBar: false });
 
     expect(screen.queryByRole('button', { name: 'Toggle Member List' })).toBeNull();
-    expect(screen.getByRole('heading', { level: 1, name: 'Backspace' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Balacopapo' })).toBeInTheDocument();
   });
 
   it('names this instance and its domain and offers its source', async () => {

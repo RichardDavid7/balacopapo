@@ -76,6 +76,7 @@
   "commit {{commit}} · ",
   "Sticker",
   "OIDC / SSO",
+  "OIDC",
   "Client ID",
   "Issuer URL",
   "OIDC Subject (sub)",

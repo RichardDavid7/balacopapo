@@ -228,7 +228,7 @@ export function P2PTransferTray() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] space-y-2 pointer-events-auto">
+    <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(var(--vw)*100-2rem)] space-y-2 pointer-events-auto">
       {transfers.slice(0, 4).map((tr) => {
         const pct = tr.totalBytes > 0 ? Math.min(100, Math.round((tr.transferredBytes / tr.totalBytes) * 100)) : 100;
         const peerName = resolveName(tr.peerUserId);

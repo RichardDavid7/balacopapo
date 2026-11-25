@@ -27,7 +27,7 @@ import { api } from '../../../api/client';
 import { useSettingsStore } from '../../../stores/settingsStore';
 
 const SUPPORT = 'Show the Support card';
-const SUPPORT_DESCRIPTION = "Shows a card on the Backspace page that links to the project's Ko-fi page. Turning it off hides only that card.";
+const SUPPORT_DESCRIPTION = "Shows a card on the Balacopapo page that links to the project's Ko-fi page. Turning it off hides only that card.";
 
 const base: InstanceAdminSettings = {
   instanceName: 'Workbench',
@@ -88,7 +88,7 @@ describe('GeneralPanel Support card switch', () => {
   it('sits in its own "Backspace page" section, not under GIF search', () => {
     seed({});
     renderPanel();
-    const section = screen.getByText('Backspace page').parentElement as HTMLElement;
+    const section = screen.getByText('Balacopapo page').parentElement as HTMLElement;
     expect(within(section).getByRole('switch', { name: SUPPORT })).toBeInTheDocument();
     const gifSection = screen.getByText('GIF Search').parentElement as HTMLElement;
     expect(within(gifSection).queryByRole('switch', { name: SUPPORT })).not.toBeInTheDocument();
@@ -161,7 +161,7 @@ describe('GeneralPanel Support card switch', () => {
   });
 });
 
-describe('GeneralPanel save and the Backspace page', () => {
+describe('GeneralPanel save and the Balacopapo page', () => {
   it('tells the shared instance info reader to reread after a successful save', async () => {
     const update = seed({ supportCardEnabled: true });
     renderPanel();

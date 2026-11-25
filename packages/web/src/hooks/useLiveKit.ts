@@ -1425,7 +1425,7 @@ export function useLiveKit() {
             }
             // Re-sync voice status, AudioContext/sinkId, and receiver jitter buffers after reconnect
             broadcastVoiceStatus();
-            void AudioManager.getInstance().recoverFromWake();
+            void AudioManager.getInstance().recoverFromWake?.();
             const currentJitterMs = useVoiceStore.getState().jitterBufferMs;
             newRoom.remoteParticipants.forEach((rp) => {
               rp.trackPublications.forEach((pub) => {

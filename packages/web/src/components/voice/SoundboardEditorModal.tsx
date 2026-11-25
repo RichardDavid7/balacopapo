@@ -408,7 +408,7 @@ export function SoundboardEditorModal({
                 >
                   <div className="absolute inset-0 bg-black/50" />
                   <div
-                    className="relative w-full h-[65vh] max-h-[520px] flex flex-col glass-modal rounded-t-2xl overflow-hidden animate-slide-up"
+                    className="relative w-full h-[calc(var(--vh)*65)] max-h-[520px] flex flex-col glass-modal rounded-t-2xl overflow-hidden animate-slide-up"
                     style={{ paddingBottom: 'var(--safe-bottom)' }}
                     onClick={(e) => e.stopPropagation()}
                   >

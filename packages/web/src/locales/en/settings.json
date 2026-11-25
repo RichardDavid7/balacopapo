@@ -325,7 +325,7 @@
       "updates": "Updates",
       "telemetry": "Say hi",
       "audio": "Audio",
-      "oidc": "OIDC / SSO"
+      "oidc": "OIDC"
     }
   },
   "keybinds": {

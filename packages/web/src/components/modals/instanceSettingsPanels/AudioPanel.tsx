@@ -123,7 +123,7 @@ export function AudioPanel() {
             </div>
 
             {/* Default & Max Voice Audio Bitrate */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4 pt-1">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs text-txt-secondary">{t('admin:streaming.voiceAudio.defaultBitrate')}</label>

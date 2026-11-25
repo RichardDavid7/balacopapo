@@ -32,7 +32,7 @@ const REMOTE = 'https://community.example';
 function docSpace(overrides: Partial<DirectoryDocumentSpace> = {}): DirectoryDocumentSpace {
   return {
     id: 'space-1',
-    name: 'Backspace',
+    name: 'Balacopapo',
     description: 'Where the project is discussed.',
     icon: null,
     banner: null,
@@ -57,7 +57,7 @@ function doc(overrides: Partial<DirectoryDocument> = {}): DirectoryDocument {
 function taggedSpace(id: string, origin: string): TaggedSpace {
   return {
     id,
-    name: 'Backspace',
+    name: 'Balacopapo',
     icon: null,
     banner: null,
     avatarColor: null,
@@ -277,8 +277,8 @@ describe('CommunityCard', () => {
     render(<CommunityCard target={remoteTarget} />);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(fetchMyRequests).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('article', { name: 'Join the Backspace community' })).toHaveTextContent(
-      'Talk to the people who build Backspace, ask questions and share feedback.',
+    expect(screen.getByRole('article', { name: 'Join the Balacopapo community' })).toHaveTextContent(
+      'Talk to the people who build Balacopapo, ask questions and share feedback.',
     );
   });
 

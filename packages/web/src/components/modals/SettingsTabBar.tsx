@@ -11,19 +11,19 @@ export function SettingsTabBar() {
   if (!ctx || ctx.sections.length === 0) return null;
 
   return (
-    <div className="flex gap-4 border-b border-white/[0.06] -mt-2 mb-4">
+    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-white/[0.06] -mt-2 mb-4">
       {ctx.sections.map((s) => (
         s.invite === true ? (
           // The invitation wears the answer button's material so it reads as
           // an offer rather than as one more tab, but it only navigates here.
-          <div key={s.id} className="flex w-36 items-center pb-1.5 self-center">
+          <div key={s.id} className="flex w-36 items-center pb-1.5 self-center shrink-0">
             <HiButton onClick={() => ctx.scrollToSection(s.id)}>{s.label}</HiButton>
           </div>
         ) : (
         <button
           key={s.id}
           onClick={() => ctx.scrollToSection(s.id)}
-          className={`pb-2.5 text-sm transition-colors relative ${
+          className={`pb-2.5 text-sm whitespace-nowrap transition-colors relative ${
             ctx.activeSection === s.id
               ? 'text-txt-primary font-medium'
               : 'text-txt-tertiary hover:text-txt-secondary'

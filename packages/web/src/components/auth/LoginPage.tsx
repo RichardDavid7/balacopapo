@@ -110,7 +110,7 @@ export function LoginPage() {
             <button
               type="button"
               onClick={handleOidcLogin}
-              className="w-full py-2.5 bg-surface-overlay hover:bg-surface-hover border border-border-subtle text-txt-primary font-medium rounded transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-surface-overlay hover:bg-surface-elevated border border-border-soft text-txt-primary font-medium rounded transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4 text-accent-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -119,9 +119,9 @@ export function LoginPage() {
             </button>
             {!instanceInfo.oidc.passwordLoginDisabled && (
               <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-border-subtle" />
+                <div className="flex-1 h-px bg-border-soft" />
                 <span className="text-xs text-txt-tertiary uppercase">{t('auth:oidc.orPassword')}</span>
-                <div className="flex-1 h-px bg-border-subtle" />
+                <div className="flex-1 h-px bg-border-soft" />
               </div>
             )}
           </div>

@@ -157,7 +157,7 @@ export function OidcPanel() {
       )}
 
       {/* Docker Env Config Card */}
-      <div className="bg-surface-secondary border border-border-subtle rounded-lg p-4 space-y-3">
+      <div className="bg-surface-elevated border border-border-soft rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-txt-primary">{t('admin:oidc.configCard.title')}</h3>
@@ -167,7 +167,7 @@ export function OidcPanel() {
             <span
               className={`px-2 py-0.5 rounded text-xs font-medium ${
                 oidcConfig.configured
-                  ? 'bg-accent-emerald/15 text-accent-emerald'
+                  ? 'bg-accent-mint/15 text-accent-mint'
                   : 'bg-surface-overlay text-txt-tertiary'
               }`}
             >
@@ -177,17 +177,17 @@ export function OidcPanel() {
         </div>
 
         {oidcConfig && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-2 border-t border-border-subtle">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3 text-xs pt-2 border-t border-border-soft">
+            <div className="col-span-full">
               <div className="text-txt-tertiary mb-1">{t('admin:oidc.configCard.callbackUrl')}</div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 px-2.5 py-1.5 rounded bg-surface-base border border-border-subtle text-txt-primary font-mono break-all">
+                <code className="flex-1 px-2.5 py-1.5 rounded bg-surface-base border border-border-soft text-txt-primary font-mono break-all">
                   {oidcConfig.callbackUrl}
                 </code>
                 <button
                   type="button"
                   onClick={handleCopyCallback}
-                  className="px-3 py-1.5 rounded bg-surface-overlay hover:bg-surface-hover text-txt-primary border border-border-subtle transition-colors shrink-0"
+                  className="px-3 py-1.5 rounded bg-surface-overlay hover:bg-surface-elevated text-txt-primary border border-border-soft transition-colors shrink-0"
                 >
                   {copiedCallback ? t('common:actions.copied') : t('common:actions.copy')}
                 </button>
@@ -222,7 +222,7 @@ export function OidcPanel() {
               </div>
             </div>
 
-            <div className="md:col-span-2">
+            <div className="col-span-full">
               <div className="text-txt-tertiary">{t('admin:oidc.configCard.adminGroups', { claim: oidcConfig.groupsClaim })}</div>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {oidcConfig.adminGroups.length > 0 ? (
@@ -259,7 +259,7 @@ export function OidcPanel() {
             {t('admin:oidc.generatedLink.hint', { time: f.formatTime(generatedLink.expiresAt) })}
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 px-2 py-1.5 rounded bg-surface-base border border-border-subtle text-txt-primary font-mono break-all">
+            <code className="flex-1 px-2 py-1.5 rounded bg-surface-base border border-border-soft text-txt-primary font-mono break-all">
               {generatedLink.url}
             </code>
             <button
@@ -275,7 +275,7 @@ export function OidcPanel() {
 
       {/* Existing Users Linking List */}
       <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-semibold text-txt-primary">{t('admin:oidc.users.title')}</h3>
             <p className="text-xs text-txt-tertiary">{t('admin:oidc.users.subtitle')}</p>
@@ -285,7 +285,7 @@ export function OidcPanel() {
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder={t('admin:oidc.users.searchPlaceholder')}
-            className="input-standard text-sm py-1.5 px-3 sm:w-64"
+            className="input-standard text-sm py-1.5 px-3 w-64 max-w-full"
           />
         </div>
 
@@ -294,7 +294,7 @@ export function OidcPanel() {
         ) : users.length === 0 ? (
           <div className="text-sm text-txt-tertiary py-6 text-center">{t('admin:oidc.users.empty')}</div>
         ) : (
-          <div className="divide-y divide-border-subtle border border-border-subtle rounded-lg overflow-hidden bg-surface-secondary">
+          <div className="divide-y divide-border-soft border border-border-soft rounded-lg overflow-hidden bg-surface-elevated">
             {users.map((user) => {
               const isEditing = editingUserId === user.id;
               const isBusy = savingUserId === user.id;
@@ -323,7 +323,7 @@ export function OidcPanel() {
                         </div>
                         <div className="text-xs text-txt-tertiary mt-0.5 truncate">
                           {user.oidcLink ? (
-                            <span className="text-accent-emerald">
+                            <span className="text-accent-mint">
                               {t('admin:oidc.users.linkedSummary', {
                                 subject: user.oidcLink.subject,
                                 email: user.oidcLink.email ?? t('admin:oidc.noEmail'),
@@ -352,7 +352,7 @@ export function OidcPanel() {
                           type="button"
                           disabled={isBusy}
                           onClick={() => (isEditing ? setEditingUserId(null) : handleStartManualLink(user))}
-                          className="px-2.5 py-1 rounded text-xs font-medium bg-surface-overlay text-txt-primary hover:bg-surface-hover border border-border-subtle transition-colors disabled:opacity-50"
+                          className="px-2.5 py-1 rounded text-xs font-medium bg-surface-overlay text-txt-primary hover:bg-surface-elevated border border-border-soft transition-colors disabled:opacity-50"
                         >
                           {user.oidcLink ? t('admin:oidc.actions.editLink') : t('admin:oidc.actions.manualLink')}
                         </button>
@@ -371,7 +371,7 @@ export function OidcPanel() {
                   </div>
 
                   {isEditing && (
-                    <div className="pt-2 border-t border-border-subtle grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="pt-2 border-t border-border-soft grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2">
                       <input
                         type="text"
                         value={subjectInput}

@@ -125,7 +125,7 @@ export function VoiceControlBar({ revealed = false }: { revealed?: boolean }) {
       className={containerClassName}
       {...(voiceFullscreen ? { [VOICE_CHROME_ATTR]: '' } : {})}
     >
-      <div className="pointer-events-auto flex items-center gap-1.5 max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar rounded-full px-3 py-2 glass-bubble">
+      <div className="pointer-events-auto flex items-center gap-1.5 max-w-[calc(var(--vw)*100-1rem)] overflow-x-auto no-scrollbar rounded-full px-3 py-2 glass-bubble">
         {/* Mute */}
         <button
           onClick={handleMute}

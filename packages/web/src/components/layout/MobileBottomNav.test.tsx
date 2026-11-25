@@ -132,7 +132,7 @@ describe('MobileBottomNav localization', () => {
     { language: 'de', labels: ['Spaces', 'Direktnachrichten', 'Du'] },
     { language: 'ru', labels: ['Пространства', 'Личные сообщения', 'Вы'] },
     { language: 'zh', labels: ['空间', '私信', '我'] },
-    { language: 'pt', labels: ['Espaços', 'Mensagens diretas', 'Você'] },
+    { language: 'pt', labels: ['Grupos', 'Mensagens diretas', 'Você'] },
   ] as const)('renders all tabs in $language', async ({ language, labels }) => {
     await setLanguage(language);
     renderNav();
