@@ -301,6 +301,7 @@ export const config = {
       .filter((g) => g.length > 0),
     disablePasswordLogin: envBool('OIDC_DISABLE_PASSWORD_LOGIN', false),
   },
+  musicBotApiKey: envOptional('MUSIC_BOT_API_KEY')?.trim() || null,
 } as const;
 
 if (config.jwtSecret.length < 32) {

@@ -81,12 +81,19 @@ Itens já identificados durante os testes e uso real:
 - [ ] **Ponte de áudio Balacopapo ↔ Discord** — conecta um canal de voz do Balacopapo (Ponto A) a um canal de voz do Discord (Ponto B) em tempo real, escolhendo os dois canais direto no Balacopapo Utilidades.
 
 ### Fase 7 — Balacopapo Utilidades: Bot de Música / Rádio
-- [ ] **Módulo de Música & Rádio integrado ao Balacopapo Utilidades:**
-  - **Fila / modo rádio** com controles de tocar, pausar, pular, repetir e volume.
+- [x] **API oficial do Bot de Música & Mini-player no Balacopapo (`packages/server/src/routes/music.ts` + `MusicMiniPlayer.tsx`):**
+  - **Mini-player acoplado acima do status da call (`VoiceControls`)** com faixa atual, play/pause, volume, fila, adição de URLs e **Vote-Skip configurável por porcentagem (`25% / 50% / 60% / 75% / 100%`)** calculado dinamicamente sobre o número de ouvintes na call.
+  - **Broadcast em tempo real** via WebSocket (`music_state_updated`) para todos os usuários do grupo.
+  - **Contrato de API para o app companheiro (`Balacopapo Utilidades`):**
+    - Autenticação por header `X-Music-Bot-Key: <MUSIC_BOT_API_KEY>` (ou `Authorization: Bearer <admin-jwt>`).
+    - `POST /api/music/bot/:channelId/livekit-token` — emite token LiveKit para o bot publicar áudio na sala de voz do canal (identidade `music-bot:<channelId>`).
+    - `GET /api/music/bot/:channelId/commands` — consome a fila de comandos emitidos pelos usuários (adicionar faixa, pausar, retomar, pular por vote-skip/forçado, parar, volume, loop, remover/limpar fila).
+    - `POST /api/music/bot/:channelId/state` — reporta o estado real de reprodução (`status`, `currentTrack`, `positionSec`, `queue`, `volume`, `botConnected`) e sincroniza todos os clientes via WebSocket.
+    - Endpoints de usuário (JWT normal): `GET /api/channels/:channelId/music`, `POST .../queue`, `POST .../vote-skip`, `POST .../control`, `PATCH .../settings`.
+- [ ] **App companheiro "Balacopapo Utilidades" (Worker de Áudio):**
   - **Links do YouTube com `yt-dlp` + cache local** (baixa e guarda os áudios em cache para tocar sem engasgos e reaproveitar).
   - **Integração com Navidrome** (API Subsonic/OpenSubsonic para puxar sua biblioteca e playlists direto do servidor).
   - **Suporte a DLNA / UPnP** (descobrir e tocar faixas de servidores de mídia na rede local).
-  - **Mini-player "Tocando agora" dentro do Balacopapo** — exibe a faixa atual + controles de volume/pular direto na barra de voz (via DataChannel), sem precisar abrir outro app.
 
 ### Fase 8 — Controle Remoto, Personalização e Idiomas *(último)*
 - [ ] **Controlar outro PC** — acesso remoto seguro (mouse e teclado) via app desktop nativo, com permissão explícita do dono da tela e revogação instantânea a qualquer momento.

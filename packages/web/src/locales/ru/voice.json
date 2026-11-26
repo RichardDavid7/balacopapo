@@ -433,5 +433,23 @@
     "audioServer": "Через сервер",
     "disableQuick": "Отключить P2P",
     "enableQuick": "Включить P2P"
+  },
+  "music": {
+    "title": "Музыкальный бот",
+    "idleReady": "Бот подключён — добавьте трек",
+    "botOfflineShort": "Ожидание музыкального бота",
+    "botOfflineHint": "Запустите Balacopapo Utilidades с MUSIC_BOT_API_KEY для воспроизведения аудио в этом звонке.",
+    "pause": "Пауза",
+    "play": "Воспроизвести",
+    "stop": "Стоп",
+    "voteSkipTitle": "Голосовать за пропуск ({{votes}}/{{required}} — {{pct}}%)",
+    "togglePanel": "Переключить панель музыки",
+    "addPlaceholder": "Вставьте ссылку YouTube, Navidrome или аудио...",
+    "add": "Добавить",
+    "voteSkipThreshold": "Порог голосования за пропуск",
+    "volume": "Громкость",
+    "queueHeading": "Очередь ({{total}})",
+    "clearQueue": "Очистить",
+    "actionFailed": "Не удалось обновить музыкальный плеер"
   }
 }

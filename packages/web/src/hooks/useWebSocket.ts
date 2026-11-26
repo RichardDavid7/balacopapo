@@ -8,6 +8,7 @@ import { P2PMeshManager } from '../p2p/P2PMeshManager';
 import { useSpaceStore, getChannelOrigin, getMyUserIdForOrigin } from '../stores/spaceStore';
 import { useChatStore } from '../stores/chatStore';
 import { useVoiceStore } from '../stores/voiceStore';
+import { useMusicStore } from '../stores/musicStore';
 import { useSocialStore } from '../stores/socialStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { ServerEvent, ClientEvent, ActiveCallInfo, Activity, FederatedIdentity, User } from '@backspace/shared';
@@ -1439,6 +1440,11 @@ function handleEvent(origin: string, event: ServerEvent, readyAlreadyDelivered =
       if (event.code) {
         useUIStore.getState().addToast(describeErrorCode(event.code, event.message, event.details), 'warning');
       }
+      break;
+    }
+
+    case 'music_state_updated': {
+      useMusicStore.getState().setChannelState(event.state);
       break;
     }
   }

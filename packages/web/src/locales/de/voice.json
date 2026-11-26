@@ -429,5 +429,23 @@
     "audioServer": "Über Server",
     "disableQuick": "P2P deaktivieren",
     "enableQuick": "P2P aktivieren"
+  },
+  "music": {
+    "title": "Musik-Bot",
+    "idleReady": "Bot verbunden — Titel einreihen",
+    "botOfflineShort": "Warte auf Musik-Bot",
+    "botOfflineHint": "Starte Balacopapo Utilidades mit MUSIC_BOT_API_KEY, um Audio in diesen Anruf zu streamen.",
+    "pause": "Pausieren",
+    "play": "Abspielen",
+    "stop": "Stoppen",
+    "voteSkipTitle": "Zum Überspringen abstimmen ({{votes}}/{{required}} — {{pct}}%)",
+    "togglePanel": "Musiksteuerung umschalten",
+    "addPlaceholder": "YouTube-, Navidrome- oder Audio-URL einfügen...",
+    "add": "Hinzufügen",
+    "voteSkipThreshold": "Vote-Skip-Schwelle",
+    "volume": "Lautstärke",
+    "queueHeading": "Warteschlange ({{total}})",
+    "clearQueue": "Leeren",
+    "actionFailed": "Musikplayer konnte nicht aktualisiert werden"
   }
 }

@@ -431,5 +431,23 @@
     "audioServer": "Via servidor",
     "disableQuick": "Desativar P2P",
     "enableQuick": "Ativar P2P"
+  },
+  "music": {
+    "title": "Bot de Música",
+    "idleReady": "Bot conectado — adicione uma faixa",
+    "botOfflineShort": "Aguardando Bot de Música",
+    "botOfflineHint": "Inicie o Balacopapo Utilidades com MUSIC_BOT_API_KEY para tocar áudio nesta chamada.",
+    "pause": "Pausar",
+    "play": "Tocar",
+    "stop": "Parar",
+    "voteSkipTitle": "Votar para pular ({{votes}}/{{required}} — {{pct}}%)",
+    "togglePanel": "Abrir ou recolher controles de música",
+    "addPlaceholder": "Cole link do YouTube, Navidrome ou áudio...",
+    "add": "Adicionar",
+    "voteSkipThreshold": "Votos para pular",
+    "volume": "Volume",
+    "queueHeading": "Fila ({{total}})",
+    "clearQueue": "Limpar",
+    "actionFailed": "Não foi possível atualizar o player de música"
   }
 }

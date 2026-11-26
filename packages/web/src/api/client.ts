@@ -97,6 +97,10 @@ import type {
   SoundboardListResponse,
   SpaceSoundboardSettings,
   SpaceSoundboardSoundOverride,
+  MusicPlayerState,
+  MusicQueueAddRequest,
+  MusicControlRequest,
+  MusicSettingsRequest,
 } from '@backspace/shared';
 import { MESSAGE_PAGING_AFTER, MESSAGE_PAGING_HEADER } from '@backspace/shared';
 
@@ -502,6 +506,14 @@ export class BackspaceApiClient {
       data: { hidden?: boolean; volume?: number | null },
     ) => Promise<{ override: SpaceSoundboardSoundOverride }>;
     remove: (id: string) => Promise<{ success: boolean }>;
+  };
+
+  readonly music: {
+    getState: (channelId: string) => Promise<MusicPlayerState>;
+    enqueue: (channelId: string, data: MusicQueueAddRequest) => Promise<MusicPlayerState>;
+    voteSkip: (channelId: string) => Promise<{ state: MusicPlayerState; skipped: boolean; requiredVotes: number }>;
+    control: (channelId: string, data: MusicControlRequest) => Promise<MusicPlayerState>;
+    updateSettings: (channelId: string, data: MusicSettingsRequest) => Promise<MusicPlayerState>;
   };
 
   constructor(baseUrl: string, getToken: () => string | null, onUnauthorized?: () => void) {
@@ -1149,6 +1161,22 @@ export class BackspaceApiClient {
         deleteSpace: (spaceId: string) =>
           request<{ success: boolean }>('DELETE', `/admin/spaces/${encodeURIComponent(spaceId)}`),
       },
+    };
+
+    this.music = {
+      getState: (channelId) =>
+        request<MusicPlayerState>('GET', `/channels/${encodeURIComponent(channelId)}/music`),
+      enqueue: (channelId, data) =>
+        request<MusicPlayerState>('POST', `/channels/${encodeURIComponent(channelId)}/music/queue`, data),
+      voteSkip: (channelId) =>
+        request<{ state: MusicPlayerState; skipped: boolean; requiredVotes: number }>(
+          'POST',
+          `/channels/${encodeURIComponent(channelId)}/music/vote-skip`,
+        ),
+      control: (channelId, data) =>
+        request<MusicPlayerState>('POST', `/channels/${encodeURIComponent(channelId)}/music/control`, data),
+      updateSettings: (channelId, data) =>
+        request<MusicPlayerState>('PATCH', `/channels/${encodeURIComponent(channelId)}/music/settings`, data),
     };
   }
 }

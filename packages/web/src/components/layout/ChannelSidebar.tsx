@@ -10,6 +10,7 @@ import { useShownStatus } from '../../hooks/useShownStatus';
 import { useInstanceStore } from '../../stores/instanceStore';
 import { VoiceChannel } from '../voice/VoiceChannel';
 import { VoiceControls } from '../voice/VoiceControls';
+import { MusicMiniPlayer } from '../voice/MusicMiniPlayer';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { Avatar } from '../ui/Avatar';
 import { StatusPickerPopover } from '../ui/StatusPickerPopover';
@@ -437,6 +438,8 @@ export function ChannelSidebar() {
   const floatingPanel = user ? (
     <div ref={setFloatingPanelEl} data-pip-obstacle="bottom" className="fixed bottom-0 left-0 right-0 z-[105] p-2 desktop:right-auto desktop:w-[296px] desktop:bottom-[10px] desktop:left-[10px] desktop:p-0">
       <div className="glass-bubble rounded-[14px]">
+        {/* Music bot mini-player (above voice controls when in a voice channel) */}
+        {currentVoiceChannelId && <MusicMiniPlayer channelId={currentVoiceChannelId} />}
         {/* Voice controls (expands when connected) */}
         {(currentVoiceChannelId || activeDmCall) && <VoiceControls />}
         {/* Separator between voice and user area */}

@@ -427,5 +427,23 @@
     "audioServer": "经服务器",
     "disableQuick": "禁用 P2P",
     "enableQuick": "启用 P2P"
+  },
+  "music": {
+    "title": "音乐机器人",
+    "idleReady": "机器人已连接 — 添加曲目",
+    "botOfflineShort": "等待音乐机器人",
+    "botOfflineHint": "使用 MUSIC_BOT_API_KEY 启动 Balacopapo Utilidades 以在此通话中播放音频。",
+    "pause": "暂停",
+    "play": "播放",
+    "stop": "停止",
+    "voteSkipTitle": "投票跳过 ({{votes}}/{{required}} — {{pct}}%)",
+    "togglePanel": "展开或收起音乐控制",
+    "addPlaceholder": "粘贴 YouTube、Navidrome 或音频链接...",
+    "add": "添加",
+    "voteSkipThreshold": "投票跳过比例",
+    "volume": "音量",
+    "queueHeading": "播放队列 ({{total}})",
+    "clearQueue": "清空",
+    "actionFailed": "无法更新音乐播放器"
   }
 }

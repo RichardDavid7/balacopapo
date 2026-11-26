@@ -771,6 +771,7 @@ export interface PresenceIdentity {
 // Server → Client Events
 export type ServerEvent =
   | { type: 'p2p_signal'; fromUserId: string; roomKey: string; kind: P2PSignalKind; payload?: string }
+  | { type: 'music_state_updated'; state: MusicPlayerState }
   | { type: 'channel_poke'; message: MessageWithUser }
   | { type: 'ready'; user: User; spaces: SpaceWithChannelsAndMembers[]; dmChannels: DmChannel[]; folders?: SpaceFolder[]; spaceLayout?: SpaceLayoutItem[] | null; layoutUpdatedAt?: number; voiceStates?: Record<string, string[]>; voiceChannelElapsedSeconds?: Record<string, number>; voiceUserStates?: Record<string, { isMuted: boolean; isDeafened: boolean; isCameraOn: boolean; isScreenSharing: boolean }>; supportsPoke?: boolean; unreadCounts?: Record<string, number>; readStates?: ReadState[]; activeCalls?: ActiveCallInfo[]; spaceVoiceStates?: Record<string, { spaceMuted: boolean; spaceDeafened: boolean }>; userActivities?: Record<string, Activity[]>; userActivityIdentities?: Record<string, PresenceIdentity>; rejectedPeerOrigins?: string[]; awaitingApprovalPeerOrigins?: string[]; activePeerOrigins?: string[]; pendingApprovalCount?: number }
   | { type: 'channel_unread_count'; counts: Record<string, number> }
@@ -1448,6 +1449,83 @@ export interface AdminIpBanFeedInfo {
   configured: boolean;
   opnsensePath: string;
   nginxPath: string;
+}
+
+// ─── Music Bot API (Balacopapo Utilidades companion) ────────────────────────
+
+export type MusicSourceKind = 'youtube' | 'navidrome' | 'dlna' | 'url';
+export type MusicLoopMode = 'off' | 'track' | 'queue';
+export type MusicPlaybackStatus = 'idle' | 'playing' | 'paused';
+
+export interface MusicTrack {
+  id: string;
+  title: string;
+  artist?: string | null;
+  source: MusicSourceKind;
+  url: string;
+  durationSec?: number | null;
+  thumbnailUrl?: string | null;
+  requestedByUserId: string;
+  requestedByName: string;
+  addedAt: number;
+}
+
+export interface MusicPlayerState {
+  channelId: string;
+  botConnected: boolean;
+  botName: string;
+  status: MusicPlaybackStatus;
+  currentTrack: MusicTrack | null;
+  positionSec: number;
+  updatedAt: number;
+  volume: number;
+  loopMode: MusicLoopMode;
+  queue: MusicTrack[];
+  /** Percentage of voice channel listeners required to skip (10..100, default 50). */
+  voteSkipThresholdPct: number;
+  /** User IDs that voted to skip the current track. */
+  skipVotes: string[];
+  /** Active human listeners in the voice channel. */
+  listenerCount: number;
+}
+
+export type MusicBotCommandType =
+  | 'play'
+  | 'pause'
+  | 'resume'
+  | 'skip'
+  | 'stop'
+  | 'volume'
+  | 'loop'
+  | 'seek'
+  | 'queue_remove'
+  | 'queue_clear';
+
+export interface MusicBotCommand {
+  id: string;
+  channelId: string;
+  type: MusicBotCommandType;
+  payload?: Record<string, unknown>;
+  issuedByUserId: string;
+  createdAt: number;
+}
+
+export interface MusicQueueAddRequest {
+  url: string;
+  title?: string;
+  artist?: string;
+  source?: MusicSourceKind;
+  durationSec?: number;
+  thumbnailUrl?: string;
+}
+
+export interface MusicControlRequest {
+  action: 'pause' | 'resume' | 'skip' | 'stop' | 'volume' | 'loop' | 'seek' | 'queue_remove' | 'queue_clear';
+  value?: number | string;
+}
+
+export interface MusicSettingsRequest {
+  voteSkipThresholdPct: number;
 }
 
 /**
