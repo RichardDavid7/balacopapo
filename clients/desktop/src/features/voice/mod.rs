@@ -28,6 +28,7 @@ pub struct VoiceState {
     pub connecting: bool,
     pub muted: bool,
     pub deafened: bool,
+    pub camera_on: bool,
     pub rnnoise_enabled: bool,
     pub loopback_active: bool,
     pub loopback_sample_rate: Option<u32>,
@@ -61,6 +62,7 @@ impl Default for VoiceState {
             connecting: false,
             muted: false,
             deafened: false,
+            camera_on: false,
             rnnoise_enabled: true,
             loopback_active: false,
             loopback_sample_rate: None,
@@ -103,6 +105,7 @@ pub enum VoiceAction {
     LeaveChannel,
     ToggleMute,
     ToggleDeafen,
+    ToggleCamera,
     ToggleRnnoise,
     ToggleLoopback,
     ToggleAudioSettings,
@@ -308,6 +311,14 @@ pub fn view<'a>(
             .on_press(VoiceAction::ToggleDeafen)
             .padding(9)
             .style(aether_drift::icon_button_style(state.deafened)),
+            button(if state.camera_on {
+                icons::video(17.0, aether_drift::SUCCESS_GREEN)
+            } else {
+                icons::video_off(17.0, aether_drift::TEXT_PRIMARY)
+            })
+            .on_press(VoiceAction::ToggleCamera)
+            .padding(9)
+            .style(aether_drift::icon_button_style(state.camera_on)),
             button(icons::monitor(17.0, aether_drift::TEXT_PRIMARY))
                 .on_press(VoiceAction::OpenStreamPanel)
                 .padding(9)

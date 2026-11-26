@@ -45,6 +45,8 @@ pub struct ShellState {
     pub image_cache: HashMap<String, image::Handle>,
     pub image_pending: HashSet<String>,
     pub show_member_list: bool,
+    pub selected_profile_user_id: Option<String>,
+    pub last_channel_click: Option<(String, std::time::Instant)>,
     pub selected_group_id: Option<String>,
     pub selected_channel_id: Option<String>,
     pub chat: ChatState,
@@ -83,6 +85,8 @@ impl ShellState {
             image_cache: HashMap::new(),
             image_pending: HashSet::new(),
             show_member_list: true,
+            selected_profile_user_id: None,
+            last_channel_click: None,
             selected_group_id: None,
             selected_channel_id: None,
             chat: ChatState::default(),
@@ -106,6 +110,8 @@ pub enum ShellMessage {
     SelectChannel(String),
     TogglePanel(ActivePanel),
     ToggleMemberList,
+    OpenProfile(String),
+    CloseProfile,
     RefreshGroups,
     ToggleStatusPicker,
     SetStatus(PresenceStatus),
@@ -410,41 +416,104 @@ pub fn view<'a>(
 
     let mut sidebar_col = column![sidebar_header, scrollable(mid_list).height(Length::Fill)];
 
-    // Mini-Player limpo acoplado acima da barra de voz quando conectado
-    if let Some(ch_name) = state.voice.connected_channel_name.as_deref() {
-        sidebar_col = sidebar_col.push(
-            container(music::view_mini_player(&state.music, ch_name).map(ShellMessage::Music))
-                .padding([4, 8]),
-        );
-    }
-
-    // Barra compacta de voz conectada / loopback
+    // Painel da Call no canto inferior esquerdo (1:1 com Discord: Voz conectada + 4 botões de mídia)
     if state.voice.connected_channel_id.is_some() || state.voice.loopback_active {
-        let label = state
+        let ch_label = state
             .voice
             .connected_channel_name
             .as_deref()
             .unwrap_or("Loopback de Mic");
-        let voice_bar = container(
-            row![
-                column![
-                    text("Voz Conectada")
-                        .size(11)
-                        .color(aether_drift::SUCCESS_GREEN),
-                    text(label).size(12).color(aether_drift::TEXT_PRIMARY),
-                ]
-                .spacing(1),
-                horizontal_space(),
-                button(icons::phone_off(15.0, aether_drift::DANGER_RED))
-                    .on_press(ShellMessage::Voice(VoiceAction::LeaveChannel))
-                    .padding(6)
-                    .style(aether_drift::icon_button_style(false)),
+        let grp_label = selected_group.map(|g| g.name.as_str()).unwrap_or("Balacopapo");
+
+        let signal_badge = container(icons::signal(16.0, aether_drift::SUCCESS_GREEN))
+            .width(Length::Fixed(30.0))
+            .height(Length::Fixed(30.0))
+            .center(Length::Fixed(30.0))
+            .style(|_t| container::Style {
+                background: Some(Background::Color(Color::from_rgba(0.13, 0.77, 0.37, 0.14))),
+                border: Border {
+                    color: Color::from_rgba(0.13, 0.77, 0.37, 0.28),
+                    width: 1.0,
+                    radius: 8.0.into(),
+                },
+                ..Default::default()
+            });
+
+        let voice_top = row![
+            signal_badge,
+            column![
+                text("Voz conectada")
+                    .size(12)
+                    .color(aether_drift::SUCCESS_GREEN),
+                text(format!("{ch_label} / {grp_label}"))
+                    .size(11)
+                    .color(aether_drift::TEXT_MUTED),
             ]
-            .align_y(Alignment::Center),
-        )
-        .width(Length::Fill)
-        .padding([8, 12])
-        .style(aether_drift::dock_style);
+            .spacing(1),
+            horizontal_space(),
+            button(icons::noise_suppression(
+                15.0,
+                if state.voice.rnnoise_enabled {
+                    aether_drift::TEXT_PRIMARY
+                } else {
+                    aether_drift::TEXT_MUTED
+                },
+            ))
+            .on_press(ShellMessage::Voice(VoiceAction::ToggleRnnoise))
+            .padding(6)
+            .style(aether_drift::icon_button_style(state.voice.rnnoise_enabled)),
+            button(icons::phone_off(16.0, aether_drift::TEXT_PRIMARY))
+                .on_press(ShellMessage::Voice(VoiceAction::LeaveChannel))
+                .padding(6)
+                .style(aether_drift::icon_button_style(false)),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center);
+
+        let action_btn = |ic: iced::widget::svg::Svg<'a>, active: bool, msg: ShellMessage| {
+            button(container(ic).center(Length::Fill))
+                .width(Length::FillPortion(1))
+                .height(Length::Fixed(32.0))
+                .on_press(msg)
+                .style(if active {
+                    aether_drift::primary_button_style
+                } else {
+                    aether_drift::ghost_button_style
+                })
+        };
+
+        let voice_actions = row![
+            action_btn(
+                if state.voice.camera_on {
+                    icons::video(15.0, Color::WHITE)
+                } else {
+                    icons::video_off(15.0, aether_drift::TEXT_PRIMARY)
+                },
+                state.voice.camera_on,
+                ShellMessage::Voice(VoiceAction::ToggleCamera),
+            ),
+            action_btn(
+                icons::monitor(15.0, aether_drift::TEXT_PRIMARY),
+                state.stream.sharing_active || state.active_panel == ActivePanel::Stream,
+                ShellMessage::TogglePanel(ActivePanel::Stream),
+            ),
+            action_btn(
+                icons::music(15.0, aether_drift::TEXT_PRIMARY),
+                state.active_panel == ActivePanel::Music,
+                ShellMessage::TogglePanel(ActivePanel::Music),
+            ),
+            action_btn(
+                icons::megaphone(15.0, aether_drift::TEXT_PRIMARY),
+                state.active_panel == ActivePanel::Soundboard,
+                ShellMessage::TogglePanel(ActivePanel::Soundboard),
+            ),
+        ]
+        .spacing(6);
+
+        let voice_bar = container(column![voice_top, voice_actions].spacing(8))
+            .width(Length::Fill)
+            .padding([10, 10])
+            .style(aether_drift::dock_style);
         sidebar_col = sidebar_col.push(voice_bar);
     }
 
@@ -646,6 +715,11 @@ pub fn view<'a>(
         ),
         tool_icon_btn(
             icons::music(16.0, aether_drift::TEXT_PRIMARY),
+            ActivePanel::Music,
+            state.active_panel,
+        ),
+        tool_icon_btn(
+            icons::megaphone(16.0, aether_drift::TEXT_PRIMARY),
             ActivePanel::Soundboard,
             state.active_panel,
         ),
@@ -1064,6 +1138,57 @@ fn member_list_sidebar<'a>(
 
     let mut list = column![].spacing(4).padding([12, 10]);
 
+    // Card de Perfil clicável no topo da barra de membros
+    if let Some(pid) = state.selected_profile_user_id.as_deref() {
+        if let Some(pm) = group.members.iter().find(|m| m.user_id == pid) {
+            let av = avatar_circle(
+                &state.image_cache,
+                pm.user.avatar_url.as_deref(),
+                pm.display_name(),
+                56.0,
+            );
+            let presence = PresenceStatus::from_api_str(pm.user.status.as_deref());
+            let mut roles_row = row![].spacing(4);
+            for r in pm.roles.iter().take(4) {
+                roles_row = roles_row.push(
+                    container(text(&r.name).size(10))
+                        .padding([2, 6])
+                        .style(aether_drift::pill_style),
+                );
+            }
+            let mut card_col = column![
+                row![
+                    av,
+                    horizontal_space(),
+                    button(text("Fechar").size(10))
+                        .on_press(ShellMessage::CloseProfile)
+                        .padding([3, 7])
+                        .style(aether_drift::ghost_button_style),
+                ]
+                .align_y(Alignment::Start),
+                text(pm.display_name()).size(14),
+                text(format!("@{} · {}", pm.user.username, presence.label_pt()))
+                    .size(11)
+                    .color(aether_drift::TEXT_MUTED),
+            ]
+            .spacing(5);
+
+            if let Some(bio) = pm.user.bio.as_deref().filter(|b| !b.trim().is_empty()) {
+                card_col = card_col.push(text(bio).size(11).color(aether_drift::TEXT_PRIMARY));
+            }
+            if !pm.roles.is_empty() {
+                card_col = card_col.push(roles_row);
+            }
+
+            list = list.push(
+                container(card_col)
+                    .width(Length::Fill)
+                    .padding(10)
+                    .style(aether_drift::card_style),
+            );
+        }
+    }
+
     if group.members.is_empty() {
         list = list.push(
             text("Carregando membros...")
@@ -1150,13 +1275,15 @@ fn member_row<'a>(
         aether_drift::TEXT_MUTED
     };
 
-    container(
+    button(
         row![av, text(name).size(13).color(name_color), horizontal_space(), dot]
             .spacing(8)
             .align_y(Alignment::Center),
     )
     .width(Length::Fill)
     .padding([4, 6])
+    .on_press(ShellMessage::OpenProfile(m.user_id.clone()))
+    .style(aether_drift::channel_row_button_style(false))
     .into()
 }
 

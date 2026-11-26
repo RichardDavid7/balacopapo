@@ -26,8 +26,13 @@ const SVG_NETWORK: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 const SVG_LAYERS: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>"#;
 const SVG_REFRESH: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>"#;
 const SVG_LOGOUT: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>"#;
-const SVG_PHONE_OFF: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/><line x1="2" y1="2" x2="22" y2="22"/></svg>"#;
+const SVG_PHONE_OFF: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M23.71 16.67C20.66 13.78 16.54 12 12 12S3.34 13.78.29 16.67a1 1 0 0 0 0 1.42l2.48 2.48a1 1 0 0 0 1.37.04c.79-.72 1.66-1.35 2.6-1.88a1 1 0 0 0 .51-.87v-3.1c1.45-.48 3.06-.76 4.75-.76s3.3.28 4.75.76v3.1a1 1 0 0 0 .51.87c.94.53 1.81 1.16 2.6 1.88a1 1 0 0 0 1.37-.04l2.48-2.48a1 1 0 0 0 0-1.42Z"/></svg>"#;
 const SVG_USERS: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>"#;
+const SVG_SIGNAL: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>"#;
+const SVG_NOISE_SUPPRESSION: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="10" x2="4" y2="14"/><line x1="8" y1="7" x2="8" y2="17"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="16" y1="7" x2="16" y2="17"/><line x1="20" y1="10" x2="20" y2="14"/></svg>"#;
+const SVG_VIDEO: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>"#;
+const SVG_VIDEO_OFF: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.66 6H14a2 2 0 0 1 2 2v2.34l1 1L22 8v8"/><path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2"/><line x1="2" y1="2" x2="22" y2="22"/></svg>"#;
+const SVG_MEGAPHONE: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 13v-2Z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>"#;
 
 pub fn hash<'a>(size: f32, color: Color) -> svg::Svg<'a> {
     icon(SVG_HASH, size, color)
@@ -73,4 +78,19 @@ pub fn phone_off<'a>(size: f32, color: Color) -> svg::Svg<'a> {
 }
 pub fn users<'a>(size: f32, color: Color) -> svg::Svg<'a> {
     icon(SVG_USERS, size, color)
+}
+pub fn signal<'a>(size: f32, color: Color) -> svg::Svg<'a> {
+    icon(SVG_SIGNAL, size, color)
+}
+pub fn noise_suppression<'a>(size: f32, color: Color) -> svg::Svg<'a> {
+    icon(SVG_NOISE_SUPPRESSION, size, color)
+}
+pub fn video<'a>(size: f32, color: Color) -> svg::Svg<'a> {
+    icon(SVG_VIDEO, size, color)
+}
+pub fn video_off<'a>(size: f32, color: Color) -> svg::Svg<'a> {
+    icon(SVG_VIDEO_OFF, size, color)
+}
+pub fn megaphone<'a>(size: f32, color: Color) -> svg::Svg<'a> {
+    icon(SVG_MEGAPHONE, size, color)
 }

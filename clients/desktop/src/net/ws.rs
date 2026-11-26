@@ -52,6 +52,8 @@ pub fn connect_subscription(instance_url: String, token: String) -> Subscription
                             continue;
                         }
 
+                        let (cmd_tx, mut cmd_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+                        let _ = output.send(WsEvent::WsReadyToSend(cmd_tx)).await;
                         let _ = output.send(WsEvent::Connected).await;
 
                         let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
@@ -68,6 +70,13 @@ pub fn connect_subscription(instance_url: String, token: String) -> Subscription
                                         .is_err()
                                     {
                                         break;
+                                    }
+                                }
+                                outbound = cmd_rx.recv() => {
+                                    if let Some(payload) = outbound {
+                                        if write.send(TungsteniteMsg::Text(payload)).await.is_err() {
+                                            break;
+                                        }
                                     }
                                 }
                                 incoming = read.next() => {

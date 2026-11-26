@@ -490,6 +490,7 @@ pub struct SpaceApiKeySummary {
 
 #[derive(Debug, Clone)]
 pub enum WsEvent {
+    WsReadyToSend(tokio::sync::mpsc::UnboundedSender<String>),
     Connected,
     Disconnected(String),
     Ready {
@@ -514,6 +515,10 @@ pub enum WsEvent {
         channel_id: String,
         user_id: String,
         action: String,
+    },
+    VoiceStatusUpdate {
+        user_id: String,
+        state: VoiceUserMediaState,
     },
     SpaceVoiceState {
         voice_states: HashMap<String, Vec<String>>,
@@ -593,6 +598,25 @@ pub fn parse_ws_server_event(raw: &str) -> Option<WsEvent> {
                 user_id,
                 action,
             })
+        }
+        "voice_status_update" => {
+            let user_id = val.get("userId")?.as_str()?.to_string();
+            let state = VoiceUserMediaState {
+                is_muted: val.get("isMuted").and_then(|v| v.as_bool()).unwrap_or(false),
+                is_deafened: val
+                    .get("isDeafened")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                is_camera_on: val
+                    .get("isCameraOn")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                is_screen_sharing: val
+                    .get("isScreenSharing")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+            };
+            Some(WsEvent::VoiceStatusUpdate { user_id, state })
         }
         "space_voice_state" => {
             let voice_states: HashMap<String, Vec<String>> = val

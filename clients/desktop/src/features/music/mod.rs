@@ -45,6 +45,7 @@ fn loop_label(mode: &str) -> &'static str {
 }
 
 /// Mini-player limpo acoplado acima dos controles da call (sem clutter de % de Vote-Skip).
+#[allow(dead_code)]
 pub fn view_mini_player<'a>(
     state: &'a MusicUiState,
     channel_name: &'a str,

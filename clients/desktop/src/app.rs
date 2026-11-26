@@ -38,6 +38,7 @@ pub struct BalacopapoApp {
     update_state: UpdateCheckState,
     audio_params: AudioParams,
     active_loopback: Option<ActiveLoopback>,
+    ws_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +93,7 @@ pub enum Message {
     ImageLoaded {
         key: String,
         bytes: Option<Vec<u8>>,
+        circular: bool,
     },
     UpdateChecked(UpdateCheckState),
 }
@@ -152,6 +154,7 @@ impl BalacopapoApp {
             update_state: UpdateCheckState::Checking,
             audio_params: AudioParams::default(),
             active_loopback: None,
+            ws_tx: None,
         };
 
         (app, Task::batch(tasks))
@@ -456,6 +459,7 @@ impl BalacopapoApp {
                 result,
             } => {
                 let mut fetch_music: Option<(String, String, String)> = None;
+                let mut joined_ch: Option<String> = None;
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.voice.connecting = false;
                     match result {
@@ -464,6 +468,17 @@ impl BalacopapoApp {
                             shell.voice.connected_channel_id = Some(channel_id.clone());
                             shell.voice.connected_channel_name = Some(channel_name);
                             shell.voice.livekit_url = Some(resp.url);
+                            // Garante presença imediata na lista local da call
+                            let my_id = shell.user.id.clone();
+                            for users in shell.voice_states.values_mut() {
+                                users.retain(|u| u != &my_id);
+                            }
+                            shell
+                                .voice_states
+                                .entry(channel_id.clone())
+                                .or_default()
+                                .push(my_id);
+                            joined_ch = Some(channel_id.clone());
                             fetch_music = Some((
                                 shell.instance_url.clone(),
                                 self.config.auth_token.clone().unwrap_or_default(),
@@ -474,6 +489,13 @@ impl BalacopapoApp {
                             shell.voice.error = Some(err);
                         }
                     }
+                }
+                if let Some(ch_id) = joined_ch {
+                    self.send_ws_json(serde_json::json!({
+                        "type": "voice_join",
+                        "channelId": ch_id,
+                    }));
+                    self.sync_voice_status_ws();
                 }
                 if let Some((url, token, ch_id)) = fetch_music {
                     Self::load_music_task(url, token, ch_id)
@@ -702,12 +724,20 @@ impl BalacopapoApp {
                 }
                 Task::none()
             }
-            Message::ImageLoaded { key, bytes } => {
+            Message::ImageLoaded {
+                key,
+                bytes,
+                circular,
+            } => {
                 if let Screen::Shell(shell) = &mut self.screen {
                     if let Some(raw) = bytes {
-                        shell
-                            .image_cache
-                            .insert(key, iced::widget::image::Handle::from_bytes(raw));
+                        let handle = if circular {
+                            decode_circular_avatar(&raw, 128)
+                                .unwrap_or_else(|| iced::widget::image::Handle::from_bytes(raw))
+                        } else {
+                            iced::widget::image::Handle::from_bytes(raw)
+                        };
+                        shell.image_cache.insert(key, handle);
                     }
                 }
                 Task::none()
@@ -727,11 +757,17 @@ impl BalacopapoApp {
     }
 
     fn handle_ws_event(&mut self, event: WsEvent) -> Task<Message> {
+        if let WsEvent::WsReadyToSend(tx) = event {
+            self.ws_tx = Some(tx);
+            return Task::none();
+        }
+
         let Screen::Shell(shell) = &mut self.screen else {
             return Task::none();
         };
 
         match event {
+            WsEvent::WsReadyToSend(_) => Task::none(),
             WsEvent::Connected => {
                 shell.ws_connected = true;
                 shell.ws_status_label = "Ao vivo · Zero WebView".to_string();
@@ -853,6 +889,10 @@ impl BalacopapoApp {
                         entry.push(user_id);
                     }
                 }
+                Task::none()
+            }
+            WsEvent::VoiceStatusUpdate { user_id, state } => {
+                shell.voice_user_states.insert(user_id, state);
                 Task::none()
             }
             WsEvent::SpaceVoiceState {
@@ -1036,19 +1076,36 @@ impl BalacopapoApp {
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
+                let now = std::time::Instant::now();
+                let is_double_click = shell
+                    .last_channel_click
+                    .as_ref()
+                    .is_some_and(|(prev_id, at)| {
+                        prev_id == &channel_id && now.duration_since(*at).as_millis() < 450
+                    });
+                shell.last_channel_click = Some((channel_id.clone(), now));
+
                 shell.selected_channel_id = Some(channel_id.clone());
                 shell.active_panel = ActivePanel::Channel;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
-                let is_voice = shell
+                let voice_ch_name = shell
                     .groups
                     .iter()
                     .flat_map(|g| g.channels.iter())
-                    .find(|c| c.id == channel_id)
-                    .is_some_and(|c| c.kind == "voice");
+                    .find(|c| c.id == channel_id && c.kind == "voice")
+                    .map(|c| c.name.clone());
 
-                if is_voice {
+                if let Some(ch_name) = voice_ch_name {
+                    let already_here =
+                        shell.voice.connected_channel_id.as_deref() == Some(channel_id.as_str());
+                    if is_double_click && !already_here && !shell.voice.connecting {
+                        return self.handle_voice_action(VoiceAction::JoinChannel {
+                            channel_id,
+                            name: ch_name,
+                        });
+                    }
                     return Task::none();
                 }
 
@@ -1088,6 +1145,15 @@ impl BalacopapoApp {
             }
             ShellMessage::ToggleMemberList => {
                 shell.show_member_list = !shell.show_member_list;
+                Task::none()
+            }
+            ShellMessage::OpenProfile(user_id) => {
+                shell.selected_profile_user_id = Some(user_id);
+                shell.show_member_list = true;
+                Task::none()
+            }
+            ShellMessage::CloseProfile => {
+                shell.selected_profile_user_id = None;
                 Task::none()
             }
             ShellMessage::SetStatus(status) => {
@@ -1325,11 +1391,17 @@ impl BalacopapoApp {
             }
             VoiceAction::LeaveChannel => {
                 self.active_loopback = None;
+                let my_id = shell.user.id.clone();
+                for users in shell.voice_states.values_mut() {
+                    users.retain(|u| u != &my_id);
+                }
                 shell.voice.connected_channel_id = None;
                 shell.voice.connected_channel_name = None;
                 shell.voice.livekit_url = None;
+                shell.voice.camera_on = false;
                 shell.voice.loopback_active = false;
                 shell.voice.loopback_sample_rate = None;
+                self.send_ws_json(serde_json::json!({ "type": "voice_leave" }));
                 Task::none()
             }
             VoiceAction::ToggleMute => {
@@ -1337,6 +1409,7 @@ impl BalacopapoApp {
                 self.audio_params
                     .muted
                     .store(shell.voice.muted, Ordering::Relaxed);
+                self.sync_voice_status_ws();
                 Task::none()
             }
             VoiceAction::ToggleDeafen => {
@@ -1344,6 +1417,12 @@ impl BalacopapoApp {
                 self.audio_params
                     .deafened
                     .store(shell.voice.deafened, Ordering::Relaxed);
+                self.sync_voice_status_ws();
+                Task::none()
+            }
+            VoiceAction::ToggleCamera => {
+                shell.voice.camera_on = !shell.voice.camera_on;
+                self.sync_voice_status_ws();
                 Task::none()
             }
             VoiceAction::ToggleRnnoise => {
@@ -1535,6 +1614,7 @@ impl BalacopapoApp {
         match action {
             StreamAction::ToggleSharing => {
                 shell.stream.sharing_active = !shell.stream.sharing_active;
+                self.sync_voice_status_ws();
                 Task::none()
             }
             StreamAction::ToggleFullscreenFocus => {
@@ -2210,19 +2290,20 @@ impl BalacopapoApp {
             return Task::none();
         };
 
-        let mut candidates: Vec<String> = Vec::new();
+        // (url_ou_path, circular)
+        let mut candidates: Vec<(String, bool)> = Vec::new();
         if let Some(url) = shell.user.avatar_url.as_deref() {
-            candidates.push(url.to_string());
+            candidates.push((url.to_string(), true));
         }
         for g in &shell.groups {
             if let Some(url) = g.icon_url.as_deref() {
-                candidates.push(url.to_string());
+                candidates.push((url.to_string(), true));
             }
         }
         for dm in &shell.dm.channels {
             for u in &dm.members {
                 if let Some(url) = u.avatar_url.as_deref() {
-                    candidates.push(url.to_string());
+                    candidates.push((url.to_string(), true));
                 }
             }
         }
@@ -2230,7 +2311,7 @@ impl BalacopapoApp {
             if let Some(g) = shell.groups.iter().find(|g| g.id == sel_id) {
                 for m in &g.members {
                     if let Some(url) = m.user.avatar_url.as_deref() {
-                        candidates.push(url.to_string());
+                        candidates.push((url.to_string(), true));
                     }
                 }
             }
@@ -2244,11 +2325,11 @@ impl BalacopapoApp {
             if let Some(msgs) = shell.chat.messages_by_channel.get(ch_id) {
                 for msg in msgs {
                     if let Some(url) = msg.user.as_ref().and_then(|u| u.avatar_url.as_deref()) {
-                        candidates.push(url.to_string());
+                        candidates.push((url.to_string(), true));
                     }
                     for att in &msg.attachments {
                         if att.is_image() {
-                            candidates.push(att.preview_path());
+                            candidates.push((att.preview_path(), false));
                         }
                     }
                 }
@@ -2259,7 +2340,7 @@ impl BalacopapoApp {
         let token = self.config.auth_token.clone().unwrap_or_default();
         let mut tasks = Vec::new();
 
-        for raw in candidates {
+        for (raw, circular) in candidates {
             let key = raw.trim().to_string();
             if key.is_empty()
                 || shell.image_cache.contains_key(&key)
@@ -2276,7 +2357,11 @@ impl BalacopapoApp {
                         Ok(client) => client.fetch_image_bytes(&key).await.ok(),
                         Err(_) => None,
                     };
-                    Message::ImageLoaded { key, bytes }
+                    Message::ImageLoaded {
+                        key,
+                        bytes,
+                        circular,
+                    }
                 },
                 std::convert::identity,
             ));
@@ -2289,6 +2374,26 @@ impl BalacopapoApp {
             Task::none()
         } else {
             Task::batch(tasks)
+        }
+    }
+
+    fn send_ws_json(&self, payload: serde_json::Value) {
+        if let Some(tx) = &self.ws_tx {
+            let _ = tx.send(payload.to_string());
+        }
+    }
+
+    fn sync_voice_status_ws(&self) {
+        if let Screen::Shell(shell) = &self.screen {
+            if shell.voice.connected_channel_id.is_some() {
+                self.send_ws_json(serde_json::json!({
+                    "type": "voice_status",
+                    "isMuted": shell.voice.muted,
+                    "isDeafened": shell.voice.deafened,
+                    "isCameraOn": shell.voice.camera_on,
+                    "isScreenSharing": shell.stream.sharing_active,
+                }));
+            }
         }
     }
 
@@ -2305,4 +2410,43 @@ impl BalacopapoApp {
             Message::SoundboardLoaded,
         )
     }
+}
+
+/// Decodifica uma imagem (PNG/JPEG/WebP/GIF) e aplica máscara circular real com antialiasing suave
+/// para que fotos de perfil e ícones de grupos fiquem perfeitamente redondos na GPU.
+fn decode_circular_avatar(bytes: &[u8], size: u32) -> Option<iced::widget::image::Handle> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let (w, h) = (img.width(), img.height());
+    let side = w.min(h);
+    if side == 0 {
+        return None;
+    }
+    let x0 = (w - side) / 2;
+    let y0 = (h - side) / 2;
+    let cropped = img.crop_imm(x0, y0, side, side);
+    let resized = cropped
+        .resize_exact(size, size, image::imageops::FilterType::Triangle)
+        .to_rgba8();
+
+    let mut pixels = resized.into_raw();
+    let center = (size as f32 - 1.0) * 0.5;
+    let radius = size as f32 * 0.5 - 0.5;
+
+    for y in 0..size {
+        for x in 0..size {
+            let dx = x as f32 - center;
+            let dy = y as f32 - center;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let alpha_idx = ((y * size + x) * 4 + 3) as usize;
+            if dist >= radius + 0.75 {
+                pixels[alpha_idx] = 0;
+            } else if dist > radius - 0.75 {
+                let t = ((radius + 0.75) - dist) / 1.5;
+                let a = pixels[alpha_idx] as f32 * t.clamp(0.0, 1.0);
+                pixels[alpha_idx] = a.round() as u8;
+            }
+        }
+    }
+
+    Some(iced::widget::image::Handle::from_rgba(size, size, pixels))
 }
