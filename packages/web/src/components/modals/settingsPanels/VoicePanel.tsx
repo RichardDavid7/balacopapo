@@ -17,7 +17,8 @@ import { AudioOutputSection } from './AudioOutputSection';
 import { Track, type RemoteAudioTrack } from 'livekit-client';
 import { getActiveRoom, applyAudioReceiverJitterBuffer } from '../../../hooks/useLiveKit';
 
-const JITTER_BUFFER_PRESETS = [0, 40, 80, 120] as const;
+const JITTER_BUFFER_PRESETS = [0, 40, 80, 120, 250, 500, 1000] as const;
+const MAX_JITTER_BUFFER_MS = 2000;
 
 export function VoicePanel() {
   const { t } = useTranslation(['settings', 'common']);
@@ -288,12 +289,20 @@ export function VoicePanel() {
           </div>
 
           {/* Jitter Buffer (packet-loss / jitter smoothing) */}
-          <div className="flex items-center justify-between gap-4 pt-2 border-t border-white/[0.04]">
-            <div className="flex-1 min-w-0">
-              <div className="text-sm text-txt-primary">{t('settings:voice.opus.jitterBuffer.label')}</div>
-              <div className="text-xs text-txt-tertiary">{t('settings:voice.opus.jitterBuffer.description')}</div>
+          <div className="space-y-2.5 pt-2 border-t border-white/[0.04]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-txt-primary">{t('settings:voice.opus.jitterBuffer.label')}</div>
+                <div className="text-xs text-txt-tertiary">{t('settings:voice.opus.jitterBuffer.description')}</div>
+              </div>
+              <span className="text-xs font-semibold text-txt-primary tabular-nums px-2 py-0.5 rounded bg-surface-base border border-border-soft shrink-0">
+                {jitterBufferMs === 0
+                  ? t('settings:voice.opus.jitterBuffer.auto')
+                  : t('common:units.ms', { value: jitterBufferMs })}
+              </span>
             </div>
-            <div className="inline-flex rounded-lg bg-surface-base p-0.5 shrink-0">
+
+            <div className="flex flex-wrap gap-1 rounded-lg bg-surface-base p-1">
               {JITTER_BUFFER_PRESETS.map((ms) => {
                 const active = jitterBufferMs === ms;
                 return (
@@ -315,6 +324,20 @@ export function VoicePanel() {
                 );
               })}
             </div>
+
+            <input
+              type="range"
+              min={0}
+              max={MAX_JITTER_BUFFER_MS}
+              step={20}
+              value={jitterBufferMs}
+              onChange={(e) => handleJitterBufferChange(Number(e.target.value))}
+              aria-label={t('settings:voice.opus.jitterBuffer.label')}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-surface-base [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+              style={{
+                background: `linear-gradient(to right, rgb(var(--accent-primary)) 0%, rgb(var(--accent-primary)) ${(jitterBufferMs / MAX_JITTER_BUFFER_MS) * 100}%, rgb(var(--interactive-muted)) ${(jitterBufferMs / MAX_JITTER_BUFFER_MS) * 100}%, rgb(var(--interactive-muted)) 100%)`,
+              }}
+            />
           </div>
         </div>
       </div>
