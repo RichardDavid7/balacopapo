@@ -98,7 +98,7 @@ jobs:
           cp target/release/balacopapo-desktop "dist/linux-pkg/balacopapo-desktop"
           cp packaging/linux/balacopapo.desktop "dist/linux-pkg/balacopapo.desktop"
           cp packaging/linux/install.sh "dist/linux-pkg/install.sh"
-          cp assets/snafuonda.ico "dist/linux-pkg/snafuonda.ico"
+          cp icons/snafuonda.ico "dist/linux-pkg/snafuonda.ico"
           chmod +x "dist/linux-pkg/balacopapo-desktop" "dist/linux-pkg/install.sh"
           tar -czf "dist/Balacopapo-Desktop-linux-x64.tar.gz" -C dist/linux-pkg .
           rm -rf dist/linux-pkg

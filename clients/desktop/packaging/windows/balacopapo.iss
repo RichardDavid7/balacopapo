@@ -21,7 +21,7 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\..\dist
 OutputBaseFilename=Balacopapo-Setup-windows-x64
-SetupIconFile=..\..\assets\snafuonda.ico
+SetupIconFile=..\..\icons\snafuonda.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max
 SolidCompression=yes
@@ -38,7 +38,7 @@ Name: "autostart"; Description: "Iniciar o Balacopapo automaticamente com o Wind
 
 [Files]
 Source: "..\..\target\release\balacopapo-desktop.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
-Source: "..\..\assets\snafuonda.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\icons\snafuonda.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\snafuonda.ico"
