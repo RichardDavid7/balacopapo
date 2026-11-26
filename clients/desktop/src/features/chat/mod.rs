@@ -99,7 +99,7 @@ fn extract_urls(body: &str) -> Vec<String> {
     body.split_whitespace()
         .filter(|w| w.starts_with("https://") || w.starts_with("http://"))
         .map(|w| {
-            w.trim_end_matches(|c: char| matches!(c, ')' | ']' | ',' | '.' | ';' | '!' | '?'))
+            w.trim_end_matches([')', ']', ',', '.', ';', '!', '?'])
                 .to_string()
         })
         .take(3)
