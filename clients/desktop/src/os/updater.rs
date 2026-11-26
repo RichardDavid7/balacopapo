@@ -5,6 +5,7 @@ use crate::core::config::{DEFAULT_RELEASES_API, DEFAULT_RELEASES_PAGE};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateCheckState {
+    #[allow(dead_code)]
     Idle,
     Checking,
     UpToDate,
