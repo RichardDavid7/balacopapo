@@ -212,7 +212,7 @@ export async function spaceApiKeyRoutes(app: FastifyInstance): Promise<void> {
         ttl: '6h',
       });
       token.addGrant({
-        room: `voice:${channelId}`,
+        room: channelId,
         roomJoin: true,
         canPublish: true,
         canSubscribe: canBridge,
@@ -223,7 +223,7 @@ export async function spaceApiKeyRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(200).send({
         token: await token.toJwt(),
         url: config.livekit.url,
-        room: `voice:${channelId}`,
+        room: channelId,
         scopes: resolved.scopes,
       });
     },

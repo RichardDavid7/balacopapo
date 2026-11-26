@@ -269,7 +269,7 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
         ttl: '6h',
       });
       token.addGrant({
-        room: `voice:${channelId}`,
+        room: channelId,
         roomJoin: true,
         canPublish: true,
         canSubscribe: false,
@@ -280,7 +280,7 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(200).send({
         token: await token.toJwt(),
         url: config.livekit.url,
-        room: `voice:${channelId}`,
+        room: channelId,
       });
     },
   );

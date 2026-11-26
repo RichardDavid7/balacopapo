@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { MusicTrack } from '@backspace/shared';
 import type { AudioCache } from './cache.js';
 import type { UtilitiesConfig } from './config.js';
@@ -71,8 +73,12 @@ export class TrackResolver {
   }
 
   private async download(url: string, key: string, signal?: AbortSignal): Promise<ResolvedAudio> {
+    const metaPath = path.join(this.cache.dir, `${key}.meta.json`);
     const cached = await this.cache.find(key);
-    if (cached) return { input: cached };
+    if (cached) {
+      const meta = await fs.readFile(metaPath, 'utf8').then((s) => JSON.parse(s) as ResolvedAudio['meta']).catch(() => undefined);
+      return { input: cached, meta };
+    }
 
     const args = [
       '--no-playlist',
@@ -89,7 +95,9 @@ export class TrackResolver {
     const json = await run(this.cfg.ytdlpPath, args, signal);
     const file = await this.cache.find(key);
     if (!file) throw new Error('yt-dlp não gerou arquivo de áudio');
+    const meta = parseYtdlpMeta(json);
+    if (meta) await fs.writeFile(metaPath, JSON.stringify(meta)).catch(() => undefined);
     void this.cache.prune();
-    return { input: file, meta: parseYtdlpMeta(json) };
+    return { input: file, meta };
   }
 }

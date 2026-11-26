@@ -79,6 +79,23 @@ export function startUiServer(controller: Controller, home: string | undefined, 
         return send(res, 200, { ok: true });
       }
 
+      const uploadMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/upload$/);
+      if (uploadMatch && uploadMatch[1]) {
+        const rawName = req.headers['x-file-name'];
+        const filename = typeof rawName === 'string' && rawName ? decodeURIComponent(rawName) : 'audio.bin';
+        const chunks: Buffer[] = [];
+        let total = 0;
+        const maxBytes = 250 * 1024 * 1024; // 250 MB para FLACs grandes
+        for await (const chunk of req) {
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          total += buf.length;
+          if (total > maxBytes) throw new Error('Arquivo muito grande (máx. 250 MB)');
+          chunks.push(buf);
+        }
+        await controller.enqueueLocalBuffer(decodeURIComponent(uploadMatch[1]), filename, Buffer.concat(chunks));
+        return send(res, 200, { ok: true });
+      }
+
       const enqueueMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/enqueue$/);
       if (enqueueMatch && enqueueMatch[1]) {
         const body = await readJson(req);

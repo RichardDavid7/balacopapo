@@ -170,10 +170,12 @@ pre.logs{background:var(--bg);border:1px solid var(--border);border-radius:8px;p
         </div>
 
         <div class="card">
-          <label for="addUrl">Adicionar música (YouTube ou URL direta de áudio/rádio)</label>
+          <label for="addUrl">Adicionar música (YouTube, URL direta ou arquivo local MP3 / FLAC / WAV / OGG)</label>
           <div class="row" style="margin-top:6px">
-            <input type="text" id="addUrl" placeholder="https://www.youtube.com/watch?v=... ou link direto .mp3/.ogg" style="flex:1">
+            <input type="text" id="addUrl" placeholder="https://www.youtube.com/watch?v=... ou C:\Musicas\faixa.flac" style="flex:1">
             <button id="btnAdd">Adicionar à fila</button>
+            <button class="sec" id="btnPickFile" title="Selecionar arquivos MP3, FLAC, WAV, OGG, OPUS, M4A">📁 Arquivo</button>
+            <input type="file" id="fileInput" accept=".mp3,.flac,.wav,.ogg,.opus,.m4a,.aac,audio/*" multiple style="display:none">
           </div>
         </div>
 
@@ -241,6 +243,10 @@ pre.logs{background:var(--bg);border:1px solid var(--border);border-radius:8px;p
       <div class="card">
         <div class="source-card" style="margin-top:0">
           <div><b>YouTube (yt-dlp + cache local)</b><div class="muted">Baixa, guarda em cache LRU e pré-carrega a próxima faixa automaticamente.</div></div>
+          <span class="pill ok">Ativo</span>
+        </div>
+        <div class="source-card">
+          <div><b>Arquivos Locais (MP3, FLAC, WAV, OGG, OPUS, M4A)</b><div class="muted">Escolha arquivos do PC pelo botão 📁 Arquivo ou cole o caminho local.</div></div>
           <span class="pill ok">Ativo</span>
         </div>
         <div class="source-card">
@@ -487,6 +493,33 @@ async function addTrack() {
 }
 $('btnAdd').onclick = addTrack;
 $('addUrl').onkeydown = e => { if (e.key === 'Enter') addTrack(); };
+$('btnPickFile').onclick = () => $('fileInput').click();
+$('fileInput').onchange = async e => {
+  const ch = activeChannelObj();
+  const files = [...(e.target.files || [])];
+  e.target.value = '';
+  if (!ch || !files.length) return;
+  showBox('playerErr', '');
+  $('btnPickFile').disabled = true;
+  try {
+    for (const file of files) {
+      const r = await fetch('/api/channels/' + encodeURIComponent(ch.id) + '/upload', {
+        method: 'POST',
+        headers: { 'X-File-Name': encodeURIComponent(file.name) },
+        body: file,
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || ('HTTP ' + r.status));
+      }
+    }
+    refresh();
+  } catch (err) {
+    showBox('playerErr', err.message);
+  } finally {
+    $('btnPickFile').disabled = false;
+  }
+};
 
 function readForm() {
   return {

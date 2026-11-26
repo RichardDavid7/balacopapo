@@ -15,7 +15,9 @@ export class AudioCache {
   /** Procura um arquivo completo no cache cujo nome comece com `key.`; marca como usado. */
   async find(key: string): Promise<string | null> {
     const entries = await fs.readdir(this.dir).catch(() => [] as string[]);
-    const hit = entries.find((f) => f.startsWith(`${key}.`) && !f.endsWith('.part') && !f.endsWith('.ytdl'));
+    const hit = entries.find(
+      (f) => f.startsWith(`${key}.`) && !f.endsWith('.part') && !f.endsWith('.ytdl') && !f.endsWith('.meta.json'),
+    );
     if (!hit) return null;
     const full = path.join(this.dir, hit);
     const now = new Date();

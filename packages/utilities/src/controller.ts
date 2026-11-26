@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { MusicBotCommandType, MusicSourceKind, MusicTrack } from '@backspace/shared';
 import { BalacopapoApi, RateLimitError, type BotInfo } from './api.js';
 import { AudioCache } from './cache.js';
@@ -118,19 +120,27 @@ export class Controller {
     this.state = 'stopped';
   }
 
-  /** Adiciona uma faixa diretamente pela interface local do app. */
+  /** Adiciona uma faixa (URL ou caminho de arquivo local MP3/FLAC/WAV/OGG) pela interface do app. */
   async enqueue(channelId: string, rawUrl: string, title?: string): Promise<void> {
     const player = this.players.get(channelId);
     if (!player) throw new Error('Canal não está ativo no bot');
-    const url = rawUrl.trim();
-    if (!url || !/^https?:\/\//i.test(url)) throw new Error('Informe uma URL válida (http:// ou https://)');
+    const input = rawUrl.trim().replace(/^"(.*)"$/, '$1');
+    if (!input) throw new Error('Informe uma URL ou caminho de arquivo');
+
+    const isHttp = /^https?:\/\//i.test(input);
+    let resolvedTitle = title?.trim();
+    if (!isHttp) {
+      const st = await fs.stat(input).catch(() => null);
+      if (!st?.isFile()) throw new Error('URL inválida ou arquivo local não encontrado');
+      resolvedTitle ||= path.basename(input, path.extname(input));
+    }
 
     const track: MusicTrack = {
       id: crypto.randomBytes(8).toString('hex'),
-      title: (title?.trim() || url).slice(0, 140),
-      artist: null,
-      source: inferSource(url),
-      url,
+      title: (resolvedTitle || input).slice(0, 140),
+      artist: isHttp ? null : 'Arquivo local',
+      source: isHttp ? inferSource(input) : 'url',
+      url: input,
       durationSec: null,
       thumbnailUrl: null,
       requestedByUserId: 'local-app',
@@ -146,6 +156,18 @@ export class Controller {
       issuedByUserId: 'local-app',
       createdAt: Date.now(),
     });
+  }
+
+  /** Salva um arquivo enviado pela UI local (MP3/FLAC/WAV/OGG/OPUS/M4A) no cache e coloca na fila. */
+  async enqueueLocalBuffer(channelId: string, filename: string, data: Buffer): Promise<void> {
+    const ext = path.extname(filename).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.audio';
+    const id = crypto.randomBytes(8).toString('hex');
+    await this.cache.init();
+    const dest = path.join(this.cache.dir, `local-${id}${ext}`);
+    await fs.writeFile(dest, data);
+    void this.cache.prune();
+    const cleanTitle = path.basename(filename, path.extname(filename)) || filename;
+    await this.enqueue(channelId, dest, cleanTitle);
   }
 
   /** Executa um controle (pause/resume/skip/stop/volume/loop/seek/queue_remove/queue_clear) pela UI local. */
