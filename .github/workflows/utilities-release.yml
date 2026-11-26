@@ -67,10 +67,10 @@ jobs:
           if [ "${{ matrix.target }}" = "windows-x64" ]; then
             MSYS_NO_PATHCONV=1 "/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
               -nologo -target:winexe -optimize+ \
-              -win32icon:clients/Desktop/src-tauri/icons/icon.ico \
+              -win32icon:'clients\Desktop\src-tauri\icons\icon.ico' \
               -r:System.Windows.Forms.dll -r:System.Drawing.dll \
-              -out:dist/pkg/Balacopapo-Utilidades.exe \
-              packages/utilities/launcher/Launcher.cs
+              -out:'dist\pkg\Balacopapo-Utilidades.exe' \
+              'packages\utilities\launcher\Launcher.cs'
           else
             printf '#!/bin/sh\ncd "$(dirname "$0")/app" || exit 1\nexec "../runtime/bin/node" dist/index.js "$@"\n' > dist/pkg/balacopapo-utilidades
             chmod +x dist/pkg/balacopapo-utilidades
