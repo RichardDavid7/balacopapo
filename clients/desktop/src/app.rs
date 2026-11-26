@@ -426,21 +426,31 @@ impl BalacopapoApp {
                 channel_name,
                 result,
             } => {
+                let mut fetch_music: Option<(String, String, String)> = None;
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.voice.connecting = false;
                     match result {
                         Ok(resp) => {
                             shell.voice.error = None;
-                            shell.voice.connected_channel_id = Some(channel_id);
+                            shell.voice.connected_channel_id = Some(channel_id.clone());
                             shell.voice.connected_channel_name = Some(channel_name);
                             shell.voice.livekit_url = Some(resp.url);
+                            fetch_music = Some((
+                                shell.instance_url.clone(),
+                                self.config.auth_token.clone().unwrap_or_default(),
+                                channel_id,
+                            ));
                         }
                         Err(err) => {
                             shell.voice.error = Some(err);
                         }
                     }
                 }
-                Task::none()
+                if let Some((url, token, ch_id)) = fetch_music {
+                    Self::load_music_task(url, token, ch_id)
+                } else {
+                    Task::none()
+                }
             }
             Message::SoundboardLoaded(result) => {
                 if let Screen::Shell(shell) = &mut self.screen {
@@ -718,6 +728,17 @@ impl BalacopapoApp {
                 }
                 for (uid, st) in voice_user_states {
                     shell.voice_user_states.insert(uid, st);
+                }
+                Task::none()
+            }
+            WsEvent::MusicStateUpdated(st) => {
+                let matches_connected = shell.voice.connected_channel_id.as_deref()
+                    == Some(st.channel_id.as_str())
+                    || shell.voice.connected_channel_id.is_none();
+                if matches_connected {
+                    shell.settings.vote_skip_input = st.vote_skip_percent.to_string();
+                    shell.music.state = st;
+                    shell.music.error = None;
                 }
                 Task::none()
             }
@@ -1143,6 +1164,41 @@ impl BalacopapoApp {
                 }
                 Task::none()
             }
+            VoiceAction::ToggleAudioSettings => {
+                shell.voice.show_audio_settings = !shell.voice.show_audio_settings;
+                Task::none()
+            }
+            VoiceAction::OpenStreamPanel => {
+                shell.active_panel = ActivePanel::Stream;
+                Task::none()
+            }
+            VoiceAction::OpenSoundboardPanel => {
+                shell.active_panel = ActivePanel::Soundboard;
+                if shell.soundboard.sounds.is_empty() {
+                    shell.soundboard.loading = true;
+                    let url = shell.instance_url.clone();
+                    let token = self.config.auth_token.clone().unwrap_or_default();
+                    let space_id = shell.selected_group_id.clone();
+                    return Self::load_soundboard_task(url, token, space_id);
+                }
+                Task::none()
+            }
+            VoiceAction::OpenMusicPanel => {
+                shell.active_panel = ActivePanel::Music;
+                if let Some(ch_id) = shell.voice.connected_channel_id.clone() {
+                    let url = shell.instance_url.clone();
+                    let token = self.config.auth_token.clone().unwrap_or_default();
+                    return Self::load_music_task(url, token, ch_id);
+                }
+                Task::none()
+            }
+            VoiceAction::UserVolumeChanged {
+                user_id,
+                volume_pct,
+            } => {
+                shell.voice.user_volumes.insert(user_id, volume_pct);
+                Task::none()
+            }
             VoiceAction::RefreshDevices => {
                 shell.voice.input_devices = audio_engine::list_input_devices();
                 shell.voice.output_devices = audio_engine::list_output_devices();
@@ -1473,6 +1529,19 @@ impl BalacopapoApp {
         let Screen::Shell(shell) = &mut self.screen else {
             return Task::none();
         };
+        if matches!(action, MusicAction::OpenFullPanel) {
+            shell.active_panel = ActivePanel::Music;
+            if let Some(ch_id) = shell.voice.connected_channel_id.clone() {
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                return Self::load_music_task(url, token, ch_id);
+            }
+            return Task::none();
+        }
+        if let MusicAction::UrlInputChanged(v) = action {
+            shell.music.track_url_input = v;
+            return Task::none();
+        }
         let Some(channel_id) = shell.voice.connected_channel_id.clone() else {
             return Task::none();
         };
@@ -1480,10 +1549,7 @@ impl BalacopapoApp {
         let token = self.config.auth_token.clone().unwrap_or_default();
 
         match action {
-            MusicAction::UrlInputChanged(v) => {
-                shell.music.track_url_input = v;
-                Task::none()
-            }
+            MusicAction::UrlInputChanged(_) | MusicAction::OpenFullPanel => Task::none(),
             MusicAction::AddToQueue => {
                 let track_url = shell.music.track_url_input.trim().to_string();
                 if track_url.is_empty() {
@@ -1509,7 +1575,7 @@ impl BalacopapoApp {
                 Task::perform(
                     async move {
                         let client = ApiClient::new(url, Some(token))?;
-                        client.control_music(&channel_id, cmd).await
+                        client.control_music(&channel_id, cmd, None).await
                     },
                     Message::MusicCommandDone,
                 )
@@ -1529,7 +1595,70 @@ impl BalacopapoApp {
                 Task::perform(
                     async move {
                         let client = ApiClient::new(url, Some(token))?;
-                        client.control_music(&channel_id, "stop").await
+                        client.control_music(&channel_id, "stop", None).await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::CycleLoop => {
+                shell.music.busy = true;
+                let next = match shell.music.state.loop_mode.as_str() {
+                    "off" | "" => "track",
+                    "track" => "queue",
+                    _ => "off",
+                };
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client
+                            .control_music(
+                                &channel_id,
+                                "loop",
+                                Some(serde_json::Value::String(next.to_string())),
+                            )
+                            .await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::VolumeChanged(vol) => {
+                shell.music.state.volume = vol;
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client
+                            .control_music(
+                                &channel_id,
+                                "volume",
+                                Some(serde_json::Value::from(vol)),
+                            )
+                            .await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::RemoveTrack(idx) => {
+                shell.music.busy = true;
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client
+                            .control_music(
+                                &channel_id,
+                                "queue_remove",
+                                Some(serde_json::Value::from(idx)),
+                            )
+                            .await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::ClearQueue => {
+                shell.music.busy = true;
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.control_music(&channel_id, "queue_clear", None).await
                     },
                     Message::MusicCommandDone,
                 )

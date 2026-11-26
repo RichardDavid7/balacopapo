@@ -587,14 +587,23 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn control_music(&self, channel_id: &str, action: &str) -> Result<(), String> {
+    pub async fn control_music(
+        &self,
+        channel_id: &str,
+        action: &str,
+        value: Option<serde_json::Value>,
+    ) -> Result<(), String> {
         let token = self.require_token()?;
         let url = format!("{}/api/channels/{channel_id}/music/control", self.base_url);
+        let body = match value {
+            Some(v) => json!({ "action": action, "value": v }),
+            None => json!({ "action": action }),
+        };
         let resp = self
             .http
             .post(&url)
             .bearer_auth(token)
-            .json(&json!({ "action": action }))
+            .json(&body)
             .send()
             .await
             .map_err(|e| format!("Erro no controle de música: {e}"))?;
@@ -612,11 +621,12 @@ impl ApiClient {
     ) -> Result<(), String> {
         let token = self.require_token()?;
         let url = format!("{}/api/channels/{channel_id}/music/settings", self.base_url);
+        let pct = vote_skip_percent.clamp(1, 100);
         let resp = self
             .http
             .patch(&url)
             .bearer_auth(token)
-            .json(&json!({ "voteSkipPercent": vote_skip_percent.clamp(1, 100) }))
+            .json(&json!({ "voteSkipThresholdPct": pct, "voteSkipPercent": pct }))
             .send()
             .await
             .map_err(|e| format!("Erro ao salvar Vote-Skip: {e}"))?;

@@ -340,20 +340,28 @@ impl DmChannelSummary {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MusicTrack {
+    #[serde(default)]
+    pub id: String,
     #[serde(default)]
     pub title: String,
     #[serde(default)]
     pub url: String,
     #[serde(default)]
     pub requested_by: Option<String>,
+    #[serde(default)]
+    pub duration_seconds: Option<u32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MusicChannelState {
+    #[serde(default)]
+    pub channel_id: String,
     #[serde(default)]
     pub status: String,
     #[serde(default)]
@@ -362,8 +370,14 @@ pub struct MusicChannelState {
     pub queue: Vec<MusicTrack>,
     #[serde(default = "default_music_volume")]
     pub volume: u32,
-    #[serde(default = "default_vote_skip")]
+    #[serde(default)]
+    pub loop_mode: String,
+    #[serde(default = "default_vote_skip", alias = "voteSkipThresholdPct")]
     pub vote_skip_percent: u32,
+    #[serde(default)]
+    pub listener_count: u32,
+    #[serde(default)]
+    pub skip_votes: Vec<String>,
     #[serde(default)]
     pub bot_connected: bool,
 }
@@ -418,6 +432,7 @@ pub enum WsEvent {
         voice_states: HashMap<String, Vec<String>>,
         voice_user_states: HashMap<String, VoiceUserMediaState>,
     },
+    MusicStateUpdated(MusicChannelState),
 }
 
 /// Decodifica um frame JSON do servidor sem nunca falhar em eventos desconhecidos.
@@ -501,6 +516,11 @@ pub fn parse_ws_server_event(raw: &str) -> Option<WsEvent> {
                 voice_states,
                 voice_user_states,
             })
+        }
+        "music_state_updated" => {
+            let state: MusicChannelState =
+                serde_json::from_value(val.get("state")?.clone()).ok()?;
+            Some(WsEvent::MusicStateUpdated(state))
         }
         _ => None,
     }

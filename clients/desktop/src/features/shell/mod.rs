@@ -13,7 +13,7 @@ use crate::features::p2p::{self, P2PAction, P2PState};
 use crate::features::settings::{self, SettingsAction, SettingsState};
 use crate::features::soundboard::{self, SoundboardAction, SoundboardState};
 use crate::features::stream::{self, StreamAction, StreamState};
-use crate::features::voice::{self, VoiceAction, VoiceState};
+use crate::features::voice::{self, VoiceAction, VoiceParticipantCard, VoiceState};
 use crate::os::updater::UpdateCheckState;
 use crate::ui::{aether_drift, icons};
 
@@ -21,6 +21,7 @@ use crate::ui::{aether_drift, icons};
 pub enum ActivePanel {
     Channel,
     Dms,
+    Music,
     Soundboard,
     Stream,
     P2P,
@@ -587,6 +588,10 @@ pub fn view<'a>(
             icons::monitor(17.0, aether_drift::TEXT_MUTED).into(),
             "Vídeo & Transmissão de Tela".to_string(),
         ),
+        ActivePanel::Music => (
+            icons::music(17.0, aether_drift::TEXT_MUTED).into(),
+            "Bot de Música".to_string(),
+        ),
         ActivePanel::Soundboard => (
             icons::music(17.0, aether_drift::TEXT_MUTED).into(),
             "Soundboard & Editor WAV".to_string(),
@@ -754,6 +759,13 @@ pub fn view<'a>(
         .padding(18)
         .height(Length::Fill)
         .into(),
+        ActivePanel::Music => container(
+            music::view_full_panel(&state.music, state.voice.connected_channel_name.as_deref())
+                .map(ShellMessage::Music),
+        )
+        .padding(18)
+        .height(Length::Fill)
+        .into(),
         ActivePanel::Soundboard => {
             container(soundboard::view(&state.soundboard).map(ShellMessage::Soundboard))
                 .padding(18)
@@ -763,9 +775,9 @@ pub fn view<'a>(
         ActivePanel::Channel => {
             if let Some(ch) = selected_channel {
                 if ch.kind == "voice" {
+                    let participants = build_voice_participants(state, selected_group, &ch.id);
                     container(
-                        scrollable(voice::view(&state.voice, ch).map(ShellMessage::Voice))
-                            .height(Length::Fill),
+                        voice::view(&state.voice, ch, participants).map(ShellMessage::Voice),
                     )
                     .padding(18)
                     .height(Length::Fill)
@@ -891,6 +903,72 @@ fn parse_hex_color(hex: &str) -> Option<Color> {
     let g = u8::from_str_radix(&clean[2..4], 16).ok()?;
     let b = u8::from_str_radix(&clean[4..6], 16).ok()?;
     Some(Color::from_rgb8(r, g, b))
+}
+
+fn build_voice_participants<'a>(
+    state: &'a ShellState,
+    group: Option<&'a GroupSummary>,
+    channel_id: &str,
+) -> Vec<VoiceParticipantCard<'a>> {
+    let mut cards = Vec::new();
+    let mut seen_self = false;
+
+    if let Some(user_ids) = state.voice_states.get(channel_id) {
+        for uid in user_ids {
+            let is_self = uid == &state.user.id;
+            if is_self {
+                seen_self = true;
+            }
+            let member = group.and_then(|g| g.members.iter().find(|m| m.user_id == *uid));
+            let (display_name, avatar_url) = if let Some(m) = member {
+                (m.display_name().to_string(), m.user.avatar_url.as_deref())
+            } else if is_self {
+                (
+                    state.user.label().to_string(),
+                    state.user.avatar_url.as_deref(),
+                )
+            } else {
+                (uid.clone(), None)
+            };
+            let media = state.voice_user_states.get(uid);
+            cards.push(VoiceParticipantCard {
+                user_id: uid.as_str(),
+                display_name,
+                avatar: avatar_url.and_then(|u| state.image_cache.get(u)).cloned(),
+                is_muted: if is_self {
+                    state.voice.muted
+                } else {
+                    media.is_some_and(|m| m.is_muted)
+                },
+                is_deafened: if is_self {
+                    state.voice.deafened
+                } else {
+                    media.is_some_and(|m| m.is_deafened)
+                },
+                is_screen_sharing: media.is_some_and(|m| m.is_screen_sharing),
+                is_self,
+            });
+        }
+    }
+
+    if !seen_self && state.voice.connected_channel_id.as_deref() == Some(channel_id) {
+        cards.push(VoiceParticipantCard {
+            user_id: state.user.id.as_str(),
+            display_name: state.user.label().to_string(),
+            avatar: state
+                .user
+                .avatar_url
+                .as_deref()
+                .and_then(|u| state.image_cache.get(u))
+                .cloned(),
+            is_muted: state.voice.muted,
+            is_deafened: state.voice.deafened,
+            is_screen_sharing: state.stream.sharing_active,
+            is_self: true,
+        });
+    }
+
+    cards
 }
 
 fn voice_participants_rows<'a>(
