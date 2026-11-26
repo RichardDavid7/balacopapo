@@ -88,6 +88,8 @@ pub struct AuthUser {
     #[serde(default)]
     pub display_name: Option<String>,
     #[serde(default)]
+    pub avatar_url: Option<String>,
+    #[serde(default)]
     pub status: Option<String>,
 }
 
@@ -116,6 +118,60 @@ pub struct ChannelCategory {
     pub position: i32,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSummary {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub position: i32,
+    #[serde(default)]
+    pub hoist: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupMember {
+    pub user_id: String,
+    #[serde(default)]
+    pub nickname: Option<String>,
+    pub user: AuthUser,
+    #[serde(default)]
+    pub roles: Vec<RoleSummary>,
+}
+
+impl GroupMember {
+    pub fn display_name(&self) -> &str {
+        self.nickname
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| self.user.label())
+    }
+
+    pub fn is_online(&self) -> bool {
+        !matches!(
+            self.user
+                .status
+                .as_deref()
+                .unwrap_or("offline")
+                .to_ascii_lowercase()
+                .as_str(),
+            "offline" | "invisible"
+        )
+    }
+
+    pub fn color_hex(&self) -> Option<&str> {
+        self.roles
+            .iter()
+            .filter(|r| r.color.as_deref().is_some_and(|c| !c.is_empty()))
+            .max_by_key(|r| r.position)
+            .and_then(|r| r.color.as_deref())
+    }
+}
+
 /// Um "Grupo" no Balacopapo (campo `spaces` na API REST por compatibilidade).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -123,9 +179,29 @@ pub struct GroupSummary {
     pub id: String,
     pub name: String,
     #[serde(default)]
+    pub icon_url: Option<String>,
+    #[serde(default)]
     pub categories: Vec<ChannelCategory>,
     #[serde(default)]
     pub channels: Vec<ChannelSummary>,
+    #[serde(default)]
+    pub roles: Vec<RoleSummary>,
+    #[serde(default)]
+    pub members: Vec<GroupMember>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceUserMediaState {
+    #[serde(default)]
+    pub is_muted: bool,
+    #[serde(default)]
+    pub is_deafened: bool,
+    #[serde(default)]
+    pub is_camera_on: bool,
+    #[serde(default)]
+    pub is_screen_sharing: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -318,7 +394,10 @@ pub enum WsEvent {
     Ready {
         user: AuthUser,
         groups: Vec<GroupSummary>,
+        dm_channels: Vec<DmChannelSummary>,
         unread_counts: HashMap<String, u32>,
+        voice_states: HashMap<String, Vec<String>>,
+        voice_user_states: HashMap<String, VoiceUserMediaState>,
     },
     MessageCreated(ChatMessage),
     MessageUpdated(ChatMessage),
@@ -329,6 +408,15 @@ pub enum WsEvent {
     PresenceUpdate {
         user_id: String,
         status: String,
+    },
+    VoiceStateUpdate {
+        channel_id: String,
+        user_id: String,
+        action: String,
+    },
+    SpaceVoiceState {
+        voice_states: HashMap<String, Vec<String>>,
+        voice_user_states: HashMap<String, VoiceUserMediaState>,
     },
 }
 
@@ -344,14 +432,29 @@ pub fn parse_ws_server_event(raw: &str) -> Option<WsEvent> {
                 .get("spaces")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
+            let dm_channels: Vec<DmChannelSummary> = val
+                .get("dmChannels")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
             let unread_counts: HashMap<String, u32> = val
                 .get("unreadCounts")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let voice_states: HashMap<String, Vec<String>> = val
+                .get("voiceStates")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let voice_user_states: HashMap<String, VoiceUserMediaState> = val
+                .get("voiceUserStates")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
             Some(WsEvent::Ready {
                 user,
                 groups,
+                dm_channels,
                 unread_counts,
+                voice_states,
+                voice_user_states,
             })
         }
         "message_created" => {
@@ -374,6 +477,30 @@ pub fn parse_ws_server_event(raw: &str) -> Option<WsEvent> {
             let user_id = val.get("userId")?.as_str()?.to_string();
             let status = val.get("status")?.as_str()?.to_string();
             Some(WsEvent::PresenceUpdate { user_id, status })
+        }
+        "voice_state_update" => {
+            let channel_id = val.get("channelId")?.as_str()?.to_string();
+            let user_id = val.get("userId")?.as_str()?.to_string();
+            let action = val.get("action")?.as_str()?.to_string();
+            Some(WsEvent::VoiceStateUpdate {
+                channel_id,
+                user_id,
+                action,
+            })
+        }
+        "space_voice_state" => {
+            let voice_states: HashMap<String, Vec<String>> = val
+                .get("voiceStates")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let voice_user_states: HashMap<String, VoiceUserMediaState> = val
+                .get("voiceUserStates")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            Some(WsEvent::SpaceVoiceState {
+                voice_states,
+                voice_user_states,
+            })
         }
         _ => None,
     }

@@ -649,12 +649,42 @@ impl ApiClient {
             .json()
             .await
             .map_err(|e| format!("Erro ao ler chaves de API: {e}"))?;
-        if let Some(arr) = val.get("keys") {
+        if let Some(arr) = val.get("apiKeys").or_else(|| val.get("keys")) {
             serde_json::from_value(arr.clone())
                 .map_err(|e| format!("Erro ao interpretar chaves: {e}"))
         } else {
             serde_json::from_value(val).map_err(|e| format!("Erro ao interpretar chaves: {e}"))
         }
+    }
+
+    /// Baixa bytes de uma imagem (ícone de Grupo ou avatar de usuário), suportando caminhos relativos.
+    pub async fn fetch_image_bytes(&self, url_or_path: &str) -> Result<Vec<u8>, String> {
+        let trimmed = url_or_path.trim();
+        if trimmed.is_empty() {
+            return Err("URL de imagem vazia".to_string());
+        }
+        let full_url = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+            trimmed.to_string()
+        } else {
+            format!("{}/{}", self.base_url, trimmed.trim_start_matches('/'))
+        };
+        let mut req = self.http.get(&full_url);
+        if full_url.starts_with(&self.base_url) {
+            if let Some(tok) = self.token.as_deref().filter(|t| !t.is_empty()) {
+                req = req.bearer_auth(tok);
+            }
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao baixar imagem: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!("Imagem indisponível (HTTP {})", resp.status().as_u16()));
+        }
+        resp.bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| format!("Erro ao ler bytes da imagem: {e}"))
     }
 
     fn require_token(&self) -> Result<&str, String> {

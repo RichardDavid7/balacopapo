@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Balacopapo
+Comment=Cliente desktop 100% nativo em Rust para o Balacopapo
+Exec=%h/.local/bin/balacopapo %u
+Icon=balacopapo
+Terminal=false
+Categories=Network;InstantMessaging;AudioVideo;
+MimeType=x-scheme-handler/balacopapo;
+StartupWMClass=balacopapo-desktop

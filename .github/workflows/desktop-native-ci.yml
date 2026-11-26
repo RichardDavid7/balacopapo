@@ -74,30 +74,41 @@ jobs:
         shell: bash
         run: BALACOPAPO_BUILD_SHA="${GITHUB_SHA::7}" cargo build --release
 
-      - name: Package Windows Binary
+      - name: Package Windows Installer & Portable Binary
         if: matrix.target == 'windows-x64'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item target\release\balacopapo-desktop.exe "dist\Balacopapo-Desktop-windows-x64.exe"
           Compress-Archive -Path "dist\Balacopapo-Desktop-windows-x64.exe" -DestinationPath "dist\Balacopapo-Desktop-windows-x64.zip" -Force
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (Test-Path $iscc) {
+            & $iscc "packaging\windows\balacopapo.iss"
+          } else {
+            choco install innosetup -y
+            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows\balacopapo.iss"
+          }
 
-      - name: Package Linux Binary
+      - name: Package Linux Installer & Binary
         if: matrix.target == 'linux-x64'
         run: |
-          mkdir -p dist
+          mkdir -p dist/linux-pkg
           cp target/release/balacopapo-desktop "dist/Balacopapo-Desktop-linux-x64"
           chmod +x "dist/Balacopapo-Desktop-linux-x64"
-          cp target/release/balacopapo-desktop "dist/balacopapo-desktop"
-          tar -czf "dist/Balacopapo-Desktop-linux-x64.tar.gz" -C dist balacopapo-desktop
-          rm -f dist/balacopapo-desktop
+          cp target/release/balacopapo-desktop "dist/linux-pkg/balacopapo-desktop"
+          cp packaging/linux/balacopapo.desktop "dist/linux-pkg/balacopapo.desktop"
+          cp packaging/linux/install.sh "dist/linux-pkg/install.sh"
+          cp assets/snafuonda.ico "dist/linux-pkg/snafuonda.ico"
+          chmod +x "dist/linux-pkg/balacopapo-desktop" "dist/linux-pkg/install.sh"
+          tar -czf "dist/Balacopapo-Desktop-linux-x64.tar.gz" -C dist/linux-pkg .
+          rm -rf dist/linux-pkg
 
       - name: Upload Desktop Artifact
         uses: actions/upload-artifact@v7
         with:
           name: balacopapo-desktop-${{ matrix.target }}
           path: |
-            clients/desktop/dist/Balacopapo-Desktop-*
+            clients/desktop/dist/Balacopapo-*
 
   publish-edge:
     name: Publicar Balacopapo Desktop (Edge)
@@ -119,7 +130,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="desktop-edge"
           TITLE="Balacopapo Desktop (Edge — ${SHORT_SHA})"
-          NOTES="Cliente desktop 100% Nativo em Rust (Iced + wgpu, Zero WebView / Zero Electron) para Windows e Linux (Fedora, CachyOS/Arch) — commit ${SHORT_SHA}. Windows: execute Balacopapo-Desktop-windows-x64.exe diretamente (auto-update silencioso). Linux: baixe Balacopapo-Desktop-linux-x64 (ou .tar.gz), dê chmod +x e execute."
+          NOTES="Cliente desktop 100% Nativo em Rust (Iced + wgpu, Zero WebView / Zero Electron) para Windows e Linux (Fedora, CachyOS/Arch) — commit ${SHORT_SHA}. Windows: baixe e instale com Balacopapo-Setup-windows-x64.exe (Menu Iniciar, Area de Trabalho, balacopapo:// e auto-update silencioso) ou use a versao portable .exe/.zip. Linux: extraia Balacopapo-Desktop-linux-x64.tar.gz e rode ./install.sh."
 
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"

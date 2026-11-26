@@ -145,9 +145,13 @@ fn select_platform_asset(assets: &[GithubAsset]) -> Option<&GithubAsset> {
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     let suffix = "-macos";
 
-    assets
-        .iter()
-        .find(|a| a.name.ends_with(suffix) && !a.name.ends_with(".tar.gz") && !a.name.ends_with(".zip"))
+    assets.iter().find(|a| {
+        let lower = a.name.to_ascii_lowercase();
+        a.name.ends_with(suffix)
+            && !lower.contains("setup")
+            && !lower.ends_with(".tar.gz")
+            && !lower.ends_with(".zip")
+    })
 }
 
 /// Verifica e já baixa silenciosamente a nova versão em segundo plano (sem interromper o usuário).

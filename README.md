@@ -13,7 +13,7 @@ Código aberto (**AGPL-3.0**), feita para grupos e comunidades privadas com cont
 
 ### Baixar Agora
 
-[![Baixar para Windows](https://img.shields.io/badge/Windows-Download%20Direto%20(.exe)-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-windows-x64.exe)
+[![Baixar para Windows](https://img.shields.io/badge/Windows-Instalador%20(.exe)-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Setup-windows-x64.exe)
 [![Baixar para Linux](https://img.shields.io/badge/Linux%20(Fedora%20%2F%20CachyOS)-Download%20Direto%20(.tar.gz)-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-linux-x64.tar.gz)
 [![Baixar para Android](https://img.shields.io/badge/Android-Baixar%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=black)](https://github.com/RichardDavid7/balacopapo/releases/latest)
 
@@ -36,8 +36,8 @@ Todas as versões oficiais são publicadas juntas na página de [Releases](https
 
 | Plataforma | Atalho Rápido | Artefatos | Origem no repositório |
 |---|---|---|---|
-| **Windows (x64)** | [Download Direto `.exe`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-windows-x64.exe) · [`.zip`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-windows-x64.zip) | Executável único nativo (Rust + Iced, Zero WebView, auto-update silencioso) | `clients/desktop` |
-| **Linux (Fedora / CachyOS / x64)** | [Download Direto `.tar.gz`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-linux-x64.tar.gz) · [Binário `x64`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-linux-x64) | Binário nativo Wayland/Vulkan (Zero WebKitGTK, auto-update silencioso) | `clients/desktop` |
+| **Windows (x64)** | [Instalador `.exe`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Setup-windows-x64.exe) · [Portable `.zip`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-windows-x64.zip) | Instalador nativo (Menu Iniciar, Área de Trabalho, `balacopapo://`, auto-update silencioso) | `clients/desktop` |
+| **Linux (Fedora / CachyOS / x64)** | [Pacote `.tar.gz` (`install.sh`)](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-linux-x64.tar.gz) · [Binário `x64`](https://github.com/RichardDavid7/balacopapo/releases/download/desktop-edge/Balacopapo-Desktop-linux-x64) | Binário nativo Wayland/Vulkan + `.desktop` + `install.sh` (Zero WebKitGTK) | `clients/desktop` |
 | **Android** | [Baixar último APK](https://github.com/RichardDavid7/balacopapo/releases/latest) | `.apk` (compatível com Obtainium) + `SHA256SUMS` | `clients/android` (Kotlin + Jetpack Compose) |
 | **Balacopapo Utilidades (Win/Linux)** | [Windows `.zip`](https://github.com/RichardDavid7/balacopapo/releases/download/utilities-edge/balacopapo-utilidades-windows-x64.zip) · [Linux `.tar.gz`](https://github.com/RichardDavid7/balacopapo/releases/download/utilities-edge/balacopapo-utilidades-linux-x64.tar.gz) | App companheiro (Tauri v2 + Node embutido) | `packages/utilities` |
 | **Servidor + Web (PWA)** | [Pacote GHCR](https://github.com/RichardDavid7/balacopapo/pkgs/container/balacopapo) | `ghcr.io/richarddavid7/balacopapo:latest` (`amd64` / `arm64`) | `packages/server`, `packages/web`, `packages/shared` |

@@ -1,5 +1,7 @@
-use iced::widget::{button, column, container, horizontal_space, row, scrollable, text, text_input};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
+use iced::widget::{
+    button, column, container, horizontal_space, image, row, scrollable, text, text_input,
+};
+use iced::{Alignment, Background, Border, Color, ContentFit, Element, Length, Padding};
 use std::collections::HashMap;
 
 use crate::core::models::ChatMessage;
@@ -86,6 +88,7 @@ pub fn view<'a>(
     channel_id: &'a str,
     channel_label: &'a str,
     current_user_id: &'a str,
+    image_cache: &'a HashMap<String, image::Handle>,
 ) -> Element<'a, ChatMessageAction> {
     let messages = state
         .messages_by_channel
@@ -163,23 +166,49 @@ pub fn view<'a>(
                 .spacing(0);
                 feed = feed.push(container(line).padding([1, 0]));
             } else {
-                let avatar = container(
-                    text(initials_of(author))
-                        .size(12)
-                        .color(Color::WHITE),
-                )
-                .width(Length::Fixed(34.0))
-                .height(Length::Fixed(34.0))
-                .center(Length::Fixed(34.0))
-                .style(|_t| container::Style {
-                    background: Some(Background::Color(aether_drift::SURFACE_ELEVATED)),
-                    border: Border {
-                        color: aether_drift::BORDER_SUBTLE,
-                        width: 1.0,
-                        radius: 17.0.into(),
-                    },
-                    ..Default::default()
-                });
+                let avatar_handle = msg
+                    .user
+                    .as_ref()
+                    .and_then(|u| u.avatar_url.as_deref())
+                    .and_then(|url| image_cache.get(url));
+                let avatar: Element<'a, ChatMessageAction> = if let Some(handle) = avatar_handle {
+                    container(
+                        image(handle.clone())
+                            .width(Length::Fixed(34.0))
+                            .height(Length::Fixed(34.0))
+                            .content_fit(ContentFit::Cover),
+                    )
+                    .width(Length::Fixed(34.0))
+                    .height(Length::Fixed(34.0))
+                    .clip(true)
+                    .style(|_t| container::Style {
+                        border: Border {
+                            radius: 17.0.into(),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .into()
+                } else {
+                    container(
+                        text(initials_of(author))
+                            .size(12)
+                            .color(Color::WHITE),
+                    )
+                    .width(Length::Fixed(34.0))
+                    .height(Length::Fixed(34.0))
+                    .center(Length::Fixed(34.0))
+                    .style(|_t| container::Style {
+                        background: Some(Background::Color(aether_drift::SURFACE_ELEVATED)),
+                        border: Border {
+                            color: aether_drift::BORDER_SUBTLE,
+                            width: 1.0,
+                            radius: 17.0.into(),
+                        },
+                        ..Default::default()
+                    })
+                    .into()
+                };
 
                 let mut head = row![
                     text(author).size(14).color(aether_drift::TEXT_PRIMARY),

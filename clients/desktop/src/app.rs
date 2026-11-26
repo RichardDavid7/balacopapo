@@ -77,6 +77,10 @@ pub enum Message {
     MusicCommandDone(Result<(), String>),
     VoteSkipSaved(Result<u32, String>),
     ApiKeysLoaded(Result<Vec<SpaceApiKeySummary>, String>),
+    ImageLoaded {
+        key: String,
+        bytes: Option<Vec<u8>>,
+    },
     UpdateChecked(UpdateCheckState),
 }
 
@@ -285,12 +289,16 @@ impl BalacopapoApp {
                         }
                     }
                 }
+                let img_task = self.enqueue_images_for_shell();
                 if let Some((url, token, space_id)) = auto_fetch_detail {
-                    Self::load_group_detail_task(url, token, space_id)
+                    Task::batch([Self::load_group_detail_task(url, token, space_id), img_task])
                 } else if let Some((url, token, channel_id)) = auto_fetch_msgs {
-                    Self::load_messages_task(url, token, channel_id, None, false)
+                    Task::batch([
+                        Self::load_messages_task(url, token, channel_id, None, false),
+                        img_task,
+                    ])
                 } else {
-                    Task::none()
+                    img_task
                 }
             }
             Message::GroupDetailLoaded(result) => {
@@ -333,10 +341,14 @@ impl BalacopapoApp {
                         }
                     }
                 }
+                let img_task = self.enqueue_images_for_shell();
                 if let Some((url, token, channel_id)) = auto_fetch_msgs {
-                    Self::load_messages_task(url, token, channel_id, None, false)
+                    Task::batch([
+                        Self::load_messages_task(url, token, channel_id, None, false),
+                        img_task,
+                    ])
                 } else {
-                    Task::none()
+                    img_task
                 }
             }
             Message::MessagesLoaded {
@@ -360,7 +372,7 @@ impl BalacopapoApp {
                         }
                     }
                 }
-                Task::none()
+                self.enqueue_images_for_shell()
             }
             Message::ChatSent(result) => {
                 if let Screen::Shell(shell) = &mut self.screen {
@@ -480,7 +492,7 @@ impl BalacopapoApp {
                         Err(err) => shell.dm.error = Some(err),
                     }
                 }
-                Task::none()
+                self.enqueue_images_for_shell()
             }
             Message::MusicStateLoaded(result) => {
                 if let Screen::Shell(shell) = &mut self.screen {
@@ -534,8 +546,23 @@ impl BalacopapoApp {
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.settings.loading_keys = false;
                     match result {
-                        Ok(keys) => shell.settings.api_keys = keys,
-                        Err(err) => shell.error = Some(err),
+                        Ok(keys) => {
+                            shell.settings.api_keys_error = None;
+                            shell.settings.api_keys = keys;
+                        }
+                        Err(err) => {
+                            shell.settings.api_keys_error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::ImageLoaded { key, bytes } => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    if let Some(raw) = bytes {
+                        shell
+                            .image_cache
+                            .insert(key, iced::widget::image::Handle::from_bytes(raw));
                     }
                 }
                 Task::none()
@@ -579,12 +606,21 @@ impl BalacopapoApp {
             WsEvent::Ready {
                 user,
                 groups,
+                dm_channels,
                 unread_counts,
+                voice_states,
+                voice_user_states,
             } => {
                 shell.presence = PresenceStatus::from_api_str(user.status.as_deref());
                 shell.user = user;
                 shell.unread_counts = unread_counts;
+                shell.voice_states = voice_states;
+                shell.voice_user_states = voice_user_states;
                 shell.loading_groups = false;
+                if !dm_channels.is_empty() {
+                    shell.dm.channels = dm_channels;
+                    shell.dm.loading = false;
+                }
                 let mut auto_fetch_msgs: Option<(String, String, String)> = None;
                 if !groups.is_empty() {
                     if shell.selected_group_id.is_none() {
@@ -614,10 +650,14 @@ impl BalacopapoApp {
                     }
                     shell.groups = groups;
                 }
+                let img_task = self.enqueue_images_for_shell();
                 if let Some((url, token, channel_id)) = auto_fetch_msgs {
-                    Self::load_messages_task(url, token, channel_id, None, false)
+                    Task::batch([
+                        Self::load_messages_task(url, token, channel_id, None, false),
+                        img_task,
+                    ])
                 } else {
-                    Task::none()
+                    img_task
                 }
             }
             WsEvent::MessageCreated(msg) => {
@@ -627,7 +667,7 @@ impl BalacopapoApp {
                     *shell.unread_counts.entry(msg.channel_id.clone()).or_insert(0) += 1;
                 }
                 shell.chat.upsert_message(msg);
-                Task::none()
+                self.enqueue_images_for_shell()
             }
             WsEvent::MessageUpdated(msg) => {
                 shell.chat.upsert_message(msg);
@@ -643,6 +683,41 @@ impl BalacopapoApp {
             WsEvent::PresenceUpdate { user_id, status } => {
                 if user_id == shell.user.id {
                     shell.presence = PresenceStatus::from_api_str(Some(&status));
+                }
+                for group in &mut shell.groups {
+                    for m in &mut group.members {
+                        if m.user_id == user_id {
+                            m.user.status = Some(status.clone());
+                        }
+                    }
+                }
+                Task::none()
+            }
+            WsEvent::VoiceStateUpdate {
+                channel_id,
+                user_id,
+                action,
+            } => {
+                for users in shell.voice_states.values_mut() {
+                    users.retain(|u| u != &user_id);
+                }
+                if action == "join" {
+                    let entry = shell.voice_states.entry(channel_id).or_default();
+                    if !entry.contains(&user_id) {
+                        entry.push(user_id);
+                    }
+                }
+                Task::none()
+            }
+            WsEvent::SpaceVoiceState {
+                voice_states,
+                voice_user_states,
+            } => {
+                for (ch_id, users) in voice_states {
+                    shell.voice_states.insert(ch_id, users);
+                }
+                for (uid, st) in voice_user_states {
+                    shell.voice_user_states.insert(uid, st);
                 }
                 Task::none()
             }
@@ -837,6 +912,10 @@ impl BalacopapoApp {
                     }
                     _ => Task::none(),
                 }
+            }
+            ShellMessage::ToggleMemberList => {
+                shell.show_member_list = !shell.show_member_list;
+                Task::none()
             }
             ShellMessage::SetStatus(status) => {
                 shell.status_picker_open = false;
@@ -1657,6 +1736,88 @@ impl BalacopapoApp {
             },
             std::convert::identity,
         )
+    }
+
+    fn enqueue_images_for_shell(&mut self) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        let mut candidates: Vec<String> = Vec::new();
+        if let Some(url) = shell.user.avatar_url.as_deref() {
+            candidates.push(url.to_string());
+        }
+        for g in &shell.groups {
+            if let Some(url) = g.icon_url.as_deref() {
+                candidates.push(url.to_string());
+            }
+        }
+        for dm in &shell.dm.channels {
+            for u in &dm.members {
+                if let Some(url) = u.avatar_url.as_deref() {
+                    candidates.push(url.to_string());
+                }
+            }
+        }
+        if let Some(sel_id) = shell.selected_group_id.as_deref() {
+            if let Some(g) = shell.groups.iter().find(|g| g.id == sel_id) {
+                for m in &g.members {
+                    if let Some(url) = m.user.avatar_url.as_deref() {
+                        candidates.push(url.to_string());
+                    }
+                }
+            }
+        }
+        let active_ch = if shell.active_panel == ActivePanel::Dms {
+            shell.dm.selected_dm_id.as_deref()
+        } else {
+            shell.selected_channel_id.as_deref()
+        };
+        if let Some(ch_id) = active_ch {
+            if let Some(msgs) = shell.chat.messages_by_channel.get(ch_id) {
+                for msg in msgs {
+                    if let Some(url) = msg.user.as_ref().and_then(|u| u.avatar_url.as_deref()) {
+                        candidates.push(url.to_string());
+                    }
+                }
+            }
+        }
+
+        let base_url = shell.instance_url.clone();
+        let token = self.config.auth_token.clone().unwrap_or_default();
+        let mut tasks = Vec::new();
+
+        for raw in candidates {
+            let key = raw.trim().to_string();
+            if key.is_empty()
+                || shell.image_cache.contains_key(&key)
+                || shell.image_pending.contains(&key)
+            {
+                continue;
+            }
+            shell.image_pending.insert(key.clone());
+            let base = base_url.clone();
+            let tok = token.clone();
+            tasks.push(Task::perform(
+                async move {
+                    let bytes = match ApiClient::new(base, Some(tok)) {
+                        Ok(client) => client.fetch_image_bytes(&key).await.ok(),
+                        Err(_) => None,
+                    };
+                    Message::ImageLoaded { key, bytes }
+                },
+                std::convert::identity,
+            ));
+            if tasks.len() >= 32 {
+                break;
+            }
+        }
+
+        if tasks.is_empty() {
+            Task::none()
+        } else {
+            Task::batch(tasks)
+        }
     }
 
     fn load_soundboard_task(

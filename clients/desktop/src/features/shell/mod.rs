@@ -1,8 +1,10 @@
-use iced::widget::{button, column, container, horizontal_space, row, scrollable, text};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding};
-use std::collections::HashMap;
+use iced::widget::{button, column, container, horizontal_space, image, row, scrollable, text};
+use iced::{Alignment, Background, Border, Color, ContentFit, Element, Length, Padding};
+use std::collections::{HashMap, HashSet};
 
-use crate::core::models::{AuthUser, GroupSummary, PresenceStatus};
+use crate::core::models::{
+    AuthUser, GroupMember, GroupSummary, PresenceStatus, VoiceUserMediaState,
+};
 use crate::features::chat::{self, ChatMessageAction, ChatState};
 use crate::features::dm::{DmAction, DmState};
 use crate::features::music::{self, MusicAction, MusicUiState};
@@ -37,6 +39,11 @@ pub struct ShellState {
     pub ws_status_label: String,
     pub groups: Vec<GroupSummary>,
     pub unread_counts: HashMap<String, u32>,
+    pub voice_states: HashMap<String, Vec<String>>,
+    pub voice_user_states: HashMap<String, VoiceUserMediaState>,
+    pub image_cache: HashMap<String, image::Handle>,
+    pub image_pending: HashSet<String>,
+    pub show_member_list: bool,
     pub selected_group_id: Option<String>,
     pub selected_channel_id: Option<String>,
     pub chat: ChatState,
@@ -65,6 +72,11 @@ impl ShellState {
             ws_status_label: "Conectando...".to_string(),
             groups: Vec::new(),
             unread_counts: HashMap::new(),
+            voice_states: HashMap::new(),
+            voice_user_states: HashMap::new(),
+            image_cache: HashMap::new(),
+            image_pending: HashSet::new(),
+            show_member_list: true,
             selected_group_id: None,
             selected_channel_id: None,
             chat: ChatState::default(),
@@ -87,6 +99,7 @@ pub enum ShellMessage {
     SelectGroup(String),
     SelectChannel(String),
     TogglePanel(ActivePanel),
+    ToggleMemberList,
     RefreshGroups,
     ToggleStatusPicker,
     SetStatus(PresenceStatus),
@@ -165,16 +178,58 @@ pub fn view<'a>(
     for group in &state.groups {
         let active = !dm_active
             && state.selected_group_id.as_deref() == Some(group.id.as_str());
-        let g_btn = button(
+        let icon_content: Element<'a, ShellMessage> = if let Some(handle) = group
+            .icon_url
+            .as_deref()
+            .and_then(|u| state.image_cache.get(u))
+        {
+            container(
+                image(handle.clone())
+                    .width(Length::Fixed(46.0))
+                    .height(Length::Fixed(46.0))
+                    .content_fit(ContentFit::Cover),
+            )
+            .width(Length::Fixed(46.0))
+            .height(Length::Fixed(46.0))
+            .clip(true)
+            .style(move |_t| container::Style {
+                border: Border {
+                    radius: if active { 14.0 } else { 23.0 }.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .into()
+        } else {
             container(text(initials(&group.name)).size(15).color(Color::WHITE))
-                .center(Length::Fill),
-        )
-        .width(Length::Fixed(46.0))
-        .height(Length::Fixed(46.0))
-        .on_press(ShellMessage::SelectGroup(group.id.clone()))
-        .style(aether_drift::rail_icon_button_style(active));
+                .center(Length::Fill)
+                .into()
+        };
 
-        rail_items = rail_items.push(g_btn);
+        let g_btn = button(icon_content)
+            .width(Length::Fixed(46.0))
+            .height(Length::Fixed(46.0))
+            .padding(0)
+            .on_press(ShellMessage::SelectGroup(group.id.clone()))
+            .style(aether_drift::rail_icon_button_style(active));
+
+        let pill = container(text(""))
+            .width(Length::Fixed(4.0))
+            .height(Length::Fixed(if active { 32.0 } else { 0.0 }))
+            .style(|_t| container::Style {
+                background: Some(Background::Color(Color::WHITE)),
+                border: Border {
+                    radius: 2.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+
+        rail_items = rail_items.push(
+            row![pill, g_btn]
+                .spacing(6)
+                .align_y(Alignment::Center),
+        );
     }
 
     let rail = container(scrollable(rail_items))
@@ -244,20 +299,12 @@ pub fn view<'a>(
             for dm in &state.dm.channels {
                 let label = dm.display_label(&state.user.id);
                 let active = state.dm.selected_dm_id.as_deref() == Some(dm.id.as_str());
-                let avatar = container(
-                    text(initials(&label)).size(11).color(Color::WHITE),
-                )
-                .width(Length::Fixed(28.0))
-                .height(Length::Fixed(28.0))
-                .center(Length::Fixed(28.0))
-                .style(|_t| container::Style {
-                    background: Some(Background::Color(aether_drift::SURFACE_ELEVATED)),
-                    border: Border {
-                        radius: 14.0.into(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                });
+                let partner_avatar = dm
+                    .members
+                    .iter()
+                    .find(|u| u.id != state.user.id)
+                    .and_then(|u| u.avatar_url.as_deref());
+                let avatar = avatar_circle(&state.image_cache, partner_avatar, &label, 28.0);
                 let sub = if dm.is_group_dm() {
                     "Grupo Direto"
                 } else {
@@ -299,6 +346,11 @@ pub fn view<'a>(
             uncategorized.sort_by_key(|c| c.position);
             for ch in uncategorized {
                 mid_list = mid_list.push(channel_row(state, ch));
+                if ch.kind == "voice" {
+                    for prow in voice_participants_rows(state, group, &ch.id) {
+                        mid_list = mid_list.push(prow);
+                    }
+                }
             }
 
             let mut categories = group.categories.clone();
@@ -328,6 +380,11 @@ pub fn view<'a>(
                 );
                 for ch in cat_channels {
                     mid_list = mid_list.push(channel_row(state, ch));
+                    if ch.kind == "voice" {
+                        for prow in voice_participants_rows(state, group, &ch.id) {
+                            mid_list = mid_list.push(prow);
+                        }
+                    }
                 }
             }
         }
@@ -420,22 +477,12 @@ pub fn view<'a>(
             ..Default::default()
         });
 
-    let user_avatar = container(
-        text(initials(state.user.label()))
-            .size(12)
-            .color(Color::WHITE),
-    )
-    .width(Length::Fixed(32.0))
-    .height(Length::Fixed(32.0))
-    .center(Length::Fixed(32.0))
-    .style(|_t| container::Style {
-        background: Some(Background::Color(aether_drift::ACCENT_VIOLET)),
-        border: Border {
-            radius: 16.0.into(),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    let user_avatar = avatar_circle(
+        &state.image_cache,
+        state.user.avatar_url.as_deref(),
+        state.user.label(),
+        32.0,
+    );
 
     let user_dock = container(
         row![
@@ -602,6 +649,17 @@ pub fn view<'a>(
             ActivePanel::Overlay,
             state.active_panel,
         ),
+        button(icons::users(
+            16.0,
+            if state.show_member_list {
+                aether_drift::TEXT_PRIMARY
+            } else {
+                aether_drift::TEXT_MUTED
+            },
+        ))
+        .on_press(ShellMessage::ToggleMemberList)
+        .padding(6)
+        .style(aether_drift::icon_button_style(state.show_member_list)),
         button(icons::logout(15.0, aether_drift::TEXT_MUTED))
             .on_press(ShellMessage::Logout)
             .padding(6)
@@ -650,7 +708,13 @@ pub fn view<'a>(
                 let label = dm.display_label(&state.user.id);
                 // Reusa o mesmo chat nativo limpo para conversar direto na DM!
                 let label_owned = format!("@{label}");
-                dm_chat_view(&state.chat, &dm.id, label_owned, &state.user.id)
+                dm_chat_view(
+                    &state.chat,
+                    &dm.id,
+                    label_owned,
+                    &state.user.id,
+                    &state.image_cache,
+                )
             } else {
                 container(
                     column![
@@ -707,8 +771,14 @@ pub fn view<'a>(
                     .height(Length::Fill)
                     .into()
                 } else {
-                    chat::view(&state.chat, &ch.id, &ch.name, &state.user.id)
-                        .map(ShellMessage::Chat)
+                    chat::view(
+                        &state.chat,
+                        &ch.id,
+                        &ch.name,
+                        &state.user.id,
+                        &state.image_cache,
+                    )
+                    .map(ShellMessage::Chat)
                 }
             } else {
                 container(
@@ -726,7 +796,26 @@ pub fn view<'a>(
         }
     };
 
-    let mut main_col = column![top_bar, center_content].height(Length::Fill);
+    let body_row: Element<'a, ShellMessage> = if state.show_member_list
+        && state.active_panel == ActivePanel::Channel
+    {
+        if let Some(group) = selected_group {
+            row![
+                container(center_content)
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+                member_list_sidebar(state, group),
+            ]
+            .height(Length::Fill)
+            .into()
+        } else {
+            center_content
+        }
+    } else {
+        center_content
+    };
+
+    let mut main_col = column![top_bar, body_row].height(Length::Fill);
     if let Some(err) = &state.error {
         main_col = main_col.push(
             container(text(err).size(12).color(aether_drift::DANGER_RED)).padding([4, 16]),
@@ -745,8 +834,243 @@ fn dm_chat_view<'a>(
     dm_id: &'a str,
     _label: String,
     user_id: &'a str,
+    image_cache: &'a HashMap<String, image::Handle>,
 ) -> Element<'a, ShellMessage> {
-    chat::view(chat_state, dm_id, "DM", user_id).map(ShellMessage::Chat)
+    chat::view(chat_state, dm_id, "DM", user_id, image_cache).map(ShellMessage::Chat)
+}
+
+fn avatar_circle<'a>(
+    cache: &'a HashMap<String, image::Handle>,
+    avatar_url: Option<&'a str>,
+    label: &str,
+    size: f32,
+) -> Element<'a, ShellMessage> {
+    let radius = size * 0.5;
+    if let Some(handle) = avatar_url.and_then(|u| cache.get(u)) {
+        container(
+            image(handle.clone())
+                .width(Length::Fixed(size))
+                .height(Length::Fixed(size))
+                .content_fit(ContentFit::Cover),
+        )
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .clip(true)
+        .style(move |_t| container::Style {
+            border: Border {
+                radius: radius.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
+    } else {
+        let font_sz = (size * 0.38).clamp(9.0, 14.0);
+        container(text(initials(label)).size(font_sz).color(Color::WHITE))
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .center(Length::Fixed(size))
+            .style(move |_t| container::Style {
+                background: Some(Background::Color(aether_drift::SURFACE_ELEVATED)),
+                border: Border {
+                    radius: radius.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .into()
+    }
+}
+
+fn parse_hex_color(hex: &str) -> Option<Color> {
+    let clean = hex.trim().trim_start_matches('#');
+    if clean.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&clean[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&clean[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&clean[4..6], 16).ok()?;
+    Some(Color::from_rgb8(r, g, b))
+}
+
+fn voice_participants_rows<'a>(
+    state: &'a ShellState,
+    group: &'a GroupSummary,
+    channel_id: &str,
+) -> Vec<Element<'a, ShellMessage>> {
+    let Some(user_ids) = state.voice_states.get(channel_id) else {
+        return Vec::new();
+    };
+    let mut rows = Vec::with_capacity(user_ids.len());
+    for uid in user_ids {
+        let member = group.members.iter().find(|m| m.user_id == *uid);
+        let (display, avatar_url) = if let Some(m) = member {
+            (m.display_name().to_string(), m.user.avatar_url.as_deref())
+        } else if uid == &state.user.id {
+            (
+                state.user.label().to_string(),
+                state.user.avatar_url.as_deref(),
+            )
+        } else {
+            (uid.clone(), None)
+        };
+        let media = state.voice_user_states.get(uid);
+        let av = avatar_circle(&state.image_cache, avatar_url, &display, 22.0);
+        let mut r = row![
+            av,
+            text(display).size(12).color(aether_drift::TEXT_PRIMARY),
+            horizontal_space(),
+        ]
+        .spacing(7)
+        .align_y(Alignment::Center);
+
+        if let Some(ms) = media {
+            if ms.is_muted {
+                r = r.push(icons::mic_off(12.0, aether_drift::DANGER_RED));
+            }
+            if ms.is_deafened {
+                r = r.push(icons::headphones(12.0, aether_drift::DANGER_RED));
+            }
+            if ms.is_screen_sharing {
+                r = r.push(icons::monitor(12.0, aether_drift::SUCCESS_GREEN));
+            }
+        }
+
+        rows.push(
+            container(r)
+                .width(Length::Fill)
+                .padding(Padding {
+                    top: 3.0,
+                    right: 8.0,
+                    bottom: 3.0,
+                    left: 26.0,
+                })
+                .into(),
+        );
+    }
+    rows
+}
+
+fn member_list_sidebar<'a>(
+    state: &'a ShellState,
+    group: &'a GroupSummary,
+) -> Element<'a, ShellMessage> {
+    let mut online: Vec<&GroupMember> = Vec::new();
+    let mut offline: Vec<&GroupMember> = Vec::new();
+    for m in &group.members {
+        if m.is_online() {
+            online.push(m);
+        } else {
+            offline.push(m);
+        }
+    }
+    online.sort_by(|a, b| {
+        a.display_name()
+            .to_ascii_lowercase()
+            .cmp(&b.display_name().to_ascii_lowercase())
+    });
+    offline.sort_by(|a, b| {
+        a.display_name()
+            .to_ascii_lowercase()
+            .cmp(&b.display_name().to_ascii_lowercase())
+    });
+
+    let mut list = column![].spacing(4).padding([12, 10]);
+
+    if group.members.is_empty() {
+        list = list.push(
+            text("Carregando membros...")
+                .size(12)
+                .color(aether_drift::TEXT_MUTED),
+        );
+    } else {
+        if !online.is_empty() {
+            list = list.push(
+                container(
+                    text(format!("ONLINE — {}", online.len()))
+                        .size(10)
+                        .color(aether_drift::TEXT_MUTED),
+                )
+                .padding(Padding {
+                    top: 2.0,
+                    right: 4.0,
+                    bottom: 4.0,
+                    left: 4.0,
+                }),
+            );
+            for m in online {
+                list = list.push(member_row(&state.image_cache, m, true));
+            }
+        }
+
+        if !offline.is_empty() {
+            list = list.push(
+                container(
+                    text(format!("OFFLINE — {}", offline.len()))
+                        .size(10)
+                        .color(aether_drift::TEXT_MUTED),
+                )
+                .padding(Padding {
+                    top: 12.0,
+                    right: 4.0,
+                    bottom: 4.0,
+                    left: 4.0,
+                }),
+            );
+            for m in offline {
+                list = list.push(member_row(&state.image_cache, m, false));
+            }
+        }
+    }
+
+    container(scrollable(list).height(Length::Fill))
+        .width(Length::Fixed(232.0))
+        .height(Length::Fill)
+        .style(aether_drift::sidebar_style)
+        .into()
+}
+
+fn member_row<'a>(
+    cache: &'a HashMap<String, image::Handle>,
+    m: &'a GroupMember,
+    online: bool,
+) -> Element<'a, ShellMessage> {
+    let name = m.display_name();
+    let av = avatar_circle(cache, m.user.avatar_url.as_deref(), name, 28.0);
+    let presence = PresenceStatus::from_api_str(m.user.status.as_deref());
+    let dot_color = if online {
+        status_color(presence)
+    } else {
+        Color::from_rgba(0.60, 0.62, 0.70, 0.45)
+    };
+    let dot = container(text(""))
+        .width(Length::Fixed(8.0))
+        .height(Length::Fixed(8.0))
+        .style(move |_t| container::Style {
+            background: Some(Background::Color(dot_color)),
+            border: Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    let name_color = if online {
+        m.color_hex()
+            .and_then(parse_hex_color)
+            .unwrap_or(aether_drift::TEXT_PRIMARY)
+    } else {
+        aether_drift::TEXT_MUTED
+    };
+
+    container(
+        row![av, text(name).size(13).color(name_color), horizontal_space(), dot]
+            .spacing(8)
+            .align_y(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .padding([4, 6])
+    .into()
 }
 
 fn tool_icon_btn<'a>(

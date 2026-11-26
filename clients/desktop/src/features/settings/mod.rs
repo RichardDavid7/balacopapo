@@ -21,6 +21,7 @@ pub struct SettingsState {
     pub vote_skip_error: Option<String>,
     pub api_keys: Vec<SpaceApiKeySummary>,
     pub loading_keys: bool,
+    pub api_keys_error: Option<String>,
     pub retention_enabled: bool,
     pub low_interrupt_mode: bool,
     pub theme: AppThemeId,
@@ -37,6 +38,7 @@ impl Default for SettingsState {
             vote_skip_error: None,
             api_keys: Vec::new(),
             loading_keys: false,
+            api_keys_error: None,
             retention_enabled: false,
             low_interrupt_mode: true,
             theme: AppThemeId::AetherDrift,
@@ -230,6 +232,10 @@ pub fn view<'a>(
                         .align_y(Alignment::Center),
                     );
                 }
+            }
+
+            if let Some(err) = &state.api_keys_error {
+                keys_col = keys_col.push(text(err).size(12).color(aether_drift::DANGER_RED));
             }
 
             let retention_row = row![
