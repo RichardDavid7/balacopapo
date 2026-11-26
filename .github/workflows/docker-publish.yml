@@ -12,6 +12,7 @@ on:
       - main
     paths-ignore:
       - 'clients/**'
+      - 'packages/utilities/**'
       - 'ROADMAP.md'
       - '**.md'
   workflow_dispatch:

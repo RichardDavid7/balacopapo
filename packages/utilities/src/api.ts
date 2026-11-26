@@ -1,0 +1,62 @@
+import type { MusicBotCommand, MusicPlayerState, MusicTrack, MusicLoopMode, MusicPlaybackStatus } from '@backspace/shared';
+import type { UtilitiesConfig } from './config.js';
+
+export interface BotInfo {
+  space: { id: string; name: string };
+  key: { id: string; name: string; scopes: string[] };
+  voiceChannels: { id: string; name: string }[];
+}
+
+export interface LivekitCredentials {
+  token: string;
+  url: string;
+  room: string;
+}
+
+export interface BotStateReport {
+  botConnected?: boolean;
+  botName?: string;
+  status?: MusicPlaybackStatus;
+  currentTrack?: MusicTrack | null;
+  positionSec?: number;
+  volume?: number;
+  loopMode?: MusicLoopMode;
+  queue?: MusicTrack[];
+}
+
+export class BalacopapoApi {
+  constructor(private readonly cfg: UtilitiesConfig) {}
+
+  private async request<T>(method: string, route: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${this.cfg.baseUrl}${route}`, {
+      method,
+      headers: {
+        'X-Api-Key': this.cfg.apiKey,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      throw new Error(`${method} ${route} → HTTP ${res.status}`);
+    }
+    return (await res.json()) as T;
+  }
+
+  getInfo(): Promise<BotInfo> {
+    return this.request('GET', '/api/spaces/bot/info');
+  }
+
+  async fetchCommands(channelId: string): Promise<MusicBotCommand[]> {
+    const r = await this.request<{ commands: MusicBotCommand[] }>('GET', `/api/music/bot/${channelId}/commands`);
+    return r.commands;
+  }
+
+  reportState(channelId: string, report: BotStateReport): Promise<MusicPlayerState> {
+    return this.request('POST', `/api/music/bot/${channelId}/state`, report);
+  }
+
+  getLivekitCredentials(channelId: string): Promise<LivekitCredentials> {
+    return this.request('POST', `/api/music/bot/${channelId}/livekit-token`, { botName: this.cfg.botName });
+  }
+}

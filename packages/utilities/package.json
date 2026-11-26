@@ -1,0 +1,24 @@
+{
+  "name": "@backspace/utilities",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "Balacopapo Utilidades — worker de áudio (bot de música) que se conecta à API e às salas LiveKit",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@livekit/rtc-node": "^0.13.0",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@backspace/shared": "workspace:*",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.12"
+  }
+}
