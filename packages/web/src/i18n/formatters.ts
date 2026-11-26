@@ -1,6 +1,11 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from './index';
+import {
+  DEFAULT_REGIONAL_PREFS,
+  useRegionalStore,
+  type RegionalPreferences,
+} from '../stores/regionalStore';
 
 /**
  * Every date, time, number and byte size the UI shows goes through here, so
@@ -54,7 +59,24 @@ const RELATIVE_UNITS: ReadonlyArray<{ unit: Intl.RelativeTimeFormatUnit; ms: num
 
 const BYTE_UNITS = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const;
 
-export function createFormatters(getLocale: () => string): Formatters {
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function formatCustomNumericDate(timestamp: number, mode: 'dmy' | 'mdy' | 'ymd'): string {
+  const d = new Date(timestamp);
+  const dd = pad2(d.getDate());
+  const mm = pad2(d.getMonth() + 1);
+  const yyyy = String(d.getFullYear());
+  if (mode === 'dmy') return `${dd}/${mm}/${yyyy}`;
+  if (mode === 'mdy') return `${mm}/${dd}/${yyyy}`;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export function createFormatters(
+  getLocale: () => string,
+  getPrefs: () => RegionalPreferences = () => DEFAULT_REGIONAL_PREFS,
+): Formatters {
   const dateCache = new Map<string, Intl.DateTimeFormat>();
   const numberCache = new Map<string, Intl.NumberFormat>();
   const relativeCache = new Map<string, Intl.RelativeTimeFormat>();
@@ -71,8 +93,15 @@ export function createFormatters(getLocale: () => string): Formatters {
     return formatter;
   }
 
+  function resolveNumberLocale(): string {
+    const pref = getPrefs().numberFormat;
+    if (pref === 'comma-decimal') return 'pt-BR';
+    if (pref === 'dot-decimal') return 'en-US';
+    return getLocale();
+  }
+
   function numberFormat(options: Intl.NumberFormatOptions): Intl.NumberFormat {
-    const locale = getLocale();
+    const locale = resolveNumberLocale();
     const key = `${locale}|${JSON.stringify(options)}`;
     let formatter = numberCache.get(key);
     if (!formatter) {
@@ -80,6 +109,13 @@ export function createFormatters(getLocale: () => string): Formatters {
       numberCache.set(key, formatter);
     }
     return formatter;
+  }
+
+  function timeCycleOption(): Pick<DateTimeOptions, 'hourCycle'> | Record<string, never> {
+    const tf = getPrefs().timeFormat;
+    if (tf === '24h') return { hourCycle: 'h23' };
+    if (tf === '12h') return { hourCycle: 'h12' };
+    return {};
   }
 
   function relativeFormat(): Intl.RelativeTimeFormat {
@@ -102,8 +138,19 @@ export function createFormatters(getLocale: () => string): Formatters {
     return formatter;
   }
 
+  const formatTimeFn = (timestamp: number): string => {
+    const tf = getPrefs().timeFormat;
+    if (tf === '24h') {
+      return dateFormat({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(timestamp);
+    }
+    if (tf === '12h') {
+      return dateFormat({ hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).format(timestamp);
+    }
+    return dateFormat({ hour: 'numeric', minute: '2-digit' }).format(timestamp);
+  };
+
   return {
-    formatTime: (timestamp) => dateFormat({ hour: 'numeric', minute: '2-digit' }).format(timestamp),
+    formatTime: formatTimeFn,
 
     formatShortDate: (timestamp, now = new Date()) => {
       const sameYear = new Date(timestamp).getFullYear() === now.getFullYear();
@@ -116,13 +163,30 @@ export function createFormatters(getLocale: () => string): Formatters {
 
     formatLongDate: (timestamp) => dateFormat({ day: 'numeric', month: 'long', year: 'numeric' }).format(timestamp),
 
-    formatMediumDate: (timestamp) => dateFormat({ dateStyle: 'medium' }).format(timestamp),
+    formatMediumDate: (timestamp) => {
+      const df = getPrefs().dateFormat;
+      if (df !== 'auto') return formatCustomNumericDate(timestamp, df);
+      return dateFormat({ dateStyle: 'medium' }).format(timestamp);
+    },
 
-    formatNumericDate: (timestamp) => dateFormat({ year: 'numeric', month: 'numeric', day: 'numeric' }).format(timestamp),
+    formatNumericDate: (timestamp) => {
+      const df = getPrefs().dateFormat;
+      if (df !== 'auto') return formatCustomNumericDate(timestamp, df);
+      return dateFormat({ year: 'numeric', month: 'numeric', day: 'numeric' }).format(timestamp);
+    },
 
     formatFullDate: (timestamp) => dateFormat({ weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(timestamp),
 
-    formatDateTime: (timestamp) => dateFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(timestamp),
+    formatDateTime: (timestamp) => {
+      const { dateFormat: df, timeFormat: tf } = getPrefs();
+      if (df !== 'auto') {
+        return `${formatCustomNumericDate(timestamp, df)}, ${formatTimeFn(timestamp)}`;
+      }
+      if (tf !== 'auto') {
+        return dateFormat({ dateStyle: 'medium', timeStyle: 'short', ...timeCycleOption() }).format(timestamp);
+      }
+      return dateFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(timestamp);
+    },
 
     formatRelativeTime: (timestamp, now = new Date()) => {
       const delta = timestamp - now.getTime();
@@ -180,15 +244,24 @@ export function createFormatters(getLocale: () => string): Formatters {
   };
 }
 
-/** The app-wide formatters, bound to the selected language. */
-export const formatters: Formatters = createFormatters(() => i18n.resolvedLanguage ?? i18n.language ?? 'en');
+/** The app-wide formatters, bound to the selected language and regional overrides. */
+export const formatters: Formatters = createFormatters(
+  () => i18n.resolvedLanguage ?? i18n.language ?? 'en',
+  () => {
+    const { timeFormat, dateFormat, numberFormat } = useRegionalStore.getState();
+    return { timeFormat, dateFormat, numberFormat };
+  },
+);
 
 /**
- * The same formatters for components. Subscribes to language changes so a
- * component re-renders with the new locale when the user switches language.
+ * The same formatters for components. Subscribes to language and regional
+ * preference changes so components re-render immediately when either changes.
  */
 export function useFormatters(): Formatters {
   const { i18n: instance } = useTranslation();
   const language = instance.resolvedLanguage ?? instance.language;
-  return useMemo(() => formatters, [language]);
+  const timeFormat = useRegionalStore((s) => s.timeFormat);
+  const dateFormat = useRegionalStore((s) => s.dateFormat);
+  const numberFormat = useRegionalStore((s) => s.numberFormat);
+  return useMemo(() => ({ ...formatters }), [language, timeFormat, dateFormat, numberFormat]);
 }

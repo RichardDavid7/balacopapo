@@ -146,5 +146,29 @@
       "4h": "4 horas",
       "tomorrow": "Até amanhã"
     }
+  },
+  "regional": {
+    "label": "Formato Regional",
+    "description": "Personalize relógio, data e números de forma independente do idioma da interface.",
+    "preview": "Pré-visualização",
+    "timeFormat": {
+      "label": "Formato de hora",
+      "auto": "Automático (pelo idioma)",
+      "24h": "24 horas (14:05)",
+      "12h": "12 horas (2:05 PM)"
+    },
+    "dateFormat": {
+      "label": "Formato de data",
+      "auto": "Automático (pelo idioma)",
+      "dmy": "Dia/Mês/Ano (15/03/2026)",
+      "mdy": "Mês/Dia/Ano (03/15/2026)",
+      "ymd": "Ano-Mês-Dia (2026-03-15)"
+    },
+    "numberFormat": {
+      "label": "Separador de números",
+      "auto": "Automático (pelo idioma)",
+      "comma-decimal": "Ponto milhar, vírgula decimal (1.234,56)",
+      "dot-decimal": "Vírgula milhar, ponto decimal (1,234.56)"
+    }
   }
 }

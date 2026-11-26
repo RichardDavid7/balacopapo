@@ -118,4 +118,22 @@ describe('createFormatters', () => {
     language = 'de';
     expect(formatters.formatNumber(1000)).toBe('1.000');
   });
+
+  it('applies independent regional overrides (24h clock, custom date format, number separators) regardless of UI language', () => {
+    const en24 = createFormatters(
+      () => 'en',
+      () => ({ timeFormat: '24h', dateFormat: 'dmy', numberFormat: 'comma-decimal' }),
+    );
+    expect(en24.formatTime(march15)).toBe('14:05');
+    expect(en24.formatNumericDate(march15)).toBe('15/03/2026');
+    expect(en24.formatDateTime(march15)).toBe('15/03/2026, 14:05');
+    expect(en24.formatNumber(1234567)).toBe('1.234.567');
+
+    const ptIso12 = createFormatters(
+      () => 'pt',
+      () => ({ timeFormat: '12h', dateFormat: 'ymd', numberFormat: 'dot-decimal' }),
+    );
+    expect(ptIso12.formatNumericDate(march15)).toBe('2026-03-15');
+    expect(ptIso12.formatNumber(1234567)).toBe('1,234,567');
+  });
 });

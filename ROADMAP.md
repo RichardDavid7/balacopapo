@@ -102,7 +102,7 @@ Itens já identificados durante os testes e uso real:
 ### Fase 8 — Controle Remoto, Personalização e Idiomas *(último)*
 - [ ] **Controlar outro PC** — acesso remoto seguro (mouse e teclado) via app desktop nativo, com permissão explícita do dono da tela e revogação instantânea a qualquer momento.
 - [ ] **Temas de interface** — sistema de temas sobre os tokens CSS do Aether Drift + seletor nas configurações.
-- [ ] **Preferências regionais independentes do idioma** — controles para formato de hora (**12h / 24h / Automático**), formato de data e unidades de medida sem ficar preso ao idioma escolhido (ex.: interface em inglês com relógio 24h).
+- [x] **Preferências regionais independentes do idioma** — controles em Configurações → Aparência (`LanguageSection.tsx` + `regionalStore.ts` + `formatters.ts`) para formato de hora (**Automático / 24h / 12h**), formato de data (**Automático / DD/MM/AAAA / MM/DD/AAAA / AAAA-MM-DD**) e separador numérico (**Automático / 1.234,56 / 1,234.56**) com pré-visualização ao vivo, sem ficar preso ao idioma escolhido.
 - [ ] **Idiomas adicionais & revisão final de traduções** — adicionar **Espanhol (`es`)** e fazer a revisão completa de **Alemão (`de`)**, **Russo (`ru`)** e **Chinês (`zh`)** ao final das entregas (durante o desenvolvimento ativo o foco fica em **Português (`pt`)** e **Inglês (`en`)**).
 
 ---

@@ -146,5 +146,29 @@
       "4h": "4 Std.",
       "tomorrow": "Bis morgen"
     }
+  },
+  "regional": {
+    "label": "Regionales Format",
+    "description": "Passe Uhrzeit-, Datums- und Zahlenformate unabhängig von der Oberflächensprache an.",
+    "preview": "Vorschau",
+    "timeFormat": {
+      "label": "Uhrzeitformat",
+      "auto": "Automatisch (nach Sprache)",
+      "24h": "24 Stunden (14:05)",
+      "12h": "12 Stunden (2:05 PM)"
+    },
+    "dateFormat": {
+      "label": "Datumsformat",
+      "auto": "Automatisch (nach Sprache)",
+      "dmy": "Tag/Monat/Jahr (15/03/2026)",
+      "mdy": "Monat/Tag/Jahr (03/15/2026)",
+      "ymd": "Jahr-Monat-Tag (2026-03-15)"
+    },
+    "numberFormat": {
+      "label": "Zahlentrennzeichen",
+      "auto": "Automatisch (nach Sprache)",
+      "comma-decimal": "Punkt Tausender, Komma Dezimal (1.234,56)",
+      "dot-decimal": "Komma Tausender, Punkt Dezimal (1,234.56)"
+    }
   }
 }

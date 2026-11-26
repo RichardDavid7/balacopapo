@@ -146,5 +146,29 @@
       "4h": "4 hours",
       "tomorrow": "Tomorrow"
     }
+  },
+  "regional": {
+    "label": "Regional Format",
+    "description": "Customize clock, date, and number formats independently of the interface language.",
+    "preview": "Preview",
+    "timeFormat": {
+      "label": "Clock format",
+      "auto": "Automatic (by language)",
+      "24h": "24-hour (14:05)",
+      "12h": "12-hour (2:05 PM)"
+    },
+    "dateFormat": {
+      "label": "Date format",
+      "auto": "Automatic (by language)",
+      "dmy": "Day/Month/Year (15/03/2026)",
+      "mdy": "Month/Day/Year (03/15/2026)",
+      "ymd": "Year-Month-Day (2026-03-15)"
+    },
+    "numberFormat": {
+      "label": "Number separators",
+      "auto": "Automatic (by language)",
+      "comma-decimal": "Dot thousands, comma decimal (1.234,56)",
+      "dot-decimal": "Comma thousands, dot decimal (1,234.56)"
+    }
   }
 }
