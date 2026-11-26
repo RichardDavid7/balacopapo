@@ -1,8 +1,7 @@
 name: Utilities Release (Windows & Linux)
 
 # Compila o Balacopapo Utilidades (Windows + Linux) automaticamente em todo push
-# na `main` que altere `packages/utilities/**` (atualizando a pré-release `utilities-edge`)
-# e também ao criar tags `utilities-v*` (release oficial).
+# na `main` que altere `packages/utilities/**` (atualizando a pré-release `utilities-edge`).
 on:
   push:
     branches:
@@ -39,16 +38,20 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - name: Typecheck + testes
+      - name: Build, typecheck e testes
         run: |
           pnpm --filter @backspace/shared build
           pnpm --filter @backspace/utilities typecheck
           pnpm --filter @backspace/utilities test
+          pnpm --filter @backspace/utilities build
 
       - name: Montar pacote portátil
         shell: bash
         run: |
           pnpm --filter @backspace/utilities deploy --prod --legacy dist/app
+          cp -r packages/utilities/dist dist/app/dist
+          rm -rf dist/app/src dist/app/launcher dist/app/tsconfig.json
+
           NODE_VERSION=$(node -p "process.versions.node")
           NODE_NAME="node-v${NODE_VERSION}-${{ matrix.node-os }}-x64"
           curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_NAME}.${{ matrix.node-ext }}" -o node-archive
@@ -60,12 +63,17 @@ jobs:
           fi
           cp -r node-extract/${NODE_NAME}/* dist/pkg/runtime/
           cp -r dist/app dist/pkg/app
-          rm -rf dist/pkg/app/src/*.test.ts
+
           if [ "${{ matrix.target }}" = "windows-x64" ]; then
-            printf '@echo off\r\ncd /d "%%~dp0app"\r\n"%%~dp0runtime\\node.exe" node_modules\\tsx\\dist\\cli.mjs src\\index.ts\r\n' > dist/pkg/Balacopapo-Utilidades.bat
+            MSYS_NO_PATHCONV=1 "/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
+              -nologo -target:winexe -optimize+ \
+              -win32icon:clients/Desktop/src-tauri/icons/icon.ico \
+              -r:System.Windows.Forms.dll -r:System.Drawing.dll \
+              -out:dist/pkg/Balacopapo-Utilidades.exe \
+              packages/utilities/launcher/Launcher.cs
           else
-            printf '#!/bin/sh\ncd "$(dirname "$0")/app" || exit 1\nexec "../runtime/bin/node" node_modules/tsx/dist/cli.mjs src/index.ts "$@"\n' > dist/pkg/balacopapo-utilidades.sh
-            chmod +x dist/pkg/balacopapo-utilidades.sh
+            printf '#!/bin/sh\ncd "$(dirname "$0")/app" || exit 1\nexec "../runtime/bin/node" dist/index.js "$@"\n' > dist/pkg/balacopapo-utilidades
+            chmod +x dist/pkg/balacopapo-utilidades
           fi
 
       - name: Compactar
@@ -102,21 +110,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
-          if [[ "${GITHUB_REF}" == refs/tags/utilities-v* ]]; then
-            TAG="${GITHUB_REF_NAME}"
-            TITLE="Balacopapo Utilidades ${TAG}"
-            FLAGS=""
-          else
-            TAG="utilities-edge"
-            TITLE="Balacopapo Utilidades (Edge — ${SHORT_SHA})"
-            FLAGS="--prerelease"
-          fi
-
-          NOTES="Bot de música portátil (Windows/Linux) — commit \`${SHORT_SHA}\`. Extraia e execute o launcher (\`Balacopapo-Utilidades.bat\` no Windows ou \`balacopapo-utilidades.sh\` no Linux)."
+          TAG="utilities-edge"
+          TITLE="Balacopapo Utilidades (Edge — ${SHORT_SHA})"
+          NOTES="Bot de música portátil (Windows/Linux) — commit \`${SHORT_SHA}\`. Extraia e abra \`Balacopapo-Utilidades.exe\` (Windows, fica na bandeja do sistema) ou \`./balacopapo-utilidades\` (Linux)."
 
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"
             gh release edit "${TAG}" --title "${TITLE}" --notes "${NOTES}" --target "${GITHUB_SHA}" --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create "${TAG}" out/* ${FLAGS} --target "${GITHUB_SHA}" --title "${TITLE}" --notes "${NOTES}" --repo "${GITHUB_REPOSITORY}"
+            gh release create "${TAG}" out/* --prerelease --target "${GITHUB_SHA}" --title "${TITLE}" --notes "${NOTES}" --repo "${GITHUB_REPOSITORY}"
           fi

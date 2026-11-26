@@ -7,17 +7,18 @@
   "description": "Balacopapo Utilidades — worker de áudio (bot de música) que se conecta à API e às salas LiveKit",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@livekit/rtc-node": "^0.13.0",
-    "tsx": "^4.23.15"
+    "@livekit/rtc-node": "^0.13.0"
   },
   "devDependencies": {
     "@backspace/shared": "workspace:*",
     "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.4.0",
     "vitest": "^4.1.12"
   }

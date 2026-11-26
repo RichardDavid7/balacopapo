@@ -201,9 +201,6 @@ importers:
       '@livekit/rtc-node':
         specifier: ^0.13.0
         version: 0.13.35
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
     devDependencies:
       '@backspace/shared':
         specifier: workspace:*
@@ -211,6 +208,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.4
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
