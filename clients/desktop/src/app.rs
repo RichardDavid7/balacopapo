@@ -595,8 +595,10 @@ impl BalacopapoApp {
                 let msg_id_clone = message_id.clone();
                 Task::perform(
                     async move {
-                        let client = ApiClient::new(url, Some(token))?;
-                        let result = client.delete_message(&msg_id_clone).await;
+                        let result = match ApiClient::new(url, Some(token)) {
+                            Ok(client) => client.delete_message(&msg_id_clone).await,
+                            Err(err) => Err(err),
+                        };
                         Message::MessageDeleted {
                             channel_id,
                             message_id: msg_id_clone,
@@ -628,8 +630,10 @@ impl BalacopapoApp {
     ) -> Task<Message> {
         Task::perform(
             async move {
-                let client = ApiClient::new(url, Some(token))?;
-                let result = client.fetch_messages(&channel_id, before.as_deref()).await;
+                let result = match ApiClient::new(url, Some(token)) {
+                    Ok(client) => client.fetch_messages(&channel_id, before.as_deref()).await,
+                    Err(err) => Err(err),
+                };
                 Message::MessagesLoaded {
                     channel_id,
                     prepend,
