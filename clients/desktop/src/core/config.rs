@@ -78,7 +78,7 @@ pub fn normalize_instance_url(raw: &str) -> Result<String, String> {
         return Err("Informe o endereço da sua instância Balacopapo.".to_string());
     }
 
-    let with_scheme = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+    let with_scheme = if trimmed.contains("://") {
         trimmed.to_string()
     } else {
         format!("https://{trimmed}")
