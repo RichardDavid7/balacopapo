@@ -397,7 +397,11 @@
     "soundboard": {
       "description": "Dispare sons do Soundboard direto com um atalho de teclado ou botão extra do mouse durante a chamada.",
       "empty": "Nenhum som do Soundboard disponível neste grupo ou instância ainda.",
-      "unknownSound": "Som do Soundboard ({{id}})"
+      "unknownSound": "Som do Soundboard ({{id}})",
+      "addShortcut": "+ Adicionar atalho",
+      "searchPlaceholder": "Buscar som do Soundboard…",
+      "noMatches": "Nenhum som correspondente disponível para adicionar.",
+      "emptyAdded": "Nenhum atalho do Soundboard adicionado ainda. Clique em \"+ Adicionar atalho\" para vincular um som."
     }
   },
   "desktop": {

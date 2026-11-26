@@ -396,7 +396,11 @@
     "soundboard": {
       "description": "Trigger soundboard clips directly with a keyboard combo or extra mouse button while in a voice call.",
       "empty": "No soundboard clips available in this group or instance yet.",
-      "unknownSound": "Soundboard clip ({{id}})"
+      "unknownSound": "Soundboard clip ({{id}})",
+      "addShortcut": "+ Add Shortcut",
+      "searchPlaceholder": "Search soundboard clips…",
+      "noMatches": "No matching soundboard clips left to add.",
+      "emptyAdded": "No soundboard shortcuts added yet. Click \"+ Add Shortcut\" to bind any sound."
     }
   },
   "desktop": {

@@ -70,14 +70,14 @@ export function InstancePanel() {
   }, [fetchInstanceSettings, fetchTelemetry]);
 
   return (
-    <div className="flex flex-col desktop:flex-row gap-4 desktop:gap-6 items-start">
+    <div className="flex flex-col desktop:flex-row gap-5 desktop:gap-8 items-start">
       {/* Mobile selector: single-tap jump across all 11 instance sections */}
       <div className="w-full desktop:hidden">
         <select
           value={subTab}
           onChange={(e) => setSubTab(e.target.value as SubTab)}
           aria-label={t('settings:instance.tabs.general')}
-          className="w-full px-3 py-2 rounded-lg bg-surface-elevated border border-border-soft text-sm font-medium text-txt-primary focus:outline-none focus:border-accent-primary"
+          className="w-full px-3.5 py-2.5 rounded-lg bg-surface-elevated border border-border-soft text-sm font-medium text-txt-primary focus:outline-none focus:border-accent-primary"
         >
           {sections.map((s) => (
             <option key={s.id} value={s.id}>
@@ -88,10 +88,10 @@ export function InstancePanel() {
       </div>
 
       {/* Desktop vertical navigation column — replaces overcrowded top tabs */}
-      <nav className="hidden desktop:flex flex-col gap-0.5 w-44 shrink-0 sticky top-0 pr-3 border-r border-white/[0.06]">
+      <nav className="hidden desktop:flex flex-col gap-1 w-48 shrink-0 sticky top-0 pr-5 border-r border-white/[0.06]">
         {sections.map((s) =>
           s.invite === true ? (
-            <div key={s.id} className="pt-1.5">
+            <div key={s.id} className="pt-2">
               <HiButton onClick={() => setSubTab(s.id as SubTab)}>{s.label}</HiButton>
             </div>
           ) : (
@@ -99,7 +99,7 @@ export function InstancePanel() {
               key={s.id}
               type="button"
               onClick={() => setSubTab(s.id as SubTab)}
-              className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-xs text-left transition-colors ${
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13px] text-left transition-colors ${
                 subTab === s.id
                   ? 'bg-accent-primary/15 text-txt-primary font-semibold'
                   : 'text-txt-tertiary hover:text-txt-secondary hover:bg-white/[0.04]'
@@ -120,7 +120,7 @@ export function InstancePanel() {
       </nav>
 
       {/* Active section content */}
-      <div className="flex-1 min-w-0 w-full">
+      <div className="flex-1 min-w-0 w-full space-y-6 pb-4">
         {subTab === 'general' && <GeneralPanel />}
         {subTab === 'registration' && <RegistrationPanel />}
         {subTab === 'oidc' && <OidcPanel />}

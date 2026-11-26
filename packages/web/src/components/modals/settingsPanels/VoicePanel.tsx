@@ -18,7 +18,7 @@ import { Track, type RemoteAudioTrack } from 'livekit-client';
 import { getActiveRoom, applyAudioReceiverJitterBuffer, applyStreamBufferToRoom } from '../../../hooks/useLiveKit';
 
 const JITTER_BUFFER_PRESETS = [0, 40, 80, 120, 250, 500, 1000] as const;
-const STREAM_BUFFER_PRESETS = [0, 120, 200, 350, 500, 1000] as const;
+const STREAM_BUFFER_PRESETS = [0, 40, 80, 120, 250, 500, 1000] as const;
 const MAX_JITTER_BUFFER_MS = 2000;
 
 export function VoicePanel() {

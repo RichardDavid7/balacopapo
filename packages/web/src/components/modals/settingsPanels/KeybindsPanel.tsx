@@ -158,6 +158,9 @@ export function KeybindsPanel() {
   const [hookError, setHookError] = useState<string | null>(null);
   const [soundboardSounds, setSoundboardSounds] = useState<SoundboardSound[]>([]);
   const [loadingSounds, setLoadingSounds] = useState(false);
+  const [stagedSoundActionIds, setStagedSoundActionIds] = useState<string[]>([]);
+  const [soundPickerOpen, setSoundPickerOpen] = useState(false);
+  const [soundSearch, setSoundSearch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -183,24 +186,39 @@ export function KeybindsPanel() {
     return () => { cancelled = true; };
   }, []);
 
+  // Discord-style: only show Soundboard shortcuts the user explicitly added or bound
   const soundboardRows = useMemo(() => {
     const byId = new Map(soundboardSounds.map((s) => [s.id, s]));
-    const rows: Array<{ actionId: string; label: string }> = soundboardSounds.map((s) => ({
-      actionId: soundboardActionId(s.id),
-      label: s.emoji ? `${s.emoji} ${s.name}` : s.name,
-    }));
-    // Keep any already-bound sound from another group visible so the user can edit or delete it.
+    const visibleActionIds = new Set<string>(stagedSoundActionIds);
     for (const kb of keybinds) {
-      const soundId = parseSoundboardActionId(kb.actionId);
-      if (soundId && !byId.has(soundId)) {
-        rows.push({
-          actionId: kb.actionId,
-          label: t('keybinds.soundboard.unknownSound', { id: soundId.slice(0, 8) }),
-        });
+      if (parseSoundboardActionId(kb.actionId)) {
+        visibleActionIds.add(kb.actionId);
       }
     }
+    const rows: Array<{ actionId: string; label: string }> = [];
+    for (const actionId of visibleActionIds) {
+      const soundId = parseSoundboardActionId(actionId);
+      if (!soundId) continue;
+      const sound = byId.get(soundId);
+      rows.push({
+        actionId,
+        label: sound
+          ? (sound.emoji ? `${sound.emoji} ${sound.name}` : sound.name)
+          : t('keybinds.soundboard.unknownSound', { id: soundId.slice(0, 8) }),
+      });
+    }
     return rows;
-  }, [soundboardSounds, keybinds, t]);
+  }, [soundboardSounds, keybinds, stagedSoundActionIds, t]);
+
+  const availableSoundsToAdd = useMemo(() => {
+    const visibleSet = new Set(soundboardRows.map((r) => r.actionId));
+    const q = soundSearch.trim().toLowerCase();
+    return soundboardSounds.filter((s) => {
+      if (visibleSet.has(soundboardActionId(s.id))) return false;
+      if (!q) return true;
+      return s.name.toLowerCase().includes(q) || (s.folder?.toLowerCase().includes(q) ?? false);
+    });
+  }, [soundboardSounds, soundboardRows, soundSearch]);
 
   const pressedCodesRef = useRef(new Map<string, { numeric: number; display: string }>());
   const mouseButtonRef = useRef<number | null>(null);
@@ -474,19 +492,75 @@ export function KeybindsPanel() {
         </div>
       </div>
 
-      {/* Soundboard quick-trigger keybinds */}
+      {/* Soundboard quick-trigger keybinds (Discord-style add-on-demand) */}
       <div>
-        <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1">
-          {t('keybinds.section.soundboard')}
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider">
+            {t('keybinds.section.soundboard')}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSoundPickerOpen((open) => !open)}
+            disabled={loadingSounds || soundboardSounds.length === 0}
+            className="text-xs px-2.5 py-1 rounded-md bg-accent-primary/15 text-accent-primary hover:bg-accent-primary/25 font-medium transition-colors disabled:opacity-40"
+          >
+            {soundPickerOpen ? t('common:actions.close') : t('keybinds.soundboard.addShortcut')}
+          </button>
         </div>
         <p className="text-xs text-txt-tertiary mb-2.5">
           {t('keybinds.soundboard.description')}
         </p>
+
+        {soundPickerOpen && (
+          <div className="mb-3 rounded-lg bg-surface-elevated border border-border-soft p-2.5 space-y-2">
+            <input
+              type="text"
+              value={soundSearch}
+              onChange={(e) => setSoundSearch(e.target.value)}
+              placeholder={t('keybinds.soundboard.searchPlaceholder')}
+              className="w-full px-2.5 py-1.5 rounded bg-surface-base border border-border-soft text-xs text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-accent-primary"
+              autoFocus
+            />
+            {availableSoundsToAdd.length === 0 ? (
+              <div className="text-xs text-txt-tertiary px-1 py-1.5">
+                {t('keybinds.soundboard.noMatches')}
+              </div>
+            ) : (
+              <div className="max-h-44 overflow-y-auto scrollbar-thin divide-y divide-white/[0.04]">
+                {availableSoundsToAdd.map((sound) => (
+                  <button
+                    key={sound.id}
+                    type="button"
+                    onClick={() => {
+                      const actionId = soundboardActionId(sound.id);
+                      setStagedSoundActionIds((prev) => (prev.includes(actionId) ? prev : [...prev, actionId]));
+                      setSoundPickerOpen(false);
+                      setSoundSearch('');
+                      cancelRecording();
+                      setRecordingActionId(actionId);
+                    }}
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-left text-xs text-txt-primary hover:bg-white/[0.05] rounded transition-colors"
+                  >
+                    <span className="truncate">
+                      {sound.emoji ? `${sound.emoji} ` : ''}{sound.name}
+                    </span>
+                    {sound.folder && (
+                      <span className="text-[10px] text-txt-tertiary shrink-0">{sound.folder}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {loadingSounds && soundboardRows.length === 0 ? (
           <div className="text-xs text-txt-tertiary px-1">{t('common:states.loading')}</div>
         ) : soundboardRows.length === 0 ? (
           <div className="rounded-lg bg-white/[0.02] border border-white/[0.05] px-4 py-3 text-xs text-txt-tertiary">
-            {t('keybinds.soundboard.empty')}
+            {soundboardSounds.length === 0
+              ? t('keybinds.soundboard.empty')
+              : t('keybinds.soundboard.emptyAdded')}
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -502,7 +576,10 @@ export function KeybindsPanel() {
                   cancelRecording();
                   setRecordingActionId(row.actionId);
                 }}
-                onDelete={() => removeKeybind(row.actionId)}
+                onDelete={() => {
+                  removeKeybind(row.actionId);
+                  setStagedSoundActionIds((prev) => prev.filter((id) => id !== row.actionId));
+                }}
                 rowRef={rowRefs.current[row.actionId]!}
               />
             ))}

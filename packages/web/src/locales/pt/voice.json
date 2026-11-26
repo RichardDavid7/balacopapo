@@ -164,6 +164,19 @@
       "system": "Sistema inteiro",
       "windowHint": "Captura somente o som da janela/aplicativo compartilhado (Windows 11 WASAPI, Chrome/Edge ou Linux PipeWire).",
       "systemHint": "Captura todo o áudio do computador (excluindo as vozes do Balacopapo onde suportado)."
+    },
+    "streamAudioBitrate": {
+      "label": "Bitrate de Áudio da Transmissão",
+      "auto": "Auto"
+    },
+    "streamAudioChannels": {
+      "label": "Canais de Áudio",
+      "stereo": "Estéreo",
+      "multichannel": "Multicanal (5.1)"
+    },
+    "pointerOverlay": {
+      "label": "Sobreposição de Apontar na Tela",
+      "hint": "Exibe na sua tela onde os espectadores apontam (desative para jogos que conflitam com sobreposições, como CS2)."
     }
   },
   "stream": {

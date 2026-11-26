@@ -417,6 +417,7 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
         );
         if (!norm) return;
         e.preventDefault();
+        e.stopPropagation();
         sendStreamPointer(norm.x, norm.y, 'ping');
         return;
       }
@@ -723,6 +724,12 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
           : ''
       }`}
       onContextMenu={handleContextMenu}
+      onClick={(e) => {
+        if (e.shiftKey || pointMode) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

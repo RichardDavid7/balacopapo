@@ -427,10 +427,9 @@ export function applyStreamBufferToRoom(room: Room | null, streamBufferMs: numbe
   room.remoteParticipants.forEach((rp) => {
     rp.trackPublications.forEach((pub) => {
       if (!pub.track) return;
-      if (pub.source === Track.Source.ScreenShare) {
+      if (pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio) {
+        // Apply the exact same playout delay target to both stream video & stream audio so A/V stays synchronized.
         applyReceiverJitterBuffer(pub.track as RemoteTrack, streamBufferMs);
-      } else if (pub.source === Track.Source.ScreenShareAudio) {
-        applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, streamBufferMs, pub.source);
       }
     });
   });
@@ -824,7 +823,12 @@ export function useLiveKit() {
         });
         // Draw directly on the streamer's real OS monitor via click-through overlay (Desktop app)
         const localIdentity = roomRef.current?.localParticipant?.identity;
-        if (localIdentity && ptr.streamIdentity === localIdentity && window.backspace?.showStreamPointerOverlay) {
+        if (
+          localIdentity
+          && ptr.streamIdentity === localIdentity
+          && useVoiceStore.getState().streamPointerOverlayEnabled
+          && window.backspace?.showStreamPointerOverlay
+        ) {
           window.backspace.showStreamPointerOverlay({
             x: ptr.x,
             y: ptr.y,
@@ -1300,10 +1304,11 @@ export function useLiveKit() {
           const audioTrack = track as RemoteAudioTrack;
           audioTrack.detach();
           const voiceState = useVoiceStore.getState();
-          const targetMs = publication.source === Track.Source.ScreenShareAudio
-            ? voiceState.streamBufferMs
-            : voiceState.jitterBufferMs;
-          applyAudioReceiverJitterBuffer(audioTrack, targetMs, publication.source);
+          if (publication.source === Track.Source.ScreenShareAudio) {
+            applyReceiverJitterBuffer(audioTrack, voiceState.streamBufferMs);
+          } else {
+            applyAudioReceiverJitterBuffer(audioTrack, voiceState.jitterBufferMs, publication.source);
+          }
         } else if (track.kind === Track.Kind.Video && publication.source === Track.Source.ScreenShare) {
           publication.setVideoQuality?.(VideoQuality.HIGH);
           applyReceiverJitterBuffer(track as RemoteTrack, useVoiceStore.getState().streamBufferMs);
@@ -1500,10 +1505,11 @@ export function useLiveKit() {
               rp.trackPublications.forEach((pub) => {
                 if (!pub.track) return;
                 if (pub.track.kind === Track.Kind.Audio) {
-                  const targetMs = pub.source === Track.Source.ScreenShareAudio
-                    ? voiceState.streamBufferMs
-                    : voiceState.jitterBufferMs;
-                  applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, targetMs, pub.source);
+                  if (pub.source === Track.Source.ScreenShareAudio) {
+                    applyReceiverJitterBuffer(pub.track as RemoteAudioTrack, voiceState.streamBufferMs);
+                  } else {
+                    applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, voiceState.jitterBufferMs, pub.source);
+                  }
                 } else if (pub.track.kind === Track.Kind.Video && pub.source === Track.Source.ScreenShare) {
                   applyReceiverJitterBuffer(pub.track as RemoteTrack, voiceState.streamBufferMs);
                 }

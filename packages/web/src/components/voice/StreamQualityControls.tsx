@@ -127,6 +127,8 @@ export function StreamQualityControls({ showAudioScope = true }: { showAudioScop
   const electronPlatform = isElectron() ? window.backspace?.platform : null;
   const isScreenSharing = useVoiceStore((s) => s.isScreenSharing);
   const liveAudio = useVoiceStore((s) => s.screenShareAudio);
+  const streamPointerOverlayEnabled = useVoiceStore((s) => s.streamPointerOverlayEnabled);
+  const setStreamPointerOverlayEnabled = useVoiceStore((s) => s.setStreamPointerOverlayEnabled);
   const audioSwitch = systemAudioSwitch(isScreenSharing, liveAudio, config.shareAudio);
   const ownAudio = useOwnAudioInSystemAudio();
   const audioNote = systemAudioNote(electronPlatform ?? null, ownAudio, audioSwitch.checked);
@@ -359,6 +361,83 @@ export function StreamQualityControls({ showAudioScope = true }: { showAudioScop
             </div>
           </div>
         )}
+        {/* Stream audio bitrate & channels (stereo default, optional 5.1 multichannel) */}
+        {audioSwitch.checked && (
+          <div className="mt-2.5 pt-2.5 border-t border-white/[0.04] space-y-2.5">
+            <div>
+              <div className="text-[10px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1.5">
+                {t('voice:streamSettings.streamAudioBitrate.label')}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {([null, 96, 128, 192, 256, 320] as const).map((kbps) => {
+                  const active = (config.streamAudioBitrateKbps ?? null) === kbps;
+                  return (
+                    <button
+                      key={String(kbps)}
+                      type="button"
+                      onClick={() => setConfig({ streamAudioBitrateKbps: kbps })}
+                      aria-pressed={active}
+                      className={`px-2 py-1 rounded text-[11px] font-medium tabular-nums transition-colors ${
+                        active
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-surface-base text-txt-secondary hover:text-txt-primary'
+                      }`}
+                    >
+                      {kbps === null
+                        ? t('voice:streamSettings.streamAudioBitrate.auto')
+                        : formatKbps(kbps)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-semibold text-txt-tertiary uppercase tracking-wider mb-1.5">
+                {t('voice:streamSettings.streamAudioChannels.label')}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['stereo', 'multichannel'] as const).map((ch) => {
+                  const active = (config.streamAudioChannels ?? 'stereo') === ch;
+                  return (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => setConfig({ streamAudioChannels: ch })}
+                      aria-pressed={active}
+                      className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                        active
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-surface-base text-txt-secondary hover:text-txt-primary'
+                      }`}
+                    >
+                      {ch === 'stereo'
+                        ? t('voice:streamSettings.streamAudioChannels.stereo')
+                        : t('voice:streamSettings.streamAudioChannels.multichannel')}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Point-on-screen overlay toggle (so players of games like CS2 can disable overlays) */}
+      <div className="pt-2 border-t border-white/[0.04] flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] text-txt-tertiary font-semibold uppercase tracking-wider">
+            {t('voice:streamSettings.pointerOverlay.label')}
+          </div>
+          <div className="text-[10px] text-txt-tertiary mt-0.5">
+            {t('voice:streamSettings.pointerOverlay.hint')}
+          </div>
+        </div>
+        <Toggle
+          enabled={streamPointerOverlayEnabled}
+          onChange={setStreamPointerOverlayEnabled}
+          ariaLabel={t('voice:streamSettings.pointerOverlay.label')}
+        />
       </div>
     </div>
   );

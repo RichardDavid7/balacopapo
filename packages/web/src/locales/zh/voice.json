@@ -164,6 +164,19 @@
       "system": "整个系统",
       "windowHint": "仅捕获共享窗口/应用的音频（Windows 11 WASAPI、Chrome/Edge 或 Linux PipeWire）。",
       "systemHint": "捕获整个系统的音频（支持时自动排除 Balacopapo 语音）。"
+    },
+    "streamAudioBitrate": {
+      "label": "直播音频码率",
+      "auto": "自动"
+    },
+    "streamAudioChannels": {
+      "label": "音频声道",
+      "stereo": "立体声",
+      "multichannel": "多声道 (5.1)"
+    },
+    "pointerOverlay": {
+      "label": "屏幕指针叠加层",
+      "hint": "直接在您的屏幕上显示观众的指点标记（如 CS2 等与叠加层冲突的游戏可关闭）。"
     }
   },
   "stream": {

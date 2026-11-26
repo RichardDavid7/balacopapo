@@ -14,6 +14,10 @@ export interface ScreenShareConfig {
   shareAudio: boolean;
   /** 'window' requests per-window audio isolation (WASAPI / PipeWire / Chromium windowAudio); 'system' captures full system audio. */
   audioScope?: 'window' | 'system';
+  /** Screen-share audio bitrate in kbps (`null` / undefined = server recommended auto). */
+  streamAudioBitrateKbps?: number | null;
+  /** Screen-share audio channel layout: always stereo by default, or multichannel (5.1) if supported. */
+  streamAudioChannels?: 'stereo' | 'multichannel';
   codec: 'vp9' | 'h264';
 }
 
@@ -187,6 +191,8 @@ export interface VoiceState {
   setJitterBufferMs: (ms: number) => void;
   streamBufferMs: number;                    // 0 = browser auto; up to 2000 = synchronized A/V playout buffer (ms) for screen shares
   setStreamBufferMs: (ms: number) => void;
+  streamPointerOverlayEnabled: boolean;      // allow desktop OS click-through overlay when viewers point at my stream
+  setStreamPointerOverlayEnabled: (enabled: boolean) => void;
   audioBitrate: number;                      // 8–512 kbps manual override (64 default)
   setAudioBitrate: (kbps: number) => void;
   streamAttenuationEnabled: boolean;        // global toggle, default true
@@ -450,8 +456,10 @@ export const useVoiceStore = create<VoiceState>()(
       setAudioBitrateAuto: (auto) => set({ audioBitrateAuto: auto }),
       jitterBufferMs: 40,
       setJitterBufferMs: (ms) => set({ jitterBufferMs: Math.max(0, Math.min(2000, Math.round(ms))) }),
-      streamBufferMs: 200,
+      streamBufferMs: 40,
       setStreamBufferMs: (ms) => set({ streamBufferMs: Math.max(0, Math.min(2000, Math.round(ms))) }),
+      streamPointerOverlayEnabled: true,
+      setStreamPointerOverlayEnabled: (enabled) => set({ streamPointerOverlayEnabled: enabled }),
       audioBitrate: DEFAULT_AUDIO_BITRATE_KBPS,
       setAudioBitrate: (kbps) => {
         const clamped = Math.min(MAX_AUDIO_BITRATE_KBPS, Math.max(MIN_AUDIO_BITRATE_KBPS, Math.round(kbps)));
@@ -1087,6 +1095,7 @@ export const useVoiceStore = create<VoiceState>()(
         audioBitrate: state.audioBitrate,
         jitterBufferMs: state.jitterBufferMs,
         streamBufferMs: state.streamBufferMs,
+        streamPointerOverlayEnabled: state.streamPointerOverlayEnabled,
         streamAttenuationEnabled: state.streamAttenuationEnabled,
         streamAttenuationStrength: state.streamAttenuationStrength,
         // Per-user preferences (Map → plain object for JSON)

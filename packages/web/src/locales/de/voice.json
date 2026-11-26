@@ -164,6 +164,19 @@
       "system": "Gesamtes System",
       "windowHint": "Erfasst nur den Ton des geteilten Fensters/Programms (Windows 11 WASAPI, Chrome/Edge oder Linux PipeWire).",
       "systemHint": "Erfasst das gesamte Systemaudio (ohne Balacopapo-Stimmen, sofern unterstützt)."
+    },
+    "streamAudioBitrate": {
+      "label": "Stream-Audiobitrate",
+      "auto": "Auto"
+    },
+    "streamAudioChannels": {
+      "label": "Audiokanäle",
+      "stereo": "Stereo",
+      "multichannel": "Mehrkanal (5.1)"
+    },
+    "pointerOverlay": {
+      "label": "Zeiger-Overlay auf dem Bildschirm",
+      "hint": "Zeigt Zeiger-Pings der Zuschauer direkt auf deinem Bildschirm an (für Spiele mit Overlay-Konflikten wie CS2 deaktivieren)."
     }
   },
   "stream": {

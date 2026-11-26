@@ -292,7 +292,7 @@ export function UserSettingsModal() {
         {/* Content area (desktop always, mobile only when viewing content) */}
         {(!isMobile || mobileView === 'content') && (
           <SettingsScrollContainer>
-            <div className="px-6 max-w-[640px] mx-auto">
+            <div className={`${tab === 'instance' ? 'px-6 desktop:px-8 max-w-[920px]' : 'px-6 max-w-[640px]'} mx-auto`}>
               {/* Mobile back button */}
               {isMobile && (
                 <button

@@ -395,7 +395,11 @@
     "soundboard": {
       "description": "在语音通话中直接通过快捷键或鼠标侧键播放音效板音频。",
       "empty": "当前群组或实例暂无可用的音效板音频。",
-      "unknownSound": "音效板音频 ({{id}})"
+      "unknownSound": "音效板音频 ({{id}})",
+      "addShortcut": "+ 添加快捷键",
+      "searchPlaceholder": "搜索音效板音频…",
+      "noMatches": "没有可添加的匹配音频。",
+      "emptyAdded": "尚未添加音效板快捷键。点击“+ 添加快捷键”来绑定任意音频。"
     }
   },
   "desktop": {

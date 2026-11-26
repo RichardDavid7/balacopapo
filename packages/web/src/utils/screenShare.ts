@@ -36,7 +36,7 @@ export interface ScreenShareBuildResult {
     simulcast: false;
     backupCodec?: { codec: 'vp8' | 'h264'; encoding: { maxBitrate: number; maxFramerate: number } };
     backupCodecPolicy?: BackupCodecPolicy;
-    audioPreset: typeof AudioPresets.musicHighQualityStereo;
+    audioPreset: { maxBitrate: number };
     dtx: false;
     red: false;
     forceStereo: true;
@@ -203,7 +203,15 @@ export function buildScreenShareOptions(savedConfig: ScreenShareConfig): ScreenS
         encoding: { maxBitrate: backupBps, maxFramerate: backupFps },
       },
       backupCodecPolicy: BackupCodecPolicy.SIMULCAST,
-      audioPreset: AudioPresets.musicHighQualityStereo,
+      audioPreset: {
+        maxBitrate: (() => {
+          const defaultKbps = config.streamAudioChannels === 'multichannel' ? 256 : Math.round(AudioPresets.musicHighQualityStereo.maxBitrate / 1000);
+          const chosenKbps = config.streamAudioBitrateKbps != null
+            ? Math.max(64, Math.min(512, Math.round(config.streamAudioBitrateKbps)))
+            : defaultKbps;
+          return chosenKbps * 1000;
+        })(),
+      },
       dtx: false,
       red: false,
       forceStereo: true,
@@ -369,7 +377,7 @@ function buildCaptureConstraints(config: ScreenShareConfig, opts: ScreenShareBui
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false,
-      channelCount: 2,
+      channelCount: config.streamAudioChannels === 'multichannel' ? { ideal: 6 } : 2,
     } : false,
     ...(config.shareAudio ? {
       // Chromium 130+ / Windows 11 WASAPI Process Loopback: capture only the shared window's audio

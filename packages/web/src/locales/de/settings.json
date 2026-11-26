@@ -396,7 +396,11 @@
     "soundboard": {
       "description": "Soundboard-Clips im Sprachkanal direkt per Tastenkombination oder Maustaste auslösen.",
       "empty": "In dieser Gruppe oder Instanz sind noch keine Soundboard-Clips verfügbar.",
-      "unknownSound": "Soundboard-Clip ({{id}})"
+      "unknownSound": "Soundboard-Clip ({{id}})",
+      "addShortcut": "+ Tastenkürzel hinzufügen",
+      "searchPlaceholder": "Soundboard-Clips suchen…",
+      "noMatches": "Keine passenden Soundboard-Clips mehr verfügbar.",
+      "emptyAdded": "Noch keine Soundboard-Tastenkürzel hinzugefügt. Klicke auf „+ Tastenkürzel hinzufügen“, um einen Sound zu belegen."
     }
   },
   "desktop": {

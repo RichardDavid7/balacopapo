@@ -164,6 +164,19 @@
       "system": "Full system",
       "windowHint": "Captures audio only from the shared window/app (Windows 11 WASAPI, Chrome/Edge, or Linux PipeWire).",
       "systemHint": "Captures all system audio (excluding Balacopapo voices where supported)."
+    },
+    "streamAudioBitrate": {
+      "label": "Stream Audio Bitrate",
+      "auto": "Auto"
+    },
+    "streamAudioChannels": {
+      "label": "Audio Channels",
+      "stereo": "Stereo",
+      "multichannel": "Multichannel (5.1)"
+    },
+    "pointerOverlay": {
+      "label": "On-Screen Pointer Overlay",
+      "hint": "Show viewer pointer pings directly on your screen (disable for games that conflict with overlays, like CS2)."
     }
   },
   "stream": {
