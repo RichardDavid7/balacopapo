@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use crate::core::models::{AuthUser, GroupSummary, PresenceStatus};
 use crate::features::chat::{self, ChatMessageAction, ChatState};
+use crate::features::overlay::{self, OverlayAction, OverlayAndGameState};
 use crate::features::p2p::{self, P2PAction, P2PState};
 use crate::features::soundboard::{self, SoundboardAction, SoundboardState};
 use crate::features::stream::{self, StreamAction, StreamState};
@@ -20,6 +21,7 @@ pub struct ShellState {
     pub soundboard_open: bool,
     pub stream_open: bool,
     pub p2p_open: bool,
+    pub overlay_open: bool,
     pub ws_connected: bool,
     pub ws_status_label: String,
     pub groups: Vec<GroupSummary>,
@@ -31,6 +33,7 @@ pub struct ShellState {
     pub soundboard: SoundboardState,
     pub stream: StreamState,
     pub p2p: P2PState,
+    pub overlay: OverlayAndGameState,
     pub loading_groups: bool,
     pub error: Option<String>,
 }
@@ -46,6 +49,7 @@ impl ShellState {
             soundboard_open: false,
             stream_open: false,
             p2p_open: false,
+            overlay_open: false,
             ws_connected: false,
             ws_status_label: "Conectando WS...".to_string(),
             groups: Vec::new(),
@@ -57,6 +61,7 @@ impl ShellState {
             soundboard: SoundboardState::default(),
             stream: StreamState::default(),
             p2p: P2PState::default(),
+            overlay: OverlayAndGameState::default(),
             loading_groups: true,
             error: None,
         }
@@ -72,12 +77,14 @@ pub enum ShellMessage {
     ToggleSoundboard,
     ToggleStream,
     ToggleP2P,
+    ToggleOverlay,
     SetStatus(PresenceStatus),
     Chat(ChatMessageAction),
     Voice(VoiceAction),
     Soundboard(SoundboardAction),
     Stream(StreamAction),
     P2P(P2PAction),
+    Overlay(OverlayAction),
     OpenReleasePage(String),
     Logout,
 }
@@ -272,6 +279,11 @@ pub fn view<'a>(
     } else {
         aether_drift::ghost_button_style
     };
+    let overlay_style = if state.overlay_open {
+        aether_drift::primary_button_style
+    } else {
+        aether_drift::ghost_button_style
+    };
 
     let mut top_bar = row![
         text(
@@ -284,6 +296,10 @@ pub fn view<'a>(
             .padding([4, 10])
             .style(aether_drift::pill_style),
         horizontal_space(),
+        button(text("🎮 Overlay").size(12))
+            .on_press(ShellMessage::ToggleOverlay)
+            .padding([6, 12])
+            .style(overlay_style),
         button(text("🕸️ P2P").size(12))
             .on_press(ShellMessage::ToggleP2P)
             .padding([6, 12])
@@ -323,7 +339,9 @@ pub fn view<'a>(
             .find(|c| state.selected_channel_id.as_deref() == Some(c.id.as_str()))
     });
 
-    let center_content: Element<'a, ShellMessage> = if state.p2p_open {
+    let center_content: Element<'a, ShellMessage> = if state.overlay_open {
+        overlay::view(&state.overlay).map(ShellMessage::Overlay)
+    } else if state.p2p_open {
         p2p::view(&state.p2p).map(ShellMessage::P2P)
     } else if state.stream_open {
         scrollable(stream::view(&state.stream).map(ShellMessage::Stream))
@@ -385,6 +403,7 @@ fn channel_button<'a>(
     let active = !state.soundboard_open
         && !state.stream_open
         && !state.p2p_open
+        && !state.overlay_open
         && state.selected_channel_id.as_deref() == Some(ch.id.as_str());
     let style = if active {
         aether_drift::primary_button_style

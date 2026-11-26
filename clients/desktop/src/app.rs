@@ -10,6 +10,7 @@ use crate::core::models::{
 use crate::core::p2p_mesh::FileTransferStatus;
 use crate::features::auth::{self, AuthMessage, AuthState};
 use crate::features::chat::ChatMessageAction;
+use crate::features::overlay::OverlayAction;
 use crate::features::p2p::P2PAction;
 use crate::features::shell::{self, ShellMessage, ShellState};
 use crate::features::soundboard::SoundboardAction;
@@ -573,6 +574,7 @@ impl BalacopapoApp {
                 shell.soundboard_open = false;
                 shell.stream_open = false;
                 shell.p2p_open = false;
+                shell.overlay_open = false;
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
@@ -580,6 +582,7 @@ impl BalacopapoApp {
                 shell.soundboard_open = false;
                 shell.stream_open = false;
                 shell.p2p_open = false;
+                shell.overlay_open = false;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
@@ -614,6 +617,7 @@ impl BalacopapoApp {
                 if shell.soundboard_open {
                     shell.stream_open = false;
                     shell.p2p_open = false;
+                    shell.overlay_open = false;
                 }
                 if shell.soundboard_open && shell.soundboard.sounds.is_empty() {
                     shell.soundboard.loading = true;
@@ -629,6 +633,7 @@ impl BalacopapoApp {
                 if shell.stream_open {
                     shell.soundboard_open = false;
                     shell.p2p_open = false;
+                    shell.overlay_open = false;
                 }
                 Task::none()
             }
@@ -637,6 +642,16 @@ impl BalacopapoApp {
                 if shell.p2p_open {
                     shell.soundboard_open = false;
                     shell.stream_open = false;
+                    shell.overlay_open = false;
+                }
+                Task::none()
+            }
+            ShellMessage::ToggleOverlay => {
+                shell.overlay_open = !shell.overlay_open;
+                if shell.overlay_open {
+                    shell.soundboard_open = false;
+                    shell.stream_open = false;
+                    shell.p2p_open = false;
                 }
                 Task::none()
             }
@@ -659,6 +674,7 @@ impl BalacopapoApp {
             ShellMessage::Soundboard(action) => self.handle_soundboard_action(action),
             ShellMessage::Stream(action) => self.handle_stream_action(action),
             ShellMessage::P2P(action) => self.handle_p2p_action(action),
+            ShellMessage::Overlay(action) => self.handle_overlay_action(action),
             ShellMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
                 Task::none()
@@ -1040,6 +1056,65 @@ impl BalacopapoApp {
                 if let Some(offer) = shell.p2p.file_offers.iter_mut().find(|o| o.id == id) {
                     offer.status = FileTransferStatus::Rejected;
                 }
+                Task::none()
+            }
+        }
+    }
+
+    fn handle_overlay_action(&mut self, action: OverlayAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            OverlayAction::ToggleOverlay => {
+                shell.overlay.overlay_enabled = !shell.overlay.overlay_enabled;
+                Task::none()
+            }
+            OverlayAction::SetCorner(c) => {
+                shell.overlay.corner = c;
+                Task::none()
+            }
+            OverlayAction::OpacityChanged(v) => {
+                shell.overlay.opacity_pct = v;
+                Task::none()
+            }
+            OverlayAction::ScaleChanged(v) => {
+                shell.overlay.scale_pct = v;
+                Task::none()
+            }
+            OverlayAction::ToggleCompactSpeakers => {
+                shell.overlay.compact_speakers_only = !shell.overlay.compact_speakers_only;
+                Task::none()
+            }
+            OverlayAction::ToggleJoinToasts => {
+                shell.overlay.show_join_leave_toasts = !shell.overlay.show_join_leave_toasts;
+                Task::none()
+            }
+            OverlayAction::ToggleStreamPointers => {
+                shell.overlay.show_stream_pointers = !shell.overlay.show_stream_pointers;
+                Task::none()
+            }
+            OverlayAction::ToggleKeybind(idx) => {
+                if let Some(kb) = shell.overlay.keybinds.get_mut(idx) {
+                    kb.enabled = !kb.enabled;
+                }
+                Task::none()
+            }
+            OverlayAction::ToggleShowActivity => {
+                shell.overlay.show_activity_publicly = !shell.overlay.show_activity_publicly;
+                Task::none()
+            }
+            OverlayAction::ManualGameChanged(v) => {
+                shell.overlay.manual_game_override = v;
+                Task::none()
+            }
+            OverlayAction::IgnoredAppsChanged(v) => {
+                shell.overlay.ignored_apps_csv = v;
+                Task::none()
+            }
+            OverlayAction::ScanGamesNow => {
+                shell.overlay.run_game_scan();
                 Task::none()
             }
         }

@@ -25,6 +25,7 @@ cpal = "0.15"
 rtrb = "0.3"
 nnnoiseless = "0.5"
 hound = "3.5"
+sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 
 [profile.release]
 panic = "abort"
