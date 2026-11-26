@@ -55,8 +55,6 @@ pub struct ShellState {
 impl ShellState {
     pub fn new(instance_url: String, user: AuthUser) -> Self {
         let presence = PresenceStatus::from_api_str(user.status.as_deref());
-        let mut settings = SettingsState::default();
-        settings.low_interrupt_mode = true;
         Self {
             instance_url,
             user,
@@ -77,7 +75,7 @@ impl ShellState {
             stream: StreamState::default(),
             p2p: P2PState::default(),
             overlay: OverlayAndGameState::default(),
-            settings,
+            settings: SettingsState::default(),
             loading_groups: true,
             error: None,
         }
