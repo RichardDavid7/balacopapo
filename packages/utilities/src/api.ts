@@ -28,7 +28,8 @@ export class BalacopapoApi {
   constructor(private readonly cfg: UtilitiesConfig) {}
 
   private async request<T>(method: string, route: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${this.cfg.baseUrl}${route}`, {
+    const fullUrl = `${this.cfg.baseUrl}${route}`;
+    const res = await fetch(fullUrl, {
       method,
       headers: {
         'X-Api-Key': this.cfg.apiKey,
@@ -37,10 +38,17 @@ export class BalacopapoApi {
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(15_000),
     });
+    const text = await res.text();
     if (!res.ok) {
-      throw new Error(`${method} ${route} → HTTP ${res.status}`);
+      throw new Error(`${method} ${route} → HTTP ${res.status}${text && !text.startsWith('<') ? `: ${text.slice(0, 120)}` : ''}`);
     }
-    return (await res.json()) as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new Error(
+        `A instância respondeu HTML em vez de JSON em ${route} — verifique se a URL (${this.cfg.baseUrl}) está correta e se o servidor Balacopapo está atualizado com a API de música.`,
+      );
+    }
   }
 
   getInfo(): Promise<BotInfo> {

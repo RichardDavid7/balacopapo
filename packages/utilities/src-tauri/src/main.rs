@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
@@ -24,7 +24,14 @@ impl WorkerState {
     }
 }
 
-fn spawn_worker() -> Option<Child> {
+fn pick_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map(|a| a.port())
+        .unwrap_or(47821)
+}
+
+fn spawn_worker(port: u16) -> Option<Child> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
 
     #[cfg(target_os = "windows")]
@@ -53,6 +60,7 @@ fn spawn_worker() -> Option<Child> {
     let mut cmd = Command::new(&node_bin);
     cmd.arg(&entry)
         .arg("--no-browser")
+        .env("BALACOPAPO_UTIL_PORT", port.to_string())
         .current_dir(&workdir);
 
     #[cfg(target_os = "windows")]
@@ -74,14 +82,15 @@ fn show_main(app: &tauri::AppHandle) {
 }
 
 fn main() {
-    let worker = spawn_worker();
+    let port = pick_port();
+    let worker = spawn_worker(port);
 
     tauri::Builder::default()
         .manage(WorkerState(Mutex::new(worker)))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main(app);
         }))
-        .setup(|app| {
+        .setup(move |app| {
             // Bandeja do sistema (System Tray)
             let open_i = MenuItem::with_id(app, "open", "Abrir Balacopapo Utilidades", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
@@ -114,13 +123,15 @@ fn main() {
             }
             tray.build(app)?;
 
-            // Aguarda o servidor local na porta 47821 ficar pronto e navega a janela principal
+            // Aguarda o servidor local na porta escolhida ficar pronto e navega a janela principal
             let handle = app.handle().clone();
             std::thread::spawn(move || {
+                let addr = format!("127.0.0.1:{port}");
+                let url_str = format!("http://127.0.0.1:{port}/");
                 for _ in 0..80 {
-                    if TcpStream::connect("127.0.0.1:47821").is_ok() {
+                    if TcpStream::connect(&addr).is_ok() {
                         if let Some(win) = handle.get_webview_window("main") {
-                            if let Ok(url) = "http://127.0.0.1:47821/".parse() {
+                            if let Ok(url) = url_str.parse() {
                                 let _ = win.navigate(url);
                             }
                         }

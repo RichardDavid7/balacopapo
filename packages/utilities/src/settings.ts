@@ -23,8 +23,15 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export function normalizeSettings(input: Partial<Settings>, base: Settings = DEFAULT_SETTINGS): Settings {
   const num = (v: unknown, def: number) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : def);
-  const baseUrl = typeof input.baseUrl === 'string' ? input.baseUrl.trim().replace(/\/+$/, '') : base.baseUrl;
-  if (baseUrl && !/^https?:\/\//i.test(baseUrl)) throw new Error('A URL deve começar com http:// ou https://');
+  let baseUrl = typeof input.baseUrl === 'string' ? input.baseUrl.trim().replace(/\/+$/, '') : base.baseUrl;
+  if (baseUrl) {
+    if (!/^https?:\/\//i.test(baseUrl)) throw new Error('A URL deve começar com http:// ou https://');
+    try {
+      baseUrl = new URL(baseUrl).origin;
+    } catch {
+      throw new Error('URL da instância inválida');
+    }
+  }
   return {
     baseUrl,
     apiKey: typeof input.apiKey === 'string' && input.apiKey.trim() ? input.apiKey.trim() : base.apiKey,
