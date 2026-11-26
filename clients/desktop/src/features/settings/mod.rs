@@ -248,7 +248,7 @@ pub fn view<'a>(
             for &t in AppThemeId::ALL {
                 let active = state.theme == t;
                 theme_row = theme_row.push(
-                    button(text(t.label()).size(12))
+                    button(text(t.label_pt()).size(12))
                         .on_press(SettingsAction::SelectTheme(t))
                         .padding([6, 12])
                         .style(if active {
@@ -281,7 +281,7 @@ pub fn view<'a>(
                 horizontal_space(),
                 text(format!(
                     "Exemplo: {}",
-                    format_clock(21, 45, state.clock_format, state.language)
+                    format_clock(21, 45, state.clock_format)
                 ))
                 .size(12)
                 .color(aether_drift::TEXT_MUTED),
