@@ -14,6 +14,7 @@ import {
   LocalTrackPublication,
   DisconnectReason,
   TrackEvent,
+  VideoQuality,
 } from 'livekit-client';
 import { getApiForOrigin, getChannelOrigin, getMyUserIdForOrigin, useSpaceStore } from '../stores/spaceStore';
 import { homeIdentityOf } from '../utils/identity';
@@ -181,7 +182,11 @@ export function setStreamSubscription(room: Room | null, targetIdentity: string,
   if (!rp) return;
   rp.trackPublications.forEach((pub) => {
     if (pub.source === Track.Source.ScreenShare || pub.source === Track.Source.ScreenShareAudio) {
-      (pub as RemoteTrackPublication).setSubscribed(subscribed);
+      const remotePub = pub as RemoteTrackPublication;
+      remotePub.setSubscribed(subscribed);
+      if (subscribed && pub.source === Track.Source.ScreenShare) {
+        remotePub.setVideoQuality?.(VideoQuality.HIGH);
+      }
     }
   });
 }
@@ -1217,7 +1222,11 @@ export function useLiveKit() {
       useVoiceStore.setState({ livekitHostOrigin: hostOrigin });
       // Refreshed per join; home's document arrives with every home `ready`.
       if (hostOrigin) void refreshStreamHostLimits(hostOrigin);
-      const newRoom = new Room({ adaptiveStream: true, dynacast: true, publishDefaults: { videoCodec: 'h264', simulcast: true } });
+      const newRoom = new Room({
+        adaptiveStream: { pixelDensity: 'screen' },
+        dynacast: true,
+        publishDefaults: { videoCodec: 'h264', simulcast: true },
+      });
       createdRoom = newRoom;
       // Transfer lease ownership from the pending join to this Room instance.
       if (pendingAudioLeaseRef.current?.gen === gen) {
@@ -1296,6 +1305,7 @@ export function useLiveKit() {
             : voiceState.jitterBufferMs;
           applyAudioReceiverJitterBuffer(audioTrack, targetMs, publication.source);
         } else if (track.kind === Track.Kind.Video && publication.source === Track.Source.ScreenShare) {
+          publication.setVideoQuality?.(VideoQuality.HIGH);
           applyReceiverJitterBuffer(track as RemoteTrack, useVoiceStore.getState().streamBufferMs);
         }
         guardedUpdate();
