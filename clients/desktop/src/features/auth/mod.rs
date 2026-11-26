@@ -39,6 +39,7 @@ pub enum AuthMessage {
     SubmitLogin,
     StartOidc,
     CheckUpdates,
+    ApplyStagedUpdate(std::path::PathBuf),
     OpenReleasePage(String),
 }
 
@@ -178,13 +179,25 @@ pub fn view<'a>(
             .size(12)
             .color(aether_drift::SUCCESS_GREEN)
             .into(),
-        UpdateCheckState::Available {
+        UpdateCheckState::Downloading { version } => text(format!("Baixando {version}..."))
+            .size(11)
+            .color(aether_drift::TEXT_MUTED)
+            .into(),
+        UpdateCheckState::ReadyToRestart {
+            version,
+            staged_path,
+        } => button(text(format!("↑ {version}")).size(11))
+            .on_press(AuthMessage::ApplyStagedUpdate(staged_path.clone()))
+            .padding([3, 8])
+            .style(aether_drift::primary_button_style)
+            .into(),
+        UpdateCheckState::AvailableManual {
             version,
             release_url,
-        } => button(text(format!("Nova versão {version} disponível")).size(12))
+        } => button(text(format!("↑ {version}")).size(11))
             .on_press(AuthMessage::OpenReleasePage(release_url.clone()))
-            .padding([4, 10])
-            .style(aether_drift::primary_button_style)
+            .padding([3, 8])
+            .style(aether_drift::ghost_button_style)
             .into(),
         UpdateCheckState::Failed(msg) => text(format!("Update: {msg}"))
             .size(11)

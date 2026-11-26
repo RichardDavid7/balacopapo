@@ -183,6 +183,7 @@ jobs:
         run: |
           mkdir -p dist
           TAG="${{ needs.prepare-release.outputs.tag_name }}"
+          cp target/release/balacopapo-desktop "dist/Balacopapo-${TAG}-linux-x64"
           cp target/release/balacopapo-desktop "dist/balacopapo-desktop"
           tar -czf "dist/Balacopapo-${TAG}-linux-x64.tar.gz" -C dist balacopapo-desktop
           rm -f dist/balacopapo-desktop
@@ -195,6 +196,7 @@ jobs:
             clients/desktop/dist/*.exe
             clients/desktop/dist/*.zip
             clients/desktop/dist/*.tar.gz
+            clients/desktop/dist/*-linux-x64
           prerelease: ${{ needs.prepare-release.outputs.is_prerelease == 'true' }}
 
   android-client:

@@ -99,6 +99,7 @@ pub enum ShellMessage {
     P2P(P2PAction),
     Overlay(OverlayAction),
     Settings(SettingsAction),
+    ApplyStagedUpdate(std::path::PathBuf),
     OpenReleasePage(String),
     Logout,
 }
@@ -317,17 +318,31 @@ pub fn view<'a>(
     .spacing(6)
     .align_y(Alignment::Center);
 
-    if let UpdateCheckState::Available {
-        version,
-        release_url,
-    } = update_state
-    {
-        top_bar = top_bar.push(
-            button(text(format!("Atualizar {version}")).size(12))
-                .on_press(ShellMessage::OpenReleasePage(release_url.clone()))
-                .padding([6, 10])
-                .style(aether_drift::primary_button_style),
-        );
+    // Botãozinho discreto apenas quando uma atualização baixada em segundo plano fica pronta com o app aberto.
+    match update_state {
+        UpdateCheckState::ReadyToRestart {
+            version,
+            staged_path,
+        } => {
+            top_bar = top_bar.push(
+                button(text(format!("↑ {version}")).size(11))
+                    .on_press(ShellMessage::ApplyStagedUpdate(staged_path.clone()))
+                    .padding([4, 9])
+                    .style(aether_drift::primary_button_style),
+            );
+        }
+        UpdateCheckState::AvailableManual {
+            version,
+            release_url,
+        } => {
+            top_bar = top_bar.push(
+                button(text(format!("↑ {version}")).size(11))
+                    .on_press(ShellMessage::OpenReleasePage(release_url.clone()))
+                    .padding([4, 9])
+                    .style(aether_drift::ghost_button_style),
+            );
+        }
+        _ => {}
     }
 
     let selected_channel = selected_group.and_then(|g| {

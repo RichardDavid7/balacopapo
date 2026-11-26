@@ -11,6 +11,9 @@ mod ui;
 use iced::{window, Size};
 
 fn main() -> iced::Result {
+    // Aplica silenciosamente qualquer atualização já baixada na sessão anterior (zero interação).
+    os::updater::apply_staged_on_startup();
+
     iced::application(
         app::BalacopapoApp::title,
         app::BalacopapoApp::update,

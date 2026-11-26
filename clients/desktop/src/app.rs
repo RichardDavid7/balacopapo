@@ -112,7 +112,7 @@ impl BalacopapoApp {
         auth_state.status_note = initial_note;
 
         let mut tasks = vec![Task::perform(
-            updater::check_github_updates(),
+            updater::check_and_stage_update(),
             Message::UpdateChecked,
         )];
 
@@ -152,14 +152,16 @@ impl BalacopapoApp {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
+        let updater_sub = updater::periodic_check_subscription().map(Message::UpdateChecked);
         match &self.screen {
-            Screen::Auth(_) => Subscription::none(),
+            Screen::Auth(_) => updater_sub,
             Screen::Shell(shell) => match self.config.auth_token.clone() {
-                Some(token) if !token.is_empty() => {
+                Some(token) if !token.is_empty() => Subscription::batch([
                     ws::connect_subscription(shell.instance_url.clone(), token)
-                        .map(Message::WsEvent)
-                }
-                _ => Subscription::none(),
+                        .map(Message::WsEvent),
+                    updater_sub,
+                ]),
+                _ => updater_sub,
             },
         }
     }
@@ -641,7 +643,13 @@ impl BalacopapoApp {
             },
             AuthMessage::CheckUpdates => {
                 self.update_state = UpdateCheckState::Checking;
-                Task::perform(updater::check_github_updates(), Message::UpdateChecked)
+                Task::perform(updater::check_and_stage_update(), Message::UpdateChecked)
+            }
+            AuthMessage::ApplyStagedUpdate(path) => {
+                if let Err(err) = updater::install_and_restart(&path) {
+                    self.update_state = UpdateCheckState::Failed(err);
+                }
+                Task::none()
             }
             AuthMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
@@ -746,6 +754,12 @@ impl BalacopapoApp {
             ShellMessage::P2P(action) => self.handle_p2p_action(action),
             ShellMessage::Overlay(action) => self.handle_overlay_action(action),
             ShellMessage::Settings(action) => self.handle_settings_action(action),
+            ShellMessage::ApplyStagedUpdate(path) => {
+                if let Err(err) = updater::install_and_restart(&path) {
+                    self.update_state = UpdateCheckState::Failed(err);
+                }
+                Task::none()
+            }
             ShellMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
                 Task::none()
