@@ -18,12 +18,24 @@ pub struct AppConfig {
     pub auth_token: Option<String>,
     #[serde(default = "default_language")]
     pub language: String,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    #[serde(default = "default_clock_format")]
+    pub clock_format: String,
     #[serde(default = "default_true")]
     pub low_interrupt_mode: bool,
 }
 
 fn default_language() -> String {
     "pt".to_string()
+}
+
+fn default_theme() -> String {
+    "aether_drift".to_string()
+}
+
+fn default_clock_format() -> String {
+    "auto".to_string()
 }
 
 fn default_true() -> bool {
@@ -36,6 +48,8 @@ impl Default for AppConfig {
             instance_url: None,
             auth_token: None,
             language: default_language(),
+            theme: default_theme(),
+            clock_format: default_clock_format(),
             low_interrupt_mode: true,
         }
     }

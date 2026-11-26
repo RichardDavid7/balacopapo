@@ -15,13 +15,70 @@ pub const ACCENT_VIOLET_HOVER: Color = Color::from_rgb(0.486, 0.227, 0.929); // 
 pub const SUCCESS_GREEN: Color = Color::from_rgb(0.204, 0.827, 0.600); // #34d399
 pub const DANGER_RED: Color = Color::from_rgb(0.973, 0.443, 0.443); // #f87171
 
-pub fn theme() -> Theme {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AppThemeId {
+    #[default]
+    AetherDrift,
+    MidnightBlue,
+    EmeraldDark,
+    OledPureBlack,
+}
+
+impl AppThemeId {
+    pub const ALL: &'static [Self] = &[
+        Self::AetherDrift,
+        Self::MidnightBlue,
+        Self::EmeraldDark,
+        Self::OledPureBlack,
+    ];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::AetherDrift => "aether_drift",
+            Self::MidnightBlue => "midnight_blue",
+            Self::EmeraldDark => "emerald_dark",
+            Self::OledPureBlack => "oled_black",
+        }
+    }
+
+    pub fn from_code(raw: &str) -> Self {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "midnight_blue" => Self::MidnightBlue,
+            "emerald_dark" => Self::EmeraldDark,
+            "oled_black" => Self::OledPureBlack,
+            _ => Self::AetherDrift,
+        }
+    }
+
+    pub fn label_pt(self) -> &'static str {
+        match self {
+            Self::AetherDrift => "Aether Drift (Padrão)",
+            Self::MidnightBlue => "Azul Meia-Noite",
+            Self::EmeraldDark => "Esmeralda Escuro",
+            Self::OledPureBlack => "Preto OLED Puro",
+        }
+    }
+}
+
+pub fn theme_for(id: AppThemeId) -> Theme {
+    let (bg, primary) = match id {
+        AppThemeId::AetherDrift => (BG_OBSIDIAN, ACCENT_VIOLET),
+        AppThemeId::MidnightBlue => (
+            Color::from_rgb(0.039, 0.059, 0.110),
+            Color::from_rgb(0.231, 0.510, 0.965),
+        ),
+        AppThemeId::EmeraldDark => (
+            Color::from_rgb(0.035, 0.075, 0.063),
+            Color::from_rgb(0.063, 0.725, 0.506),
+        ),
+        AppThemeId::OledPureBlack => (Color::BLACK, ACCENT_VIOLET),
+    };
     Theme::custom(
-        "Aether Drift".to_string(),
+        id.label_pt().to_string(),
         Palette {
-            background: BG_OBSIDIAN,
+            background: bg,
             text: TEXT_PRIMARY,
-            primary: ACCENT_VIOLET,
+            primary,
             success: SUCCESS_GREEN,
             danger: DANGER_RED,
         },

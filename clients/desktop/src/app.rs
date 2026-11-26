@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 
 use crate::core::config::{normalize_instance_url, AppConfig};
 use crate::core::deep_link::{parse_deep_link, DeepLinkTarget};
+use crate::core::i18n::{AppLanguage, ClockFormat};
 use crate::core::models::{
     AuthUser, ChatMessage, DmChannelSummary, GroupSummary, InstanceInfo, LiveKitTokenResponse,
     LoginResponse, MusicChannelState, PresenceStatus, SoundboardSound, SpaceApiKeySummary, WsEvent,
@@ -24,7 +25,7 @@ use crate::media::wav_dsp::{quadratic_gain, WavClip};
 use crate::net::client::ApiClient;
 use crate::net::ws;
 use crate::os::updater::{self, UpdateCheckState};
-use crate::ui::aether_drift;
+use crate::ui::aether_drift::{self, AppThemeId};
 
 pub enum Screen {
     Auth(AuthState),
@@ -147,7 +148,7 @@ impl BalacopapoApp {
     }
 
     pub fn theme(&self) -> Theme {
-        aether_drift::theme()
+        aether_drift::theme_for(AppThemeId::from_code(&self.config.theme))
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
@@ -191,7 +192,11 @@ impl BalacopapoApp {
                     self.config.instance_url = Some(url.clone());
                     self.config.auth_token = Some(resp.token.clone());
                     let _ = self.config.save();
-                    self.screen = Screen::Shell(Box::new(ShellState::new(url.clone(), resp.user)));
+                    let mut shell_state = ShellState::new(url.clone(), resp.user);
+                    shell_state.settings.theme = AppThemeId::from_code(&self.config.theme);
+                    shell_state.settings.language = AppLanguage::from_code(&self.config.language);
+                    shell_state.settings.low_interrupt_mode = self.config.low_interrupt_mode;
+                    self.screen = Screen::Shell(Box::new(shell_state));
                     Self::load_groups_task(url, resp.token)
                 }
                 Err(err) => {
@@ -205,7 +210,11 @@ impl BalacopapoApp {
             Message::SessionRestored(result) => match result {
                 Ok((url, user)) => {
                     let token = self.config.auth_token.clone().unwrap_or_default();
-                    self.screen = Screen::Shell(Box::new(ShellState::new(url.clone(), user)));
+                    let mut shell_state = ShellState::new(url.clone(), user);
+                    shell_state.settings.theme = AppThemeId::from_code(&self.config.theme);
+                    shell_state.settings.language = AppLanguage::from_code(&self.config.language);
+                    shell_state.settings.low_interrupt_mode = self.config.low_interrupt_mode;
+                    self.screen = Screen::Shell(Box::new(shell_state));
                     Self::load_groups_task(url, token)
                 }
                 Err(_) => {
@@ -1089,6 +1098,21 @@ impl BalacopapoApp {
                 shell.stream.pointers.clear();
                 Task::none()
             }
+            StreamAction::SimulateRemoteRequest => {
+                shell
+                    .stream
+                    .remote_control
+                    .request_from("Participante Remoto".to_string());
+                Task::none()
+            }
+            StreamAction::ApproveRemoteControl { allow_keyboard } => {
+                shell.stream.remote_control.approve(true, allow_keyboard);
+                Task::none()
+            }
+            StreamAction::PanicRevokeRemote => {
+                shell.stream.remote_control.panic_revoke();
+                Task::none()
+            }
         }
     }
 
@@ -1345,6 +1369,29 @@ impl BalacopapoApp {
             SettingsAction::ToggleLowInterrupt => {
                 shell.settings.low_interrupt_mode = !shell.settings.low_interrupt_mode;
                 self.config.low_interrupt_mode = shell.settings.low_interrupt_mode;
+                let _ = self.config.save();
+                Task::none()
+            }
+            SettingsAction::SelectTheme(theme_id) => {
+                shell.settings.theme = theme_id;
+                self.config.theme = theme_id.code().to_string();
+                let _ = self.config.save();
+                Task::none()
+            }
+            SettingsAction::SelectLanguage(lang) => {
+                shell.settings.language = lang;
+                self.config.language = lang.code().to_string();
+                let _ = self.config.save();
+                Task::none()
+            }
+            SettingsAction::SelectClockFormat(fmt) => {
+                shell.settings.clock_format = fmt;
+                self.config.clock_format = match fmt {
+                    ClockFormat::Auto => "auto",
+                    ClockFormat::H24 => "h24",
+                    ClockFormat::H12 => "h12",
+                }
+                .to_string();
                 let _ = self.config.save();
                 Task::none()
             }

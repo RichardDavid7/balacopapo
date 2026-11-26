@@ -43,6 +43,7 @@ Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia
 | DMs & Grupos Diretos | `src/features/dm/mod.rs` (+ `MODULE.md`) |
 | Mini-Player de Música limpo (sem config de Vote-Skip) | `src/features/music/mod.rs` (+ `MODULE.md`) |
 | Configurações (Usuário, Grupo com Vote-Skip livre %, API Keys, Admin) | `src/features/settings/mod.rs` (+ `MODULE.md`) |
+| Controle Remoto Seguro (`Ctrl+Alt+Esc`), Temas & 6 Idiomas/12h-24h | `src/os/remote_control.rs`, `src/core/i18n.rs`, `src/ui/aether_drift.rs` |
 | Protocolo `stream_pointer` & orçamento dinâmico de upload | `src/core/stream_pointer.rs`, `src/media/screen_share.rs` |
 | Motor de áudio lock-free (`cpal` + `rtrb` + `nnnoiseless`) e WAV DSP | `src/media/audio_engine.rs`, `src/media/wav_dsp.rs` |
 | Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |

@@ -5,6 +5,7 @@ use crate::core::stream_pointer::{compute_video_content_box, StreamPointerMessag
 use crate::media::screen_share::{
     compute_dynamic_stream_bitrate_kbps, window_audio_backend_label, AudioScope, StreamPreset,
 };
+use crate::os::remote_control::{remote_input_backend_label, RemoteControlState, PANIC_HOTKEY};
 use crate::ui::aether_drift;
 
 #[derive(Debug, Clone)]
@@ -27,6 +28,7 @@ pub struct StreamState {
     pub av_sync_buffer_ms: u32,
     pub viewport: ZoomPanViewport,
     pub pointers: Vec<ActivePointerPing>,
+    pub remote_control: RemoteControlState,
 }
 
 impl Default for StreamState {
@@ -43,6 +45,7 @@ impl Default for StreamState {
             av_sync_buffer_ms: 0, // 0 = Automático
             viewport: ZoomPanViewport::default(),
             pointers: Vec::new(),
+            remote_control: RemoteControlState::Idle,
         }
     }
 }
@@ -75,6 +78,11 @@ pub enum StreamAction {
         ny: f32,
     },
     ClearPointers,
+    SimulateRemoteRequest,
+    ApproveRemoteControl {
+        allow_keyboard: bool,
+    },
+    PanicRevokeRemote,
 }
 
 #[derive(Default)]
@@ -374,7 +382,93 @@ pub fn view<'a>(state: &'a StreamState) -> Element<'a, StreamAction> {
     .padding(14)
     .style(aether_drift::card_style);
 
-    column![header, toolbar, stage, controls_card]
+    let remote_body: Element<'a, StreamAction> = match &state.remote_control {
+        RemoteControlState::Idle => row![
+            column![
+                text("Controle Remoto Seguro (Fase 8)").size(14),
+                text(remote_input_backend_label())
+                    .size(11)
+                    .color(aether_drift::TEXT_MUTED),
+            ]
+            .spacing(2),
+            horizontal_space(),
+            button(text("Testar Pedido de Controle").size(12))
+                .on_press(StreamAction::SimulateRemoteRequest)
+                .padding([6, 12])
+                .style(aether_drift::ghost_button_style),
+        ]
+        .align_y(Alignment::Center)
+        .into(),
+        RemoteControlState::PendingConsent { requester } => row![
+            column![
+                text(format!("⚠️ {requester} solicitou controle da sua tela"))
+                    .size(13)
+                    .color(aether_drift::DANGER_RED),
+                text("Nenhum evento de mouse/teclado é aceito até você aprovar explicitamente.")
+                    .size(11)
+                    .color(aether_drift::TEXT_MUTED),
+            ]
+            .spacing(2),
+            horizontal_space(),
+            button(text("Aprovar (Só Mouse)").size(11))
+                .on_press(StreamAction::ApproveRemoteControl {
+                    allow_keyboard: false,
+                })
+                .padding([6, 10])
+                .style(aether_drift::ghost_button_style),
+            button(text("Aprovar (Mouse + Teclado)").size(11))
+                .on_press(StreamAction::ApproveRemoteControl {
+                    allow_keyboard: true,
+                })
+                .padding([6, 10])
+                .style(aether_drift::primary_button_style),
+            button(text("Recusar").size(11))
+                .on_press(StreamAction::PanicRevokeRemote)
+                .padding([6, 10])
+                .style(aether_drift::ghost_button_style),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center)
+        .into(),
+        RemoteControlState::Active {
+            controller,
+            allow_keyboard,
+            ..
+        } => row![
+            column![
+                text(format!(
+                    "🔴 CONTROLE REMOTO ATIVO — {controller} ({})",
+                    if *allow_keyboard {
+                        "Mouse + Teclado"
+                    } else {
+                        "Somente Mouse"
+                    }
+                ))
+                .size(13)
+                .color(aether_drift::DANGER_RED),
+                text(format!(
+                    "Pressione {PANIC_HOTKEY} ou clique ao lado para revogar instantaneamente."
+                ))
+                .size(11)
+                .color(aether_drift::TEXT_MUTED),
+            ]
+            .spacing(2),
+            horizontal_space(),
+            button(text(format!("PÂNICO ({PANIC_HOTKEY}) — Revogar")).size(12))
+                .on_press(StreamAction::PanicRevokeRemote)
+                .padding([7, 14])
+                .style(aether_drift::primary_button_style),
+        ]
+        .align_y(Alignment::Center)
+        .into(),
+    };
+
+    let remote_card = container(remote_body)
+        .width(Length::Fill)
+        .padding(14)
+        .style(aether_drift::card_style);
+
+    column![header, toolbar, stage, controls_card, remote_card]
         .spacing(12)
         .into()
 }

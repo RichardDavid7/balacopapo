@@ -1,8 +1,9 @@
 use iced::widget::{button, column, container, horizontal_space, row, scrollable, text, text_input};
 use iced::{Alignment, Element, Length};
 
+use crate::core::i18n::{format_clock, AppLanguage, ClockFormat};
 use crate::core::models::SpaceApiKeySummary;
-use crate::ui::aether_drift;
+use crate::ui::aether_drift::{self, AppThemeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsTab {
@@ -22,6 +23,9 @@ pub struct SettingsState {
     pub loading_keys: bool,
     pub retention_enabled: bool,
     pub low_interrupt_mode: bool,
+    pub theme: AppThemeId,
+    pub language: AppLanguage,
+    pub clock_format: ClockFormat,
 }
 
 impl Default for SettingsState {
@@ -35,6 +39,9 @@ impl Default for SettingsState {
             loading_keys: false,
             retention_enabled: false,
             low_interrupt_mode: true,
+            theme: AppThemeId::AetherDrift,
+            language: AppLanguage::Pt,
+            clock_format: ClockFormat::Auto,
         }
     }
 }
@@ -59,6 +66,9 @@ pub enum SettingsAction {
     RefreshApiKeys,
     ToggleRetention,
     ToggleLowInterrupt,
+    SelectTheme(AppThemeId),
+    SelectLanguage(AppLanguage),
+    SelectClockFormat(ClockFormat),
     OpenFeedUrl(String),
 }
 
@@ -75,35 +85,84 @@ pub fn view<'a>(
     .spacing(8);
 
     let panel: Element<'a, SettingsAction> = match state.active_tab {
-        SettingsTab::User => container(
-            column![
-                text("Configurações do Usuário").size(16),
-                row![
-                    column![
-                        text("Modo Baixa Interrupção (Zero-Stutter)").size(13),
-                        text("Prioriza 0% de GPU quando ocioso e mínima interrupção de CPU em jogos.")
-                            .size(12)
-                            .color(aether_drift::TEXT_MUTED),
-                    ]
-                    .spacing(2),
-                    horizontal_space(),
-                    button(text(if state.low_interrupt_mode { "Ativo" } else { "Desligado" }).size(12))
-                        .on_press(SettingsAction::ToggleLowInterrupt)
-                        .padding([6, 12])
-                        .style(if state.low_interrupt_mode {
-                            aether_drift::primary_button_style
-                        } else {
-                            aether_drift::ghost_button_style
-                        }),
-                ]
-                .align_y(Alignment::Center),
+        SettingsTab::User => {
+            let mut theme_row = row![].spacing(6);
+            for &t in AppThemeId::ALL {
+                let style = if t == state.theme {
+                    aether_drift::primary_button_style
+                } else {
+                    aether_drift::ghost_button_style
+                };
+                theme_row = theme_row.push(
+                    button(text(t.label_pt()).size(11))
+                        .on_press(SettingsAction::SelectTheme(t))
+                        .padding([6, 10])
+                        .style(style),
+                );
+            }
+
+            let mut lang_row = row![].spacing(6);
+            for &lang in AppLanguage::ALL {
+                let style = if lang == state.language {
+                    aether_drift::primary_button_style
+                } else {
+                    aether_drift::ghost_button_style
+                };
+                lang_row = lang_row.push(
+                    button(text(lang.label()).size(11))
+                        .on_press(SettingsAction::SelectLanguage(lang))
+                        .padding([5, 9])
+                        .style(style),
+                );
+            }
+
+            let clock_row = row![
+                clock_btn(ClockFormat::Auto, state.clock_format),
+                clock_btn(ClockFormat::H24, state.clock_format),
+                clock_btn(ClockFormat::H12, state.clock_format),
             ]
-            .spacing(12),
-        )
-        .width(Length::Fill)
-        .padding(16)
-        .style(aether_drift::card_style)
-        .into(),
+            .spacing(6);
+
+            container(
+                column![
+                    text("Configurações do Usuário").size(16),
+                    row![
+                        column![
+                            text("Modo Baixa Interrupção (Zero-Stutter)").size(13),
+                            text("Prioriza 0% de GPU quando ocioso e mínima interrupção de CPU em jogos.")
+                                .size(12)
+                                .color(aether_drift::TEXT_MUTED),
+                        ]
+                        .spacing(2),
+                        horizontal_space(),
+                        button(text(if state.low_interrupt_mode { "Ativo" } else { "Desligado" }).size(12))
+                            .on_press(SettingsAction::ToggleLowInterrupt)
+                            .padding([6, 12])
+                            .style(if state.low_interrupt_mode {
+                                aether_drift::primary_button_style
+                            } else {
+                                aether_drift::ghost_button_style
+                            }),
+                    ]
+                    .align_y(Alignment::Center),
+                    text("Tema de Interface (sobre Aether Drift)").size(13),
+                    theme_row,
+                    text("Idioma da Interface (6 idiomas)").size(13),
+                    lang_row,
+                    text(format!(
+                        "Formato do Relógio (independente do idioma · exemplo: {})",
+                        format_clock(18, 5, state.clock_format)
+                    ))
+                    .size(13),
+                    clock_row,
+                ]
+                .spacing(10),
+            )
+            .width(Length::Fill)
+            .padding(16)
+            .style(aether_drift::card_style)
+            .into()
+        }
 
         SettingsTab::Group => {
             let group_label = group_name.unwrap_or("Nenhum grupo selecionado");
@@ -261,6 +320,19 @@ fn tab_btn<'a>(label: &'a str, tab: SettingsTab, current: SettingsTab) -> Elemen
     button(text(label).size(12))
         .on_press(SettingsAction::SelectTab(tab))
         .padding([7, 14])
+        .style(style)
+        .into()
+}
+
+fn clock_btn<'a>(fmt: ClockFormat, current: ClockFormat) -> Element<'a, SettingsAction> {
+    let style = if fmt == current {
+        aether_drift::primary_button_style
+    } else {
+        aether_drift::ghost_button_style
+    };
+    button(text(fmt.label_pt()).size(11))
+        .on_press(SettingsAction::SelectClockFormat(fmt))
+        .padding([5, 10])
         .style(style)
         .into()
 }
