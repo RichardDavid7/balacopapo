@@ -41,6 +41,10 @@ pub fn card_style(_theme: &Theme) -> container::Style {
     }
 }
 
+pub fn transparent_style(_theme: &Theme) -> container::Style {
+    container::Style::default()
+}
+
 pub fn sidebar_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(SURFACE)),

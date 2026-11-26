@@ -30,10 +30,12 @@ Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia
 | Política Opus 5 níveis (`Instância → Grupo → Categoria → Canal → Usuário`) | `src/core/audio_policy.rs` |
 | DTOs REST/WS | `src/core/models.rs` |
 | Cliente HTTP (`reqwest` + `rustls`, sem OpenSSL) | `src/net/client.rs` |
+| Cliente WebSocket 100% event-driven (`tokio-tungstenite` + reconexão) | `src/net/ws.rs` |
 | Verificador SemVer GitHub Releases | `src/os/updater.rs` |
 | Design System **Aether Drift** (`Iced` styles + tokens) | `src/ui/aether_drift.rs` |
 | Tela de login / instância / OIDC | `src/features/auth/mod.rs` (+ `MODULE.md`) |
-| Workspace de Grupos & Canais | `src/features/shell/mod.rs` (+ `MODULE.md`) |
+| Chat ao vivo (histórico paginado, envio, exclusão, filtro) | `src/features/chat/mod.rs` (+ `MODULE.md`) |
+| Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |
 | Guardião automático de paridade (`PermissionBits`) | `../../scripts/check-desktop-parity.mjs` |
 | CI automático Windows + Linux | `../../.github/workflows/desktop-native-ci.yml` |
 

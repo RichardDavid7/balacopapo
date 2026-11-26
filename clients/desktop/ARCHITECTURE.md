@@ -39,7 +39,7 @@ graph TD
 ## 3. Marcos de Evolução
 
 - [x] **Marco 1 — Fundação 100% Nativa (`Iced` + `wgpu`):** Design System Aether Drift, Auth JWT + OIDC (`balacopapo://`), 23 `PermissionBits`, política Opus 5 níveis, SemVer Updater, script guardião `check-desktop-parity.mjs`, CI + Release Windows/Linux.
-- [ ] **Marco 2 — Grupos, Pastas & Chat Virtualizado:** WebSocket em tempo real, Markdown, Stickers WebP, uploads `tus`, busca server-side e retenção em 4 níveis.
+- [x] **Marco 2 — Grupos, Categorias, Seletor de Status & Chat ao Vivo:** WebSocket resiliente (`tokio-tungstenite` + `rustls`, reconexão exponencial, heartbeat 15s sem acordar UI), histórico paginado (`before=<id>`), envio/exclusão em tempo real, agrupamento por autor, badges de não lidas, filtro local e seletor rápido de status.
 - [ ] **Marco 3 — Motor de Voz Nível Mumble + Soundboard:** `cpal` (WASAPI/PipeWire) + `nnnoiseless` (RNNoise) + `audiopus` + `livekit`, loopback de mic, Jitter Buffer 0–2000ms e Editor WAV em Canvas GPU.
 - [ ] **Marco 4 — Vídeo Zero-Copy GPU + WASAPI Process Loopback:** DXGI/PipeWire 60fps, áudio isolado só da janela, Zoom/Pan 1x–6x e Apontar na Stream.
 - [ ] **Marco 5 — Malha P2P Híbrida (Fase 2A/2B/2C):** Arquivos P2P em DMs, Grafo de Latência GPU e Voz P2P com Modo Sobrevivência.
