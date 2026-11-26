@@ -7,8 +7,10 @@ use crate::core::models::{
     AuthUser, ChatMessage, GroupSummary, InstanceInfo, LiveKitTokenResponse, LoginResponse,
     PresenceStatus, SoundboardSound, WsEvent,
 };
+use crate::core::p2p_mesh::FileTransferStatus;
 use crate::features::auth::{self, AuthMessage, AuthState};
 use crate::features::chat::ChatMessageAction;
+use crate::features::p2p::P2PAction;
 use crate::features::shell::{self, ShellMessage, ShellState};
 use crate::features::soundboard::SoundboardAction;
 use crate::features::stream::{ActivePointerPing, StreamAction};
@@ -408,11 +410,17 @@ impl BalacopapoApp {
             WsEvent::Connected => {
                 shell.ws_connected = true;
                 shell.ws_status_label = "Ao vivo · Zero WebView".to_string();
+                shell.p2p.set_server_online(true);
                 Task::none()
             }
             WsEvent::Disconnected(reason) => {
                 shell.ws_connected = false;
-                shell.ws_status_label = reason;
+                shell.p2p.set_server_online(false);
+                shell.ws_status_label = if shell.p2p.survival_mode_active() {
+                    "Sobrevivência P2P".to_string()
+                } else {
+                    reason
+                };
                 Task::none()
             }
             WsEvent::Ready {
@@ -564,12 +572,14 @@ impl BalacopapoApp {
                 shell.selected_channel_id = None;
                 shell.soundboard_open = false;
                 shell.stream_open = false;
+                shell.p2p_open = false;
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
                 shell.selected_channel_id = Some(channel_id.clone());
                 shell.soundboard_open = false;
                 shell.stream_open = false;
+                shell.p2p_open = false;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
@@ -603,6 +613,7 @@ impl BalacopapoApp {
                 shell.soundboard_open = !shell.soundboard_open;
                 if shell.soundboard_open {
                     shell.stream_open = false;
+                    shell.p2p_open = false;
                 }
                 if shell.soundboard_open && shell.soundboard.sounds.is_empty() {
                     shell.soundboard.loading = true;
@@ -617,6 +628,15 @@ impl BalacopapoApp {
                 shell.stream_open = !shell.stream_open;
                 if shell.stream_open {
                     shell.soundboard_open = false;
+                    shell.p2p_open = false;
+                }
+                Task::none()
+            }
+            ShellMessage::ToggleP2P => {
+                shell.p2p_open = !shell.p2p_open;
+                if shell.p2p_open {
+                    shell.soundboard_open = false;
+                    shell.stream_open = false;
                 }
                 Task::none()
             }
@@ -638,6 +658,7 @@ impl BalacopapoApp {
             ShellMessage::Voice(action) => self.handle_voice_action(action),
             ShellMessage::Soundboard(action) => self.handle_soundboard_action(action),
             ShellMessage::Stream(action) => self.handle_stream_action(action),
+            ShellMessage::P2P(action) => self.handle_p2p_action(action),
             ShellMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
                 Task::none()
@@ -988,6 +1009,37 @@ impl BalacopapoApp {
             }
             StreamAction::ClearPointers => {
                 shell.stream.pointers.clear();
+                Task::none()
+            }
+        }
+    }
+
+    fn handle_p2p_action(&mut self, action: P2PAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            P2PAction::ToggleP2P => {
+                shell.p2p.p2p_enabled = !shell.p2p.p2p_enabled;
+                shell.p2p.reevaluate_all();
+                Task::none()
+            }
+            P2PAction::SimulateServerOutage => {
+                let next = !shell.p2p.server_online;
+                shell.p2p.set_server_online(next);
+                Task::none()
+            }
+            P2PAction::AcceptFileOffer(id) => {
+                if let Some(offer) = shell.p2p.file_offers.iter_mut().find(|o| o.id == id) {
+                    offer.status = FileTransferStatus::Accepted;
+                }
+                Task::none()
+            }
+            P2PAction::RejectFileOffer(id) => {
+                if let Some(offer) = shell.p2p.file_offers.iter_mut().find(|o| o.id == id) {
+                    offer.status = FileTransferStatus::Rejected;
+                }
                 Task::none()
             }
         }

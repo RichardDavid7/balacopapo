@@ -38,6 +38,7 @@ Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia
 | Painel de Voz nativo (dispositivos, RNNoise, loopback, Opus, Jitter) | `src/features/voice/mod.rs` (+ `MODULE.md`) |
 | Soundboard & Editor WAV em Canvas GPU | `src/features/soundboard/mod.rs` (+ `MODULE.md`) |
 | Palco de Stream GPU (Zoom/Pan 1x–6x, Apontar, Áudio da Janela) | `src/features/stream/mod.rs` (+ `MODULE.md`) |
+| Malha P2P Híbrida (Grafo GPU, Sobrevivência, Consentimento) | `src/features/p2p/mod.rs`, `src/core/p2p_mesh.rs` |
 | Protocolo `stream_pointer` & orçamento dinâmico de upload | `src/core/stream_pointer.rs`, `src/media/screen_share.rs` |
 | Motor de áudio lock-free (`cpal` + `rtrb` + `nnnoiseless`) e WAV DSP | `src/media/audio_engine.rs`, `src/media/wav_dsp.rs` |
 | Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |
