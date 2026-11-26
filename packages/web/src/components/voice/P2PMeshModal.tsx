@@ -49,6 +49,7 @@ export function useP2PMeshSync(): void {
   const activeDmCall = useVoiceStore((s) => s.activeDmCall);
   const participants = useVoiceStore((s) => s.participants);
   const isLiveKitConnected = useVoiceStore((s) => s.isLiveKitConnected);
+  const isMuted = useVoiceStore((s) => s.isMuted);
   const p2pEnabled = useP2PStore((s) => s.enabled);
 
   useP2PGlobalBridge();
@@ -58,6 +59,10 @@ export function useP2PMeshSync(): void {
   useEffect(() => {
     P2PMeshManager.getInstance().setLocalAudioTrack(p2pEnabled ? localMicTrack : null);
   }, [localMicTrack, p2pEnabled]);
+
+  useEffect(() => {
+    P2PMeshManager.getInstance().setLocalAudioMuted(isMuted);
+  }, [isMuted]);
 
   // Double failover: notify P2PMeshManager when LiveKit unexpectedly drops while in a call
   useEffect(() => {
@@ -109,7 +114,7 @@ export function useP2PMeshSync(): void {
             p2pState.survivalMode
             && !voiceState.isLiveKitConnected
             && voiceState.voiceConnectionStatus === 'disconnected'
-            && Date.now() - lastAutoRejoinAt >= 10_000
+            && Date.now() - lastAutoRejoinAt >= 6_000
           ) {
             lastAutoRejoinAt = Date.now();
             reconnectVoice();

@@ -82,6 +82,12 @@ interface PeerSession {
  *   frame first; zero file bytes leave the sender until the receiver explicitly
  *   clicks Accept (`file_accept`).
  */
+const POST_RECONNECT_PEER_GRACE_MS = 20_000;
+
+function isRemoteAudioTrackLive(track: MediaStreamTrack | null): boolean {
+  return Boolean(track && track.readyState === 'live' && !track.muted);
+}
+
 export class P2PMeshManager {
   private static instance: P2PMeshManager | null = null;
   private sessions = new Map<string, PeerSession>();
@@ -89,8 +95,13 @@ export class P2PMeshManager {
   private myUserId: string | null = null;
   private currentRoomKey: string | null = null;
   private sendSignal: SignalSender | null = null;
+  private sourceLocalAudioTrack: MediaStreamTrack | null = null;
   private localAudioTrack: MediaStreamTrack | null = null;
+  private localAudioMuted = false;
   private serverOnline = true;
+  private serverReconnectedAtMs = 0;
+  private reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastDesiredPeerIds = new Set<string>();
   private pingSeq = 0;
   private transferSeq = 0;
 
@@ -111,6 +122,11 @@ export class P2PMeshManager {
     this.sendSignal = sender;
   }
 
+  private isInReconnectGrace(): boolean {
+    return this.serverReconnectedAtMs > 0
+      && Date.now() - this.serverReconnectedAtMs < POST_RECONNECT_PEER_GRACE_MS;
+  }
+
   hasSurvivingVoicePeer(): boolean {
     if (!this.currentRoomKey) return false;
     return Array.from(this.sessions.values()).some(
@@ -125,21 +141,63 @@ export class P2PMeshManager {
    * Attaches or replaces the local microphone track on all voice-room P2P sessions
    * so direct P2P voice audio can flow immediately when RTT math favors P2P or
    * during server-outage survival mode.
+   *
+   * Clones the source track so a LiveKit Room.disconnect() stopping its published
+   * track cannot kill the audio flowing over direct P2P peer connections.
    */
   setLocalAudioTrack(track: MediaStreamTrack | null): void {
-    // During server-outage Survival Mode, LiveKit temporarily empties `participants`
-    // (making `track` null). Keep the live microphone track attached to P2P peers
-    // until explicit leaveRoom() or LiveKit reconnects with a fresh track.
-    if (track === null && !this.serverOnline && this.hasSurvivingVoicePeer()) {
+    // During server-outage Survival Mode (or the 20s post-reconnect grace window while
+    // LiveKit is still republishing the microphone), keep our live cloned track attached
+    // so direct P2P audio never drops or goes silent mid-recovery.
+    if (
+      track === null
+      && (!this.serverOnline || this.isInReconnectGrace())
+      && this.localAudioTrack?.readyState === 'live'
+      && this.hasSurvivingVoicePeer()
+    ) {
       return;
     }
-    const prev = this.localAudioTrack;
-    this.localAudioTrack = track;
-    if (prev === track) return;
+
+    if (
+      track !== null
+      && track === this.sourceLocalAudioTrack
+      && this.localAudioTrack?.readyState === 'live'
+    ) {
+      return;
+    }
+
+    const oldClone = this.localAudioTrack;
+    this.sourceLocalAudioTrack = track;
+
+    let nextClone: MediaStreamTrack | null = null;
+    if (track && track.readyState === 'live') {
+      try {
+        nextClone = track.clone();
+      } catch {
+        nextClone = track;
+      }
+      nextClone.enabled = !this.localAudioMuted && track.enabled;
+    }
+    this.localAudioTrack = nextClone;
 
     for (const session of this.sessions.values()) {
       if (session.roomKey.startsWith('dm:') && session.roomKey !== this.currentRoomKey) continue;
       this.syncLocalAudioOnSession(session);
+    }
+
+    if (oldClone && oldClone !== nextClone && oldClone !== track) {
+      try { oldClone.stop(); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Mirrors local microphone mute state onto the cloned P2P audio track so
+   * muting/unmuting works both in normal hybrid mode and during Survival Mode.
+   */
+  setLocalAudioMuted(muted: boolean): void {
+    this.localAudioMuted = muted;
+    if (this.localAudioTrack && this.localAudioTrack.readyState === 'live') {
+      this.localAudioTrack.enabled = !muted;
     }
   }
 
@@ -150,15 +208,40 @@ export class P2PMeshManager {
    */
   setServerOnline(online: boolean): void {
     if (this.serverOnline === online) return;
+    const wasOffline = !this.serverOnline;
     this.serverOnline = online;
 
-    const hasSurvivingPeer = Array.from(this.sessions.values()).some(
-      (s) => s.roomKey === this.currentRoomKey && s.pc.connectionState === 'connected' && Boolean(s.remoteAudioTrack),
-    );
+    if (online && wasOffline) {
+      // Give peers 20 seconds to finish rejoining LiveKit after a server restart
+      // before pruning P2P sessions that aren't yet in LiveKit's participant list.
+      this.serverReconnectedAtMs = Date.now();
+      if (this.reconnectGraceTimer) clearTimeout(this.reconnectGraceTimer);
+      this.reconnectGraceTimer = setTimeout(() => {
+        this.reconnectGraceTimer = null;
+        this.pruneAbsentRoomPeers();
+      }, POST_RECONNECT_PEER_GRACE_MS);
+    } else if (!online) {
+      this.serverReconnectedAtMs = 0;
+      if (this.reconnectGraceTimer) {
+        clearTimeout(this.reconnectGraceTimer);
+        this.reconnectGraceTimer = null;
+      }
+    }
+
+    const hasSurvivingPeer = this.hasSurvivingVoicePeer();
     useP2PStore.getState().setSurvivalMode(!online && hasSurvivingPeer);
 
     for (const session of this.sessions.values()) {
       this.publishPeerState(session, this.computeHealthState(session));
+    }
+  }
+
+  private pruneAbsentRoomPeers(): void {
+    if (!this.serverOnline || !this.currentRoomKey || this.isInReconnectGrace()) return;
+    for (const [peerId, session] of this.sessions) {
+      if (session.roomKey === this.currentRoomKey && !this.lastDesiredPeerIds.has(peerId)) {
+        this.closePeer(peerId, true);
+      }
     }
   }
 
@@ -172,7 +255,8 @@ export class P2PMeshManager {
       if (track && session.pc.signalingState !== 'closed') {
         const stream = new MediaStream([track]);
         session.audioSender = session.pc.addTrack(track, stream);
-        if (!session.polite && session.pc.signalingState === 'stable') {
+        // Renegotiate from either side when stable (perfect negotiation handles glare)
+        if (session.pc.signalingState === 'stable') {
           void this.createAndSendOffer(session);
         }
       }
@@ -204,10 +288,12 @@ export class P2PMeshManager {
     store.setActiveRoomKey(roomKey);
 
     const desired = new Set(remoteUserIds.filter((id) => id && id !== myUserId));
+    this.lastDesiredPeerIds = desired;
 
-    // In Survival Mode (server/LiveKit temporarily offline), preserve already-connected
-    // direct P2P peers so users keep talking even if LiveKit emptied its participant list.
-    if (this.serverOnline) {
+    // In Survival Mode (or during the 20s post-reconnect grace window while all peers
+    // are rejoining LiveKit), preserve already-connected direct P2P peers so users
+    // keep talking uninterrupted instead of being dropped mid-sentence.
+    if (this.serverOnline && !this.isInReconnectGrace()) {
       for (const [peerId, session] of this.sessions) {
         if (session.roomKey === roomKey && !desired.has(peerId)) {
           this.closePeer(peerId, true);
@@ -231,6 +317,17 @@ export class P2PMeshManager {
     }
     this.currentRoomKey = null;
     this.serverOnline = true;
+    this.serverReconnectedAtMs = 0;
+    this.lastDesiredPeerIds.clear();
+    if (this.reconnectGraceTimer) {
+      clearTimeout(this.reconnectGraceTimer);
+      this.reconnectGraceTimer = null;
+    }
+    if (this.localAudioTrack && this.localAudioTrack !== this.sourceLocalAudioTrack) {
+      try { this.localAudioTrack.stop(); } catch { /* ignore */ }
+    }
+    this.localAudioTrack = null;
+    this.sourceLocalAudioTrack = null;
     const store = useP2PStore.getState();
     store.setActiveRoomKey(null);
     store.setSurvivalMode(false);
@@ -488,6 +585,16 @@ export class P2PMeshManager {
       if (e.track.kind !== 'audio') return;
       session.remoteAudioTrack = e.track;
       useP2PStore.getState().setRemoteAudioTrack(peerUserId, e.track);
+      e.track.onmute = () => {
+        if (session.remoteAudioTrack === e.track) {
+          this.publishPeerState(session, this.computeHealthState(session));
+        }
+      };
+      e.track.onunmute = () => {
+        if (session.remoteAudioTrack === e.track) {
+          this.publishPeerState(session, this.computeHealthState(session));
+        }
+      };
       e.track.onended = () => {
         if (session.remoteAudioTrack === e.track) {
           session.remoteAudioTrack = null;
@@ -784,12 +891,13 @@ export class P2PMeshManager {
   private publishPeerState(session: PeerSession, state: P2PPeerState): void {
     const store = useP2PStore.getState();
     const nowMs = Date.now();
+    const hasLiveRemoteAudio = isRemoteAudioTrackLive(session.remoteAudioTrack);
     const decision = evaluateP2PAudioRoute({
       p2pRttMs: session.rttMs,
       myInstanceRttMs: store.instanceRttMs,
       peerInstanceRttMs: session.peerInstanceRttMs,
       peerState: state,
-      hasRemoteAudioTrack: Boolean(session.remoteAudioTrack && session.remoteAudioTrack.readyState === 'live'),
+      hasRemoteAudioTrack: hasLiveRemoteAudio,
       serverOnline: this.serverOnline,
       currentlyUsingP2P: session.audioRoute === 'p2p',
       nowMs,
@@ -810,7 +918,7 @@ export class P2PMeshManager {
       serverPathRttMs: decision.serverPathRttMs,
       route: session.route,
       audioRoute: decision.route,
-      hasRemoteAudio: Boolean(session.remoteAudioTrack && session.remoteAudioTrack.readyState === 'live'),
+      hasRemoteAudio: hasLiveRemoteAudio,
       dataChannelReady: session.fileChannel?.readyState === 'open',
       lastUpdatedAt: Date.now(),
     });

@@ -115,8 +115,13 @@ export function GlobalAudioRenderer() {
 
         // Hybrid P2P routing: when direct P2P beats combined server RTT (or server is offline),
         // play the direct P2P track instead of the LiveKit track (zero double-playback/echo).
+        // Guard against muted/ended P2P tracks so we instantaneously fail over to LiveKit
+        // rather than outputting silence when LiveKit audio is healthy.
         const p2pTrack = p2pRemoteAudioTracks[p.userId] ?? null;
-        const useDirectP2P = p2pPeers[p.userId]?.audioRoute === 'p2p' && Boolean(p2pTrack);
+        const p2pTrackHealthy = Boolean(
+          p2pTrack && p2pTrack.readyState === 'live' && !p2pTrack.muted,
+        );
+        const useDirectP2P = p2pPeers[p.userId]?.audioRoute === 'p2p' && p2pTrackHealthy;
         const activeMicTrack = useDirectP2P ? p2pTrack : p.audioTrack;
 
         return (
