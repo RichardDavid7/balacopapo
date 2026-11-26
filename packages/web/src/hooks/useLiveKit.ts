@@ -702,9 +702,18 @@ export function useLiveKit() {
                 username: label,
                 displayName: label,
                 avatar: meta.avatar ?? null,
-                avatarColor: '#7c5cff',
+                banner: null,
+                accentColor: null,
+                avatarColor: 'lavender',
+                bio: null,
                 status: 'online',
-              } as User;
+                customStatus: null,
+                isAdmin: false,
+                createdAt: 0,
+                homeInstance: null,
+                homeUserId: null,
+                replicatedInstances: [],
+              };
             }
           } catch {
             /* non-JSON metadata */
