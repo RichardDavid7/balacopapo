@@ -813,6 +813,10 @@ impl BalacopapoApp {
                 shell.voice.jitter_buffer_ms = ms;
                 Task::none()
             }
+            VoiceAction::ToggleTroubleshooting => {
+                shell.voice.show_troubleshooting = !shell.voice.show_troubleshooting;
+                Task::none()
+            }
             VoiceAction::ToggleOpusMode => {
                 shell.voice.opus_music_mode = !shell.voice.opus_music_mode;
                 Task::none()

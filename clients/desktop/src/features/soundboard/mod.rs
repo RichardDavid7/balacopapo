@@ -140,7 +140,7 @@ pub fn view<'a>(state: &'a SoundboardState) -> Element<'a, SoundboardAction> {
             text(format!("Volume Soundboard: {:.0}%", state.volume_pct))
                 .size(11)
                 .color(aether_drift::TEXT_MUTED),
-            slider(0.0..=150.0, state.volume_pct, SoundboardAction::VolumeChanged).step(5.0),
+            slider(0.0..=150.0, state.volume_pct, SoundboardAction::VolumeChanged).step(5.0_f32),
         ]
         .width(Length::FillPortion(1)),
     ]
@@ -215,7 +215,7 @@ pub fn view<'a>(state: &'a SoundboardState) -> Element<'a, SoundboardAction> {
                         .size(11)
                         .color(aether_drift::TEXT_MUTED),
                     slider(0.0..=0.95, state.trim_start, SoundboardAction::TrimStartChanged)
-                        .step(0.01),
+                        .step(0.01_f32),
                 ]
                 .width(Length::FillPortion(1)),
                 column![
@@ -223,7 +223,7 @@ pub fn view<'a>(state: &'a SoundboardState) -> Element<'a, SoundboardAction> {
                         .size(11)
                         .color(aether_drift::TEXT_MUTED),
                     slider(0.05..=1.0, state.trim_end, SoundboardAction::TrimEndChanged)
-                        .step(0.01),
+                        .step(0.01_f32),
                 ]
                 .width(Length::FillPortion(1)),
             ]

@@ -19,7 +19,9 @@ pub struct VoiceState {
     pub loopback_sample_rate: Option<u32>,
     pub mic_gain_pct: f32,
     pub vad_threshold_db: f32,
+    /// `0` = Automático (adaptativo estilo Mumble/NetEQ); >0 = override manual no Solucionador.
     pub jitter_buffer_ms: u32,
+    pub show_troubleshooting: bool,
     pub opus_music_mode: bool,
     pub opus_stereo: bool,
     pub opus_bitrate_kbps: u32,
@@ -48,7 +50,8 @@ impl Default for VoiceState {
             loopback_sample_rate: None,
             mic_gain_pct: 100.0,
             vad_threshold_db: -48.0,
-            jitter_buffer_ms: 40,
+            jitter_buffer_ms: 0,
+            show_troubleshooting: false,
             opus_music_mode: false,
             opus_stereo: false,
             opus_bitrate_kbps: 96,
@@ -90,6 +93,7 @@ pub enum VoiceAction {
     MicGainChanged(f32),
     VadThresholdChanged(f32),
     JitterBufferChanged(u32),
+    ToggleTroubleshooting,
     ToggleOpusMode,
     ToggleOpusStereo,
     OpusBitrateChanged(u32),
@@ -211,7 +215,8 @@ pub fn view<'a>(state: &'a VoiceState, channel: &'a ChannelSummary) -> Element<'
                     text(format!("Ganho do Microfone: {:.0}%", state.mic_gain_pct))
                         .size(12)
                         .color(aether_drift::TEXT_MUTED),
-                    slider(0.0..=200.0, state.mic_gain_pct, VoiceAction::MicGainChanged).step(5.0),
+                    slider(0.0..=200.0, state.mic_gain_pct, VoiceAction::MicGainChanged)
+                        .step(5.0_f32),
                 ]
                 .spacing(4)
                 .width(Length::FillPortion(1)),
@@ -220,7 +225,7 @@ pub fn view<'a>(state: &'a VoiceState, channel: &'a ChannelSummary) -> Element<'
                         .size(12)
                         .color(aether_drift::TEXT_MUTED),
                     slider(-80.0..=-10.0, state.vad_threshold_db, VoiceAction::VadThresholdChanged)
-                        .step(1.0),
+                        .step(1.0_f32),
                 ]
                 .spacing(4)
                 .width(Length::FillPortion(1)),
@@ -233,63 +238,105 @@ pub fn view<'a>(state: &'a VoiceState, channel: &'a ChannelSummary) -> Element<'
     .padding(16)
     .style(aether_drift::card_style);
 
-    let jitter_presets = row![
-        preset_btn("Auto (0ms)", 0, state.jitter_buffer_ms),
-        preset_btn("40ms", 40, state.jitter_buffer_ms),
-        preset_btn("80ms", 80, state.jitter_buffer_ms),
-        preset_btn("120ms", 120, state.jitter_buffer_ms),
-        preset_btn("500ms", 500, state.jitter_buffer_ms),
-        preset_btn("1000ms", 1000, state.jitter_buffer_ms),
-    ]
-    .spacing(6);
+    let buffer_summary = if state.jitter_buffer_ms == 0 {
+        "Automático (adaptativo)"
+    } else {
+        "Manual (override)"
+    };
 
-    let opus_card = container(
+    let mut troubleshooting_col = column![row![
         column![
-            text("Opus 5 Níveis & Buffer Contra Jitter (0–2000 ms)").size(14),
-            row![
-                toggle_btn(
-                    if state.opus_music_mode { "Modo: Música" } else { "Modo: Voz" },
-                    state.opus_music_mode,
-                    VoiceAction::ToggleOpusMode
-                ),
-                toggle_btn(
-                    if state.opus_stereo { "Estéreo: Sim" } else { "Mono" },
-                    state.opus_stereo,
-                    VoiceAction::ToggleOpusStereo
-                ),
-                text(format!(
-                    "Efetivo: {} kbps · {} · {}",
-                    eff.bitrate_kbps,
-                    if eff.mode == OpusMode::Music { "Música" } else { "Voz" },
-                    if eff.stereo { "Estéreo" } else { "Mono" }
-                ))
-                .size(12)
-                .color(aether_drift::SUCCESS_GREEN),
-            ]
-            .spacing(10)
-            .align_y(Alignment::Center),
-            column![
-                text(format!("Bitrate Opus alvo: {} kbps", state.opus_bitrate_kbps))
-                    .size(12)
-                    .color(aether_drift::TEXT_MUTED),
-                slider(16..=256, state.opus_bitrate_kbps, VoiceAction::OpusBitrateChanged).step(8_u32),
-            ]
-            .spacing(4),
-            column![
-                text(format!("Jitter Buffer alvo: {} ms", state.jitter_buffer_ms))
-                    .size(12)
-                    .color(aether_drift::TEXT_MUTED),
-                jitter_presets,
-                slider(0..=2000, state.jitter_buffer_ms, VoiceAction::JitterBufferChanged)
-                    .step(20_u32),
-            ]
-            .spacing(6),
+            text("Solucionador de problemas (Avançado)").size(14),
+            text(format!(
+                "Buffer: {buffer_summary} · Opus: {} kbps ({}, {})",
+                eff.bitrate_kbps,
+                if eff.mode == OpusMode::Music { "Música" } else { "Voz" },
+                if eff.stereo { "Estéreo" } else { "Mono" }
+            ))
+            .size(12)
+            .color(aether_drift::TEXT_MUTED),
         ]
-        .spacing(12),
-    )
-    .width(Length::Fill)
-    .padding(16)
-    .style(aether_drift::card_style);
+        .spacing(2),
+        horizontal_space(),
+        button(
+            text(if state.show_troubleshooting {
+                "Ocultar"
+            } else {
+                "Abrir ajustes"
+            })
+            .size(12),
+        )
+        .on_press(VoiceAction::ToggleTroubleshooting)
+        .padding([6, 12])
+        .style(aether_drift::ghost_button_style),
+    ]
+    .align_y(Alignment::Center)]
+    .spacing(12);
+
+    if state.show_troubleshooting {
+        let jitter_presets = row![
+            preset_btn("Automático", 0, state.jitter_buffer_ms),
+            preset_btn("40ms", 40, state.jitter_buffer_ms),
+            preset_btn("80ms", 80, state.jitter_buffer_ms),
+            preset_btn("120ms", 120, state.jitter_buffer_ms),
+            preset_btn("500ms", 500, state.jitter_buffer_ms),
+            preset_btn("1000ms", 1000, state.jitter_buffer_ms),
+        ]
+        .spacing(6);
+
+        troubleshooting_col = troubleshooting_col
+            .push(
+                text("Deixe em Automático para uso normal. Só ajuste abaixo se sua rede estiver com micro-cortes ou jitter alto.")
+                    .size(12)
+                    .color(aether_drift::TEXT_MUTED),
+            )
+            .push(
+                row![
+                    toggle_btn(
+                        if state.opus_music_mode { "Modo: Música" } else { "Modo: Voz" },
+                        state.opus_music_mode,
+                        VoiceAction::ToggleOpusMode
+                    ),
+                    toggle_btn(
+                        if state.opus_stereo { "Estéreo: Sim" } else { "Mono" },
+                        state.opus_stereo,
+                        VoiceAction::ToggleOpusStereo
+                    ),
+                ]
+                .spacing(10)
+                .align_y(Alignment::Center),
+            )
+            .push(
+                column![
+                    text(format!("Bitrate Opus alvo: {} kbps", state.opus_bitrate_kbps))
+                        .size(12)
+                        .color(aether_drift::TEXT_MUTED),
+                    slider(16..=256, state.opus_bitrate_kbps, VoiceAction::OpusBitrateChanged)
+                        .step(8_u32),
+                ]
+                .spacing(4),
+            )
+            .push(
+                column![
+                    text(if state.jitter_buffer_ms == 0 {
+                        "Jitter Buffer: Automático (adaptativo)".to_string()
+                    } else {
+                        format!("Jitter Buffer manual: {} ms", state.jitter_buffer_ms)
+                    })
+                    .size(12)
+                    .color(aether_drift::TEXT_MUTED),
+                    jitter_presets,
+                    slider(0..=2000, state.jitter_buffer_ms, VoiceAction::JitterBufferChanged)
+                        .step(20_u32),
+                ]
+                .spacing(6),
+            );
+    }
+
+    let opus_card = container(troubleshooting_col)
+        .width(Length::Fill)
+        .padding(16)
+        .style(aether_drift::card_style);
 
     let telemetry_text = match state.loopback_sample_rate {
         Some(sr) => format!(
