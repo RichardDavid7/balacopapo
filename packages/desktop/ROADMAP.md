@@ -9,6 +9,7 @@ Este documento descreve a evolução técnica do aplicativo nativo **Balacopapo 
 - [x] **Deep links `balacopapo://` (e `backspace://`)** registrados para abrir convites, canais e handoffs no app.
 - [x] **Atalhos globais dentro de jogos (sem Alt+Tab)** via `uIOhook` (Windows/macOS/X11) e `GlobalShortcuts` Portal (Wayland): *Mute*, *Deafen*, *Push-to-Talk*, *Câmera*, *Compartilhar Tela*, *Silenciar Soundboard* e **atalhos individuais para qualquer som do Soundboard**.
 - [x] **Áudio isolado por aplicativo no Linux (PipeWire)** via `packages/desktop/src/systemAudio.ts` (`buildIncludeNodes` com fallback automático para áudio do sistema).
+- [x] **Sobreposição real na tela para o sistema de Apontar** (`packages/desktop/src/streamPointerOverlay.ts`): janela transparente click-through sempre no topo no monitor compartilhado, exibindo o ping + nome de quem apontou **diretamente sobre a tela/jogo do streamer** (não apenas na prévia da transmissão).
 
 ---
 

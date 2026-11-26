@@ -780,15 +780,26 @@ export function useLiveKit() {
       }
       const ptr = parseStreamPointer(payload);
       if (ptr) {
+        const senderName = participant.name || participant.identity;
         useStreamPointerStore.getState().upsertPointer({
           streamIdentity: ptr.streamIdentity,
           senderIdentity: participant.identity,
-          senderName: participant.name || participant.identity,
+          senderName,
           x: ptr.x,
           y: ptr.y,
           mode: ptr.mode,
           color: ptr.color,
         });
+        // Draw directly on the streamer's real OS monitor via click-through overlay (Desktop app)
+        const localIdentity = roomRef.current?.localParticipant?.identity;
+        if (localIdentity && ptr.streamIdentity === localIdentity && window.backspace?.showStreamPointerOverlay) {
+          window.backspace.showStreamPointerOverlay({
+            x: ptr.x,
+            y: ptr.y,
+            senderName,
+            color: ptr.color ?? '#7c3aed',
+          });
+        }
         return;
       }
       const sb = decodeSoundboardPlay(payload);

@@ -180,4 +180,9 @@ contextBridge.exposeInMainWorld('backspace', {
   recoveryAction: (action: string): void => {
     ipcRenderer.send('recovery-action', action);
   },
+
+  // Real OS click-through screen overlay for stream pointer pings
+  showStreamPointerOverlay: (payload: { x: number; y: number; senderName: string; color: string }): void => {
+    ipcRenderer.send('stream-pointer-overlay', payload);
+  },
 });

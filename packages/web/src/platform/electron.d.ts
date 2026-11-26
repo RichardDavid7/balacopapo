@@ -191,6 +191,9 @@ interface BackspaceElectronAPI {
   getRecoveryState: () => Promise<RecoveryState>;
   onRecoveryStateChanged: (cb: (state: RecoveryState) => void) => () => void;
   recoveryAction: (action: RecoveryAction) => void;
+
+  // Real OS click-through screen overlay for stream pointer pings
+  showStreamPointerOverlay?: (payload: { x: number; y: number; senderName: string; color: string }) => void;
 }
 
 interface Window {

@@ -17,6 +17,7 @@ import os from 'os';
 import { pathToFileURL } from 'url';
 import { startActivityDetection, stopActivityDetection, getCurrentActivity } from './activityDetector';
 import { KeybindManager } from './keybindManager';
+import { StreamPointerOverlayManager, type StreamPointerOverlayPayload } from './streamPointerOverlay';
 import { deriveStartMinimizedFromArgs, parseExecPathFromDesktopFile, shouldReapplyAppImage } from './autoLaunch';
 import {
   loadInstanceUrl,
@@ -86,6 +87,7 @@ app.setName('Backspace');
 
 let mainWindow: BrowserWindow | null = null;
 const keybindManager = new KeybindManager();
+const streamPointerOverlay = new StreamPointerOverlayManager();
 let tray: Tray | null = null;
 let isQuitting = false;
 let pendingDeepLink: string | null = null;
@@ -1401,6 +1403,7 @@ if (!gotTheLock) {
         //     `PulseaudioLoopbackForScreenShare` feature flag we enable above.
         //     Fails on PipeWire-only systems without pulse compat — the
         //     renderer catches that and toasts the user.
+        streamPointerOverlay.setSharedDisplayId(selected.display_id || null);
         callback({ video: selected, ...(shareAudio ? { audio: 'loopback' } : {}) });
       } catch (err) {
         console.error('[Main:ScreenShare] Handler error:', err);
@@ -1543,8 +1546,14 @@ if (!gotTheLock) {
     }
   });
 
+  ipcMain.on('stream-pointer-overlay', (_event, payload: StreamPointerOverlayPayload) => {
+    if (!payload || typeof payload !== 'object') return;
+    streamPointerOverlay.showPing(payload);
+  });
+
   app.on('before-quit', () => {
     systemAudio.stop();
+    streamPointerOverlay.destroy();
     isQuitting = true;
     stopActivityDetection();
     keybindManager.stop();
