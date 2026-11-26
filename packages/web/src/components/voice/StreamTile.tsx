@@ -4,7 +4,7 @@ import { useFormatters } from '../../i18n/formatters';
 import { Avatar } from '../ui/Avatar';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { useContextMenuStore, type ContextMenuItem } from '../../stores/contextMenuStore';
-import { getActiveRoom, setStreamSubscription } from '../../hooks/useLiveKit';
+import { applyStreamBufferToRoom, getActiveRoom, setStreamSubscription } from '../../hooks/useLiveKit';
 import { stopScreenShare, changeScreenShare, effectiveScreenShareConfig } from '../../utils/screenShare';
 import { useStreamHostLimits } from '../../utils/streamHostLimits';
 import { DEFAULT_STREAMING_LIMITS } from '../../stores/settingsStore';
@@ -124,6 +124,38 @@ function StreamVolumeItem({ userId }: { userId: string }) {
           {f.formatPercent(streamVolume)}
         </span>
       </div>
+    </div>
+  );
+}
+
+/** Quick synchronized A/V stream buffer slider in the remote stream context menu. */
+function StreamBufferItem() {
+  const { t } = useTranslation(['voice', 'common']);
+  const streamBufferMs = useVoiceStore((s) => s.streamBufferMs);
+  const setStreamBufferMs = useVoiceStore((s) => s.setStreamBufferMs);
+
+  const handleChange = (ms: number) => {
+    setStreamBufferMs(ms);
+    applyStreamBufferToRoom(getActiveRoom(), ms);
+  };
+
+  return (
+    <div className="px-3 pb-3 pt-1">
+      <div className="flex items-center justify-between text-xs text-txt-tertiary mb-1.5 font-medium uppercase tracking-wider">
+        <span>{t('voice:stream.buffer')}</span>
+        <span className="text-txt-secondary tabular-nums normal-case">
+          {streamBufferMs === 0 ? t('voice:stream.bufferAuto') : t('common:units.ms', { value: streamBufferMs })}
+        </span>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max="2000"
+        step="20"
+        value={streamBufferMs}
+        onChange={(e) => handleChange(parseInt(e.target.value, 10))}
+        className="w-full accent-accent-primary h-1"
+      />
     </div>
   );
 }
@@ -639,6 +671,13 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
           key: 'stream-volume',
           type: 'custom',
           render: () => React.createElement(StreamVolumeItem, { userId }),
+        });
+
+        // Synchronized A/V stream buffer slider
+        items.push({
+          key: 'stream-buffer',
+          type: 'custom',
+          render: () => React.createElement(StreamBufferItem),
         });
 
         items.push({ key: 'attenuation-sep', type: 'separator' });

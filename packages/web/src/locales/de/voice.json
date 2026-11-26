@@ -182,7 +182,9 @@
     "resetZoom": "Zoom zurücksetzen (1x)",
     "pointMode": "Zeigen",
     "pointModeHint": "Shift+Klick (oder Zeigen aktivieren), um auf den Stream zu zeigen",
-    "dragAimHint": "Ziehen zum Zielen (oberhalb des Fingers) und loslassen zum Markieren"
+    "dragAimHint": "Ziehen zum Zielen (oberhalb des Fingers) und loslassen zum Markieren",
+    "buffer": "Stream-Puffer",
+    "bufferAuto": "Auto"
   },
   "streamDiagnostics": {
     "publisherNetwork": "Das Netzwerk des Streamers ist instabil",

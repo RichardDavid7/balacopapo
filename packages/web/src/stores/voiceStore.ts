@@ -183,8 +183,10 @@ export interface VoiceState {
   setAudioStereo: (stereo: boolean) => void;
   audioBitrateAuto: boolean;                 // true (default) = follow channel bitrate or instance default
   setAudioBitrateAuto: (auto: boolean) => void;
-  jitterBufferMs: number;                    // 0 = browser auto; up to 2000 = target playout buffer (ms) against packet loss/jitter
+  jitterBufferMs: number;                    // 0 = browser auto; up to 2000 = target playout buffer (ms) for voice audio
   setJitterBufferMs: (ms: number) => void;
+  streamBufferMs: number;                    // 0 = browser auto; up to 2000 = synchronized A/V playout buffer (ms) for screen shares
+  setStreamBufferMs: (ms: number) => void;
   audioBitrate: number;                      // 8–512 kbps manual override (64 default)
   setAudioBitrate: (kbps: number) => void;
   streamAttenuationEnabled: boolean;        // global toggle, default true
@@ -448,6 +450,8 @@ export const useVoiceStore = create<VoiceState>()(
       setAudioBitrateAuto: (auto) => set({ audioBitrateAuto: auto }),
       jitterBufferMs: 40,
       setJitterBufferMs: (ms) => set({ jitterBufferMs: Math.max(0, Math.min(2000, Math.round(ms))) }),
+      streamBufferMs: 200,
+      setStreamBufferMs: (ms) => set({ streamBufferMs: Math.max(0, Math.min(2000, Math.round(ms))) }),
       audioBitrate: DEFAULT_AUDIO_BITRATE_KBPS,
       setAudioBitrate: (kbps) => {
         const clamped = Math.min(MAX_AUDIO_BITRATE_KBPS, Math.max(MIN_AUDIO_BITRATE_KBPS, Math.round(kbps)));
@@ -1082,6 +1086,7 @@ export const useVoiceStore = create<VoiceState>()(
         audioBitrateAuto: state.audioBitrateAuto,
         audioBitrate: state.audioBitrate,
         jitterBufferMs: state.jitterBufferMs,
+        streamBufferMs: state.streamBufferMs,
         streamAttenuationEnabled: state.streamAttenuationEnabled,
         streamAttenuationStrength: state.streamAttenuationStrength,
         // Per-user preferences (Map → plain object for JSON)

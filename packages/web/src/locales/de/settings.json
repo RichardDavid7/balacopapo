@@ -137,6 +137,10 @@
         "label": "Jitter-Puffer",
         "description": "Zusätzlicher Audiopuffer gegen Mikroruckler und Paketverlust.",
         "auto": "Auto"
+      },
+      "streamBuffer": {
+        "label": "Stream-Puffer (Audio & Video)",
+        "description": "Synchronisierter Wiedergabepuffer für eingehende Bildschirmübertragungen. Höhere Werte reduzieren FPS-Einbrüche und Audioknacken bei etwas mehr Verzögerung."
       }
     },
     "processing": {

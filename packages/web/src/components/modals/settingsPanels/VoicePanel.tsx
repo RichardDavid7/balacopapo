@@ -15,9 +15,10 @@ import { VideoSection } from './VideoSection';
 import { AudioInputSection } from './AudioInputSection';
 import { AudioOutputSection } from './AudioOutputSection';
 import { Track, type RemoteAudioTrack } from 'livekit-client';
-import { getActiveRoom, applyAudioReceiverJitterBuffer } from '../../../hooks/useLiveKit';
+import { getActiveRoom, applyAudioReceiverJitterBuffer, applyStreamBufferToRoom } from '../../../hooks/useLiveKit';
 
 const JITTER_BUFFER_PRESETS = [0, 40, 80, 120, 250, 500, 1000] as const;
+const STREAM_BUFFER_PRESETS = [0, 120, 200, 350, 500, 1000] as const;
 const MAX_JITTER_BUFFER_MS = 2000;
 
 export function VoicePanel() {
@@ -45,6 +46,8 @@ export function VoicePanel() {
   const setAudioBitrate = useVoiceStore((s) => s.setAudioBitrate);
   const jitterBufferMs = useVoiceStore((s) => s.jitterBufferMs);
   const setJitterBufferMs = useVoiceStore((s) => s.setJitterBufferMs);
+  const streamBufferMs = useVoiceStore((s) => s.streamBufferMs);
+  const setStreamBufferMs = useVoiceStore((s) => s.setStreamBufferMs);
 
   const handleJitterBufferChange = (ms: number) => {
     setJitterBufferMs(ms);
@@ -52,11 +55,16 @@ export function VoicePanel() {
     if (!room) return;
     room.remoteParticipants.forEach((rp) => {
       rp.trackPublications.forEach((pub) => {
-        if (pub.track && pub.track.kind === Track.Kind.Audio) {
+        if (pub.track && pub.track.kind === Track.Kind.Audio && pub.source !== Track.Source.ScreenShareAudio) {
           applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, ms, pub.source);
         }
       });
     });
+  };
+
+  const handleStreamBufferChange = (ms: number) => {
+    setStreamBufferMs(ms);
+    applyStreamBufferToRoom(getActiveRoom(), ms);
   };
   const currentVoiceChannelId = useVoiceStore((s) => s.currentVoiceChannelId);
   const currentVoiceChannel = useSpaceStore((s) =>
@@ -336,6 +344,58 @@ export function VoicePanel() {
               className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-surface-base [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
               style={{
                 background: `linear-gradient(to right, rgb(var(--accent-primary)) 0%, rgb(var(--accent-primary)) ${(jitterBufferMs / MAX_JITTER_BUFFER_MS) * 100}%, rgb(var(--interactive-muted)) ${(jitterBufferMs / MAX_JITTER_BUFFER_MS) * 100}%, rgb(var(--interactive-muted)) 100%)`,
+              }}
+            />
+          </div>
+
+          {/* Synchronized Stream Buffer (Audio + Video playout smoothing for screen shares) */}
+          <div className="space-y-2.5 pt-2 border-t border-white/[0.04]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-txt-primary">{t('settings:voice.opus.streamBuffer.label')}</div>
+                <div className="text-xs text-txt-tertiary">{t('settings:voice.opus.streamBuffer.description')}</div>
+              </div>
+              <span className="text-xs font-semibold text-txt-primary tabular-nums px-2 py-0.5 rounded bg-surface-base border border-border-soft shrink-0">
+                {streamBufferMs === 0
+                  ? t('settings:voice.opus.jitterBuffer.auto')
+                  : t('common:units.ms', { value: streamBufferMs })}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1 rounded-lg bg-surface-base p-1">
+              {STREAM_BUFFER_PRESETS.map((ms) => {
+                const active = streamBufferMs === ms;
+                return (
+                  <button
+                    key={ms}
+                    type="button"
+                    onClick={() => handleStreamBufferChange(ms)}
+                    aria-pressed={active}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium tabular-nums transition-colors ${
+                      active
+                        ? 'bg-accent-primary text-white'
+                        : 'text-txt-secondary hover:text-txt-primary'
+                    }`}
+                  >
+                    {ms === 0
+                      ? t('settings:voice.opus.jitterBuffer.auto')
+                      : t('common:units.ms', { value: ms })}
+                  </button>
+                );
+              })}
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={MAX_JITTER_BUFFER_MS}
+              step={20}
+              value={streamBufferMs}
+              onChange={(e) => handleStreamBufferChange(Number(e.target.value))}
+              aria-label={t('settings:voice.opus.streamBuffer.label')}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-surface-base [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md"
+              style={{
+                background: `linear-gradient(to right, rgb(var(--accent-primary)) 0%, rgb(var(--accent-primary)) ${(streamBufferMs / MAX_JITTER_BUFFER_MS) * 100}%, rgb(var(--interactive-muted)) ${(streamBufferMs / MAX_JITTER_BUFFER_MS) * 100}%, rgb(var(--interactive-muted)) 100%)`,
               }}
             />
           </div>

@@ -182,7 +182,9 @@
     "resetZoom": "Reset zoom (1x)",
     "pointMode": "Point",
     "pointModeHint": "Shift+click (or toggle Point) to mark a spot on the stream",
-    "dragAimHint": "Drag to aim above your finger, release to point on the stream"
+    "dragAimHint": "Drag to aim above your finger, release to point on the stream",
+    "buffer": "Stream Buffer (A/V)",
+    "bufferAuto": "Auto"
   },
   "streamDiagnostics": {
     "publisherNetwork": "The streamer's network is unstable",

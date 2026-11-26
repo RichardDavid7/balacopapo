@@ -182,7 +182,9 @@
     "resetZoom": "Redefinir zoom (1x)",
     "pointMode": "Apontar",
     "pointModeHint": "Shift+clique (ou ative Apontar) para marcar um ponto na tela",
-    "dragAimHint": "Arraste a mira (deslocada acima do dedo) e solte para apontar"
+    "dragAimHint": "Arraste a mira (deslocada acima do dedo) e solte para apontar",
+    "buffer": "Buffer da transmissão",
+    "bufferAuto": "Auto"
   },
   "streamDiagnostics": {
     "publisherNetwork": "A rede de quem transmite está instável",

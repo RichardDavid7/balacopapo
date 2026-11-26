@@ -6,6 +6,7 @@ import {
   Participant,
   RemoteParticipant,
   RemoteTrackPublication,
+  RemoteTrack,
   RemoteAudioTrack,
   ConnectionState,
   ConnectionQuality,
@@ -380,12 +381,10 @@ export function effectiveJitterBufferMs(targetMs: number, source?: Track.Source)
   return targetMs;
 }
 
-export function applyAudioReceiverJitterBuffer(
-  track: RemoteAudioTrack,
-  targetMs: number,
-  source?: Track.Source,
+export function applyReceiverJitterBuffer(
+  track: { receiver?: RTCRtpReceiver } | RemoteAudioTrack | RemoteTrack,
+  effectiveMs: number,
 ): void {
-  const effectiveMs = effectiveJitterBufferMs(targetMs, source ?? track.source);
   const receiver = (track as unknown as { receiver?: RTCRtpReceiver }).receiver;
   if (!receiver) return;
   try {
@@ -402,6 +401,34 @@ export function applyAudioReceiverJitterBuffer(
   } catch {
     // Non-fatal on browsers that restrict jitterBufferTarget writes
   }
+}
+
+export function applyAudioReceiverJitterBuffer(
+  track: RemoteAudioTrack,
+  targetMs: number,
+  source?: Track.Source,
+): void {
+  const effectiveMs = effectiveJitterBufferMs(targetMs, source ?? track.source);
+  applyReceiverJitterBuffer(track, effectiveMs);
+}
+
+/**
+ * Applies the synchronized A/V stream buffer (`streamBufferMs`) to every remote
+ * screen-share video and screen-share audio receiver in the active room so
+ * video keyframes and stream audio share the same playout delay target.
+ */
+export function applyStreamBufferToRoom(room: Room | null, streamBufferMs: number): void {
+  if (!room) return;
+  room.remoteParticipants.forEach((rp) => {
+    rp.trackPublications.forEach((pub) => {
+      if (!pub.track) return;
+      if (pub.source === Track.Source.ScreenShare) {
+        applyReceiverJitterBuffer(pub.track as RemoteTrack, streamBufferMs);
+      } else if (pub.source === Track.Source.ScreenShareAudio) {
+        applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, streamBufferMs, pub.source);
+      }
+    });
+  });
 }
 
 export function buildAudioPublishOptions(cfg: AudioPublishConfig) {
@@ -1263,7 +1290,13 @@ export function useLiveKit() {
         if (track.kind === Track.Kind.Audio) {
           const audioTrack = track as RemoteAudioTrack;
           audioTrack.detach();
-          applyAudioReceiverJitterBuffer(audioTrack, useVoiceStore.getState().jitterBufferMs, publication.source);
+          const voiceState = useVoiceStore.getState();
+          const targetMs = publication.source === Track.Source.ScreenShareAudio
+            ? voiceState.streamBufferMs
+            : voiceState.jitterBufferMs;
+          applyAudioReceiverJitterBuffer(audioTrack, targetMs, publication.source);
+        } else if (track.kind === Track.Kind.Video && publication.source === Track.Source.ScreenShare) {
+          applyReceiverJitterBuffer(track as RemoteTrack, useVoiceStore.getState().streamBufferMs);
         }
         guardedUpdate();
       });
@@ -1452,11 +1485,17 @@ export function useLiveKit() {
             // Re-sync voice status, AudioContext/sinkId, and receiver jitter buffers after reconnect
             broadcastVoiceStatus();
             void AudioManager.getInstance().recoverFromWake?.();
-            const currentJitterMs = useVoiceStore.getState().jitterBufferMs;
+            const voiceState = useVoiceStore.getState();
             newRoom.remoteParticipants.forEach((rp) => {
               rp.trackPublications.forEach((pub) => {
-                if (pub.track && pub.track.kind === Track.Kind.Audio) {
-                  applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, currentJitterMs, pub.source);
+                if (!pub.track) return;
+                if (pub.track.kind === Track.Kind.Audio) {
+                  const targetMs = pub.source === Track.Source.ScreenShareAudio
+                    ? voiceState.streamBufferMs
+                    : voiceState.jitterBufferMs;
+                  applyAudioReceiverJitterBuffer(pub.track as RemoteAudioTrack, targetMs, pub.source);
+                } else if (pub.track.kind === Track.Kind.Video && pub.source === Track.Source.ScreenShare) {
+                  applyReceiverJitterBuffer(pub.track as RemoteTrack, voiceState.streamBufferMs);
                 }
               });
             });

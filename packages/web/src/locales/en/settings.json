@@ -137,6 +137,10 @@
         "label": "Jitter buffer",
         "description": "Extra audio buffer to smooth out micro-stutters and packet loss.",
         "auto": "Auto"
+      },
+      "streamBuffer": {
+        "label": "Stream Buffer (Audio & Video)",
+        "description": "Synchronized playout buffer for incoming screen shares. Higher values smooth out FPS drops and audio crackling at the cost of slight extra delay."
       }
     },
     "processing": {

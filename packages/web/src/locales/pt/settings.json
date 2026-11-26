@@ -137,6 +137,10 @@
         "label": "Buffer anti-jitter",
         "description": "Buffer extra de áudio para eliminar micro-cortes e perda de pacotes.",
         "auto": "Auto"
+      },
+      "streamBuffer": {
+        "label": "Buffer da transmissão (Áudio e Vídeo)",
+        "description": "Buffer sincronizado de reprodução para transmissões recebidas. Valores maiores reduzem quedas de FPS e estalos no áudio em troca de um pequeno atraso."
       }
     },
     "processing": {
