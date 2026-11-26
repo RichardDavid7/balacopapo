@@ -1,4 +1,4 @@
-name: Desktop Native CI (Rust + Iced — Win & Linux)
+name: Desktop Native CI & Edge Release (Rust + Iced — Win & Linux)
 
 on:
   push:
@@ -20,6 +20,9 @@ concurrency:
   group: desktop-native-ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   parity:
     name: Parity Check (shared -> desktop)
@@ -33,11 +36,13 @@ jobs:
         run: node scripts/check-desktop-parity.mjs
 
   build-and-test:
-    name: Rust Native (${{ matrix.os }})
+    name: Rust Native (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04]
+        include:
+          - { os: windows-latest, target: windows-x64 }
+          - { os: ubuntu-22.04, target: linux-x64 }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -45,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Linux graphics/window dependencies (No WebKitGTK needed)
+      - name: Install Linux graphics/audio dependencies (Zero WebView)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
@@ -65,5 +70,59 @@ jobs:
       - name: Unit Tests
         run: cargo test
 
-      - name: Release Build Check
+      - name: Release Build
         run: cargo build --release
+
+      - name: Package Windows Binary
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target\release\balacopapo-desktop.exe "dist\Balacopapo-Desktop-windows-x64.exe"
+          Compress-Archive -Path "dist\Balacopapo-Desktop-windows-x64.exe" -DestinationPath "dist\Balacopapo-Desktop-windows-x64.zip" -Force
+
+      - name: Package Linux Binary
+        if: matrix.target == 'linux-x64'
+        run: |
+          mkdir -p dist
+          cp target/release/balacopapo-desktop "dist/Balacopapo-Desktop-linux-x64"
+          chmod +x "dist/Balacopapo-Desktop-linux-x64"
+          cp target/release/balacopapo-desktop "dist/balacopapo-desktop"
+          tar -czf "dist/Balacopapo-Desktop-linux-x64.tar.gz" -C dist balacopapo-desktop
+          rm -f dist/balacopapo-desktop
+
+      - name: Upload Desktop Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: balacopapo-desktop-${{ matrix.target }}
+          path: |
+            clients/desktop/dist/Balacopapo-Desktop-*
+
+  publish-edge:
+    name: Publicar Balacopapo Desktop (Edge)
+    needs: [parity, build-and-test]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Publicar ou atualizar release desktop-edge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="desktop-edge"
+          TITLE="Balacopapo Desktop (Edge — ${SHORT_SHA})"
+          NOTES="Cliente desktop **100% Nativo em Rust (`Iced` + `wgpu`, Zero WebView / Zero Electron)** para **Windows** e **Linux (Fedora, CachyOS/Arch e distros modernas)** — commit \`${SHORT_SHA}\`.\n\n- **Windows:** execute \`Balacopapo-Desktop-windows-x64.exe\` diretamente (auto-update silencioso incluso).\n- **Linux (Fedora / CachyOS):** baixe \`Balacopapo-Desktop-linux-x64\` (ou \`.tar.gz\`), dê \`chmod +x\` e execute."
+
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"
+            gh release edit "${TAG}" --title "${TITLE}" --notes "${NOTES}" --target "${GITHUB_SHA}" --repo "${GITHUB_REPOSITORY}"
+          else
+            gh release create "${TAG}" out/* --prerelease --target "${GITHUB_SHA}" --title "${TITLE}" --notes "${NOTES}" --repo "${GITHUB_REPOSITORY}"
+          fi
