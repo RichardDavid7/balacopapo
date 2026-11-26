@@ -45,8 +45,10 @@ export class LiveKitVoice implements AudioSink {
 
   async disconnect(): Promise<void> {
     const room = this.room;
+    const source = this.source;
     this.room = null;
     this.source = null;
+    await source?.close().catch(() => undefined);
     await room?.disconnect();
   }
 }

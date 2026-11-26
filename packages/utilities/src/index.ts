@@ -1,3 +1,4 @@
+import { AudioSource } from '@livekit/rtc-node';
 import { spawn } from 'node:child_process';
 import { Controller } from './controller.js';
 import { appDataDir } from './paths.js';
@@ -15,6 +16,12 @@ function openBrowser(url: string): void {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes('--check')) {
+    const src = new AudioSource(48_000, 2, 100);
+    await src.close();
+    console.log('Balacopapo Utilidades: self-check OK');
+    process.exit(0);
+  }
   const home = appDataDir();
   const controller = new Controller(home);
   await startUiServer(controller, home, PORT);

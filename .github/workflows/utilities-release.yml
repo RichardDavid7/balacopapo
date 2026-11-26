@@ -48,21 +48,22 @@ jobs:
       - name: Montar pacote portátil
         shell: bash
         run: |
-          pnpm --filter @backspace/utilities deploy --prod --legacy dist/app
-          cp -r packages/utilities/dist dist/app/dist
-          rm -rf dist/app/src dist/app/launcher dist/app/tsconfig.json
+          mkdir -p dist/pkg/app dist/pkg/runtime
+          node -e "const fs=require('fs'),p=JSON.parse(fs.readFileSync('packages/utilities/package.json','utf8'));delete p.devDependencies;fs.writeFileSync('dist/pkg/app/package.json',JSON.stringify(p,null,2));"
+          cp -r packages/utilities/dist dist/pkg/app/dist
+
+          # Usa npm install --omit=dev para gerar node_modules plano (sem symlinks do pnpm que quebram no .zip)
+          (cd dist/pkg/app && npm install --omit=dev --no-audit --no-fund)
 
           NODE_VERSION=$(node -p "process.versions.node")
           NODE_NAME="node-v${NODE_VERSION}-${{ matrix.node-os }}-x64"
           curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${NODE_NAME}.${{ matrix.node-ext }}" -o node-archive
-          mkdir -p dist/pkg/runtime
           if [ "${{ matrix.node-ext }}" = "zip" ]; then
             unzip -q node-archive -d node-extract
           else
             mkdir node-extract && tar -xf node-archive -C node-extract
           fi
           cp -r node-extract/${NODE_NAME}/* dist/pkg/runtime/
-          cp -r dist/app dist/pkg/app
 
           if [ "${{ matrix.target }}" = "windows-x64" ]; then
             MSYS_NO_PATHCONV=1 "/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
@@ -71,9 +72,11 @@ jobs:
               -r:System.Windows.Forms.dll -r:System.Drawing.dll \
               -out:'dist\pkg\Balacopapo-Utilidades.exe' \
               'packages\utilities\launcher\Launcher.cs'
+            dist/pkg/runtime/node.exe dist/pkg/app/dist/index.js --check
           else
             printf '#!/bin/sh\ncd "$(dirname "$0")/app" || exit 1\nexec "../runtime/bin/node" dist/index.js "$@"\n' > dist/pkg/balacopapo-utilidades
             chmod +x dist/pkg/balacopapo-utilidades
+            dist/pkg/runtime/bin/node dist/pkg/app/dist/index.js --check
           fi
 
       - name: Compactar
