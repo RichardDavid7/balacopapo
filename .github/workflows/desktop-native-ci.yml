@@ -71,7 +71,8 @@ jobs:
         run: cargo test
 
       - name: Release Build
-        run: cargo build --release
+        shell: bash
+        run: BALACOPAPO_BUILD_SHA="${GITHUB_SHA::7}" cargo build --release
 
       - name: Package Windows Binary
         if: matrix.target == 'windows-x64'

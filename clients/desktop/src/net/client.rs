@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use crate::core::models::{
     AuthUser, ChatMessage, DmChannelSummary, GroupSummary, InstanceInfo, LiveKitTokenResponse,
-    LoginResponse, MusicChannelState, PresenceStatus, SoundboardSound, SpaceApiKeySummary,
+    LoginResponse, MusicChannelState, OidcHandoffResponse, OidcPollResponse, PresenceStatus,
+    SoundboardSound, SpaceApiKeySummary,
 };
 
 #[derive(Clone)]
@@ -37,15 +38,15 @@ impl ApiClient {
         })
     }
 
-    pub fn oidc_start_url(&self) -> String {
+    pub fn oidc_handoff_start_url(&self, handoff_id: &str) -> String {
         format!(
-            "{}/api/auth/oidc/start?redirect=balacopapo://auth/callback",
-            self.base_url
+            "{}/api/auth/oidc/start?handoff={}&client=desktop",
+            self.base_url, handoff_id
         )
     }
 
     pub async fn fetch_instance_info(&self) -> Result<InstanceInfo, String> {
-        let url = format!("{}/api/instance", self.base_url);
+        let url = format!("{}/api/instance/info", self.base_url);
         let resp = self
             .http
             .get(&url)
@@ -60,14 +61,95 @@ impl ApiClient {
         let mut info = resp
             .json::<InstanceInfo>()
             .await
-            .unwrap_or_else(|_| InstanceInfo {
-                name: self.base_url.clone(),
-                ..Default::default()
-            });
+            .map_err(|e| format!("Resposta inválida de /api/instance/info: {e}"))?;
         if info.name.trim().is_empty() {
             info.name = self.base_url.clone();
         }
         Ok(info)
+    }
+
+    /// Fluxo OIDC completo no navegador do sistema usando o handoff nativo do Balacopapo:
+    /// `POST /api/auth/oidc/handoff` → abre navegador → polling `GET .../handoff/:id` → `POST /api/auth/oidc/exchange`.
+    pub async fn login_with_oidc_browser(&self) -> Result<LoginResponse, String> {
+        let handoff_url = format!("{}/api/auth/oidc/handoff", self.base_url);
+        let resp = self
+            .http
+            .post(&handoff_url)
+            .send()
+            .await
+            .map_err(|e| format!("Falha ao iniciar OIDC: {e}"))?;
+
+        if resp.status().as_u16() == 404 {
+            return Err("OIDC (SSO) não está configurado nesta instância.".to_string());
+        }
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Instância recusou início do OIDC (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        let handoff = resp
+            .json::<OidcHandoffResponse>()
+            .await
+            .map_err(|e| format!("Resposta OIDC handoff inválida: {e}"))?;
+
+        let start_url = self.oidc_handoff_start_url(&handoff.handoff_id);
+        open::that(&start_url)
+            .map_err(|e| format!("Não foi possível abrir o navegador para OIDC: {e}"))?;
+
+        // Aguarda até 3 minutos pelo retorno do login no navegador (polling leve a cada 1.5s).
+        let poll_url = format!(
+            "{}/api/auth/oidc/handoff/{}?token={}",
+            self.base_url, handoff.handoff_id, handoff.poll_token
+        );
+
+        for _ in 0..120 {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let Ok(poll_resp) = self.http.get(&poll_url).send().await else {
+                continue;
+            };
+            if poll_resp.status().as_u16() == 404 {
+                return Err("Sessão de login OIDC expirou. Tente novamente.".to_string());
+            }
+            let Ok(poll) = poll_resp.json::<OidcPollResponse>().await else {
+                continue;
+            };
+            match poll.status.as_str() {
+                "ready" => {
+                    let ticket = poll
+                        .ticket
+                        .ok_or_else(|| "Ticket OIDC ausente na resposta.".to_string())?;
+                    let exchange_url = format!("{}/api/auth/oidc/exchange", self.base_url);
+                    let ex_resp = self
+                        .http
+                        .post(&exchange_url)
+                        .json(&json!({ "ticket": ticket }))
+                        .send()
+                        .await
+                        .map_err(|e| format!("Erro ao finalizar troca OIDC: {e}"))?;
+                    if !ex_resp.status().is_success() {
+                        return Err(format!(
+                            "Falha na troca do ticket OIDC (HTTP {})",
+                            ex_resp.status().as_u16()
+                        ));
+                    }
+                    return ex_resp
+                        .json::<LoginResponse>()
+                        .await
+                        .map_err(|e| format!("Resposta OIDC exchange inválida: {e}"));
+                }
+                "error" => {
+                    return Err(format!(
+                        "Login OIDC falhou: {}",
+                        poll.error.unwrap_or_else(|| "erro desconhecido".to_string())
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        Err("Tempo esgotado aguardando login OIDC no navegador.".to_string())
     }
 
     pub async fn login(&self, identifier: &str, password: &str) -> Result<LoginResponse, String> {

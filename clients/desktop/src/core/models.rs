@@ -5,15 +5,41 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OidcPublicConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub password_login_disabled: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InstanceInfo {
     #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]
-    pub oidc_enabled: bool,
+    pub oidc: OidcPublicConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OidcHandoffResponse {
+    pub handoff_id: String,
+    pub poll_token: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OidcPollResponse {
+    pub status: String,
     #[serde(default)]
-    pub oidc_provider_name: Option<String>,
+    pub ticket: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

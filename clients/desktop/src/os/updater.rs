@@ -46,9 +46,27 @@ struct GithubAsset {
 #[derive(Debug, Deserialize)]
 struct GithubRelease {
     tag_name: String,
+    #[serde(default)]
+    name: String,
     html_url: Option<String>,
     #[serde(default)]
     assets: Vec<GithubAsset>,
+}
+
+fn is_update_candidate(release: &GithubRelease) -> Option<String> {
+    let current = env!("CARGO_PKG_VERSION");
+    if is_newer_version(current, &release.tag_name) {
+        return Some(release.tag_name.clone());
+    }
+    if release.tag_name == "desktop-edge" {
+        if let Some(build_sha) = option_env!("BALACOPAPO_BUILD_SHA") {
+            let trimmed = build_sha.trim();
+            if !trimmed.is_empty() && !release.name.contains(trimmed) {
+                return Some(release.name.clone());
+            }
+        }
+    }
+    None
 }
 
 pub fn parse_semver(raw: &str) -> Option<(u64, u64, u64)> {
@@ -152,15 +170,25 @@ pub async fn check_and_stage_update() -> UpdateCheckState {
         return UpdateCheckState::Failed(format!("GitHub HTTP {}", resp.status().as_u16()));
     }
 
-    let release = match resp.json::<GithubRelease>().await {
+    let releases = match resp.json::<Vec<GithubRelease>>().await {
         Ok(r) => r,
         Err(e) => return UpdateCheckState::Failed(format!("Resposta inválida: {e}")),
     };
 
-    let current = env!("CARGO_PKG_VERSION");
-    if !is_newer_version(current, &release.tag_name) {
+    // Encontra a release mais recente que tenha artefato do Balacopapo Desktop (estável v* ou desktop-edge).
+    let candidate = releases.into_iter().find_map(|rel| {
+        let has_desktop_asset = select_platform_asset(&rel.assets).is_some()
+            || rel.tag_name == "desktop-edge"
+            || rel.tag_name.starts_with('v');
+        if !has_desktop_asset {
+            return None;
+        }
+        is_update_candidate(&rel).map(|label| (rel, label))
+    });
+
+    let Some((release, version_label)) = candidate else {
         return UpdateCheckState::UpToDate;
-    }
+    };
 
     let release_url = release
         .html_url
@@ -168,14 +196,14 @@ pub async fn check_and_stage_update() -> UpdateCheckState {
 
     let Some(asset) = select_platform_asset(&release.assets) else {
         return UpdateCheckState::AvailableManual {
-            version: release.tag_name,
+            version: version_label,
             release_url,
         };
     };
 
     let Some(staged_path) = staged_update_path() else {
         return UpdateCheckState::AvailableManual {
-            version: release.tag_name,
+            version: version_label,
             release_url,
         };
     };
@@ -185,7 +213,7 @@ pub async fn check_and_stage_update() -> UpdateCheckState {
         Ok(r) if r.status().is_success() => r,
         _ => {
             return UpdateCheckState::AvailableManual {
-                version: release.tag_name,
+                version: version_label,
                 release_url,
             };
         }
@@ -193,21 +221,21 @@ pub async fn check_and_stage_update() -> UpdateCheckState {
 
     let Ok(bytes) = bin_resp.bytes().await else {
         return UpdateCheckState::AvailableManual {
-            version: release.tag_name,
+            version: version_label,
             release_url,
         };
     };
 
     if !has_valid_executable_magic(&bytes) {
         return UpdateCheckState::AvailableManual {
-            version: release.tag_name,
+            version: version_label,
             release_url,
         };
     }
 
     if fs::write(&staged_path, &bytes).is_err() {
         return UpdateCheckState::AvailableManual {
-            version: release.tag_name,
+            version: version_label,
             release_url,
         };
     }
@@ -219,7 +247,7 @@ pub async fn check_and_stage_update() -> UpdateCheckState {
     }
 
     UpdateCheckState::ReadyToRestart {
-        version: release.tag_name,
+        version: version_label,
         staged_path,
     }
 }

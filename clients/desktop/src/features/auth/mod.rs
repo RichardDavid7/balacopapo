@@ -140,17 +140,22 @@ pub fn view<'a>(
         .push(pass_input)
         .push(login_btn);
 
-    if state
+    let oidc_label = state
         .instance_info
         .as_ref()
-        .is_some_and(|info| info.oidc_enabled)
-    {
-        let provider = state
-            .instance_info
-            .as_ref()
-            .and_then(|i| i.oidc_provider_name.as_deref())
-            .unwrap_or("SSO / OIDC");
-        let oidc_btn = button(text(format!("Entrar com {provider}")).size(13))
+        .and_then(|i| i.oidc.display_name.as_deref())
+        .filter(|s| !s.trim().is_empty())
+        .map(|name| format!("Entrar com {name} (Navegador / OIDC)"))
+        .unwrap_or_else(|| "Entrar com SSO / OIDC (Navegador)".to_string());
+
+    let show_oidc = state
+        .instance_info
+        .as_ref()
+        .map(|i| i.oidc.enabled)
+        .unwrap_or(true);
+
+    if show_oidc {
+        let oidc_btn = button(text(oidc_label).size(13))
             .width(Length::Fill)
             .padding([10, 14])
             .on_press_maybe((!state.busy).then_some(AuthMessage::StartOidc))

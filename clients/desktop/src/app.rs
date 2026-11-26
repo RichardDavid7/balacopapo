@@ -627,14 +627,22 @@ impl BalacopapoApp {
             }
             AuthMessage::StartOidc => match normalize_instance_url(&state.instance_url_input) {
                 Ok(url) => {
-                    if let Ok(client) = ApiClient::new(url, None) {
-                        let _ = open::that(client.oidc_start_url());
-                        state.status_note = Some(
-                            "Navegador aberto para autenticação OIDC (balacopapo://auth/callback)."
-                                .to_string(),
-                        );
-                    }
-                    Task::none()
+                    state.busy = true;
+                    state.error = None;
+                    state.status_note = Some(
+                        "Abrindo navegador para login OIDC... conclua o login no navegador para entrar automaticamente."
+                            .to_string(),
+                    );
+                    self.config.instance_url = Some(url.clone());
+                    let _ = self.config.save();
+                    Task::perform(
+                        async move {
+                            let client = ApiClient::new(url.clone(), None)?;
+                            let resp = client.login_with_oidc_browser().await?;
+                            Ok((url, resp))
+                        },
+                        Message::LoginCompleted,
+                    )
                 }
                 Err(err) => {
                     state.error = Some(err);

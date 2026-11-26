@@ -26,6 +26,10 @@ rtrb = "0.3"
 nnnoiseless = "0.5"
 hound = "3.5"
 sysinfo = { version = "0.32", default-features = false, features = ["system"] }
+image = { version = "0.25", default-features = false, features = ["ico"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
 
 [profile.release]
 panic = "abort"

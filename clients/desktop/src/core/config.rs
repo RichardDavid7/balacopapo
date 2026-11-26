@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use url::Url;
 
 pub const DEFAULT_RELEASES_API: &str =
-    "https://api.github.com/repos/RichardDavid7/balacopapo/releases/latest";
+    "https://api.github.com/repos/RichardDavid7/balacopapo/releases?per_page=10";
 pub const DEFAULT_RELEASES_PAGE: &str =
-    "https://github.com/RichardDavid7/balacopapo/releases/latest";
+    "https://github.com/RichardDavid7/balacopapo/releases";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
