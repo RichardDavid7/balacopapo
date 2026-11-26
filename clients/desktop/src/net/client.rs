@@ -4,8 +4,8 @@ use serde_json::json;
 use std::time::Duration;
 
 use crate::core::models::{
-    AuthUser, ChatMessage, GroupSummary, InstanceInfo, LiveKitTokenResponse, LoginResponse,
-    PresenceStatus, SoundboardSound,
+    AuthUser, ChatMessage, DmChannelSummary, GroupSummary, InstanceInfo, LiveKitTokenResponse,
+    LoginResponse, MusicChannelState, PresenceStatus, SoundboardSound, SpaceApiKeySummary,
 };
 
 #[derive(Clone)]
@@ -342,6 +342,151 @@ impl ApiClient {
             .await
             .map(|b| b.to_vec())
             .map_err(|e| format!("Erro ao ler bytes de áudio: {e}"))
+    }
+
+    pub async fn fetch_dms(&self) -> Result<Vec<DmChannelSummary>, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/dm", self.base_url);
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao carregar DMs: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha ao listar DMs (HTTP {})", resp.status().as_u16()));
+        }
+
+        resp.json::<Vec<DmChannelSummary>>()
+            .await
+            .map_err(|e| format!("Erro ao interpretar DMs: {e}"))
+    }
+
+    pub async fn fetch_music_state(&self, channel_id: &str) -> Result<MusicChannelState, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/channels/{channel_id}/music", self.base_url);
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao carregar estado da música: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha ao consultar música (HTTP {})", resp.status().as_u16()));
+        }
+
+        resp.json::<MusicChannelState>()
+            .await
+            .map_err(|e| format!("Erro ao interpretar estado da música: {e}"))
+    }
+
+    pub async fn add_music_track(&self, channel_id: &str, track_url: &str) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/channels/{channel_id}/music/queue", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "url": track_url }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao adicionar faixa: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha ao enfileirar faixa (HTTP {})", resp.status().as_u16()));
+        }
+        Ok(())
+    }
+
+    pub async fn vote_skip_music(&self, channel_id: &str) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/channels/{channel_id}/music/vote-skip", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao votar para pular: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha no Vote-Skip (HTTP {})", resp.status().as_u16()));
+        }
+        Ok(())
+    }
+
+    pub async fn control_music(&self, channel_id: &str, action: &str) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/channels/{channel_id}/music/control", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "action": action }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro no controle de música: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha no controle de música (HTTP {})", resp.status().as_u16()));
+        }
+        Ok(())
+    }
+
+    pub async fn update_music_vote_skip(
+        &self,
+        channel_id: &str,
+        vote_skip_percent: u32,
+    ) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/channels/{channel_id}/music/settings", self.base_url);
+        let resp = self
+            .http
+            .patch(&url)
+            .bearer_auth(token)
+            .json(&json!({ "voteSkipPercent": vote_skip_percent.clamp(1, 100) }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao salvar Vote-Skip: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha ao salvar Vote-Skip (HTTP {})", resp.status().as_u16()));
+        }
+        Ok(())
+    }
+
+    pub async fn fetch_space_api_keys(
+        &self,
+        space_id: &str,
+    ) -> Result<Vec<SpaceApiKeySummary>, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/spaces/{space_id}/api-keys", self.base_url);
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao listar chaves de API: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha ao listar chaves (HTTP {})", resp.status().as_u16()));
+        }
+
+        let val: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("Erro ao ler chaves de API: {e}"))?;
+        if let Some(arr) = val.get("keys") {
+            serde_json::from_value(arr.clone())
+                .map_err(|e| format!("Erro ao interpretar chaves: {e}"))
+        } else {
+            serde_json::from_value(val).map_err(|e| format!("Erro ao interpretar chaves: {e}"))
+        }
     }
 
     fn require_token(&self) -> Result<&str, String> {

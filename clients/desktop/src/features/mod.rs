@@ -1,7 +1,10 @@
 pub mod auth;
 pub mod chat;
+pub mod dm;
+pub mod music;
 pub mod overlay;
 pub mod p2p;
+pub mod settings;
 pub mod shell;
 pub mod soundboard;
 pub mod stream;

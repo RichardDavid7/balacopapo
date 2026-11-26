@@ -166,6 +166,88 @@ pub struct SoundboardSound {
     pub duration_ms: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DmChannelSummary {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub participants: Vec<AuthUser>,
+}
+
+impl DmChannelSummary {
+    pub fn is_group_dm(&self) -> bool {
+        self.owner_id.is_some() || self.participants.len() > 2
+    }
+
+    pub fn display_label(&self, my_user_id: &str) -> String {
+        if let Some(name) = self.name.as_deref().filter(|n| !n.trim().is_empty()) {
+            return name.to_string();
+        }
+        let others: Vec<&str> = self
+            .participants
+            .iter()
+            .filter(|u| u.id != my_user_id)
+            .map(AuthUser::label)
+            .collect();
+        if others.is_empty() {
+            "Conversa Direta".to_string()
+        } else {
+            others.join(", ")
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MusicTrack {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub requested_by: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MusicChannelState {
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub current_track: Option<MusicTrack>,
+    #[serde(default)]
+    pub queue: Vec<MusicTrack>,
+    #[serde(default = "default_music_volume")]
+    pub volume: u32,
+    #[serde(default = "default_vote_skip")]
+    pub vote_skip_percent: u32,
+    #[serde(default)]
+    pub bot_connected: bool,
+}
+
+fn default_music_volume() -> u32 {
+    80
+}
+
+fn default_vote_skip() -> u32 {
+    50
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceApiKeySummary {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub key_prefix: String,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub enum WsEvent {
     Connected,

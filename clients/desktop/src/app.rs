@@ -4,15 +4,18 @@ use std::sync::atomic::Ordering;
 use crate::core::config::{normalize_instance_url, AppConfig};
 use crate::core::deep_link::{parse_deep_link, DeepLinkTarget};
 use crate::core::models::{
-    AuthUser, ChatMessage, GroupSummary, InstanceInfo, LiveKitTokenResponse, LoginResponse,
-    PresenceStatus, SoundboardSound, WsEvent,
+    AuthUser, ChatMessage, DmChannelSummary, GroupSummary, InstanceInfo, LiveKitTokenResponse,
+    LoginResponse, MusicChannelState, PresenceStatus, SoundboardSound, SpaceApiKeySummary, WsEvent,
 };
 use crate::core::p2p_mesh::FileTransferStatus;
 use crate::features::auth::{self, AuthMessage, AuthState};
 use crate::features::chat::ChatMessageAction;
+use crate::features::dm::DmAction;
+use crate::features::music::MusicAction;
 use crate::features::overlay::OverlayAction;
 use crate::features::p2p::P2PAction;
-use crate::features::shell::{self, ShellMessage, ShellState};
+use crate::features::settings::{parse_vote_skip_percent, SettingsAction};
+use crate::features::shell::{self, ActivePanel, ShellMessage, ShellState};
 use crate::features::soundboard::SoundboardAction;
 use crate::features::stream::{ActivePointerPing, StreamAction};
 use crate::features::voice::VoiceAction;
@@ -67,6 +70,11 @@ pub enum Message {
         name: String,
         result: Result<Vec<u8>, String>,
     },
+    DmsLoaded(Result<Vec<DmChannelSummary>, String>),
+    MusicStateLoaded(Result<MusicChannelState, String>),
+    MusicCommandDone(Result<(), String>),
+    VoteSkipSaved(Result<u32, String>),
+    ApiKeysLoaded(Result<Vec<SpaceApiKeySummary>, String>),
     UpdateChecked(UpdateCheckState),
 }
 
@@ -388,6 +396,77 @@ impl BalacopapoApp {
                 }
                 Task::none()
             }
+            Message::DmsLoaded(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.dm.loading = false;
+                    match result {
+                        Ok(list) => {
+                            shell.dm.error = None;
+                            shell.dm.channels = list;
+                        }
+                        Err(err) => shell.dm.error = Some(err),
+                    }
+                }
+                Task::none()
+            }
+            Message::MusicStateLoaded(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.music.busy = false;
+                    match result {
+                        Ok(st) => {
+                            shell.music.error = None;
+                            shell.settings.vote_skip_input = st.vote_skip_percent.to_string();
+                            shell.music.state = st;
+                        }
+                        Err(err) => shell.music.error = Some(err),
+                    }
+                }
+                Task::none()
+            }
+            Message::MusicCommandDone(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.music.busy = false;
+                    match result {
+                        Ok(()) => {
+                            shell.music.error = None;
+                            if let Some(ch_id) = shell.voice.connected_channel_id.clone() {
+                                let url = shell.instance_url.clone();
+                                let token = self.config.auth_token.clone().unwrap_or_default();
+                                return Self::load_music_task(url, token, ch_id);
+                            }
+                        }
+                        Err(err) => shell.music.error = Some(err),
+                    }
+                }
+                Task::none()
+            }
+            Message::VoteSkipSaved(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(pct) => {
+                            shell.settings.vote_skip_error = None;
+                            shell.settings.vote_skip_saved_note =
+                                Some(format!("Vote-Skip do grupo salvo em {pct}%."));
+                            shell.music.state.vote_skip_percent = pct;
+                        }
+                        Err(err) => {
+                            shell.settings.vote_skip_saved_note = None;
+                            shell.settings.vote_skip_error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::ApiKeysLoaded(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.settings.loading_keys = false;
+                    match result {
+                        Ok(keys) => shell.settings.api_keys = keys,
+                        Err(err) => shell.error = Some(err),
+                    }
+                }
+                Task::none()
+            }
             Message::UpdateChecked(status) => {
                 self.update_state = status;
                 Task::none()
@@ -571,18 +650,12 @@ impl BalacopapoApp {
             ShellMessage::SelectGroup(id) => {
                 shell.selected_group_id = Some(id);
                 shell.selected_channel_id = None;
-                shell.soundboard_open = false;
-                shell.stream_open = false;
-                shell.p2p_open = false;
-                shell.overlay_open = false;
+                shell.active_panel = ActivePanel::Channel;
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
                 shell.selected_channel_id = Some(channel_id.clone());
-                shell.soundboard_open = false;
-                shell.stream_open = false;
-                shell.p2p_open = false;
-                shell.overlay_open = false;
+                shell.active_panel = ActivePanel::Channel;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
@@ -602,58 +675,34 @@ impl BalacopapoApp {
                 let token = self.config.auth_token.clone().unwrap_or_default();
                 Self::load_messages_task(url, token, channel_id, None, false)
             }
-            ShellMessage::RefreshGroups => {
-                shell.loading_groups = true;
+            ShellMessage::TogglePanel(panel) => {
+                if shell.active_panel == panel {
+                    shell.active_panel = ActivePanel::Channel;
+                    return Task::none();
+                }
+                shell.active_panel = panel;
                 let url = shell.instance_url.clone();
                 let token = self.config.auth_token.clone().unwrap_or_default();
-                Self::load_groups_task(url, token)
-            }
-            ShellMessage::ToggleStatusPicker => {
-                shell.status_picker_open = !shell.status_picker_open;
-                Task::none()
-            }
-            ShellMessage::ToggleSoundboard => {
-                shell.soundboard_open = !shell.soundboard_open;
-                if shell.soundboard_open {
-                    shell.stream_open = false;
-                    shell.p2p_open = false;
-                    shell.overlay_open = false;
+                match panel {
+                    ActivePanel::Soundboard if shell.soundboard.sounds.is_empty() => {
+                        shell.soundboard.loading = true;
+                        let space_id = shell.selected_group_id.clone();
+                        Self::load_soundboard_task(url, token, space_id)
+                    }
+                    ActivePanel::Dms if shell.dm.channels.is_empty() => {
+                        shell.dm.loading = true;
+                        Self::load_dms_task(url, token)
+                    }
+                    ActivePanel::Settings => {
+                        if let Some(space_id) = shell.selected_group_id.clone() {
+                            shell.settings.loading_keys = true;
+                            Self::load_api_keys_task(url, token, space_id)
+                        } else {
+                            Task::none()
+                        }
+                    }
+                    _ => Task::none(),
                 }
-                if shell.soundboard_open && shell.soundboard.sounds.is_empty() {
-                    shell.soundboard.loading = true;
-                    let url = shell.instance_url.clone();
-                    let token = self.config.auth_token.clone().unwrap_or_default();
-                    let space_id = shell.selected_group_id.clone();
-                    return Self::load_soundboard_task(url, token, space_id);
-                }
-                Task::none()
-            }
-            ShellMessage::ToggleStream => {
-                shell.stream_open = !shell.stream_open;
-                if shell.stream_open {
-                    shell.soundboard_open = false;
-                    shell.p2p_open = false;
-                    shell.overlay_open = false;
-                }
-                Task::none()
-            }
-            ShellMessage::ToggleP2P => {
-                shell.p2p_open = !shell.p2p_open;
-                if shell.p2p_open {
-                    shell.soundboard_open = false;
-                    shell.stream_open = false;
-                    shell.overlay_open = false;
-                }
-                Task::none()
-            }
-            ShellMessage::ToggleOverlay => {
-                shell.overlay_open = !shell.overlay_open;
-                if shell.overlay_open {
-                    shell.soundboard_open = false;
-                    shell.stream_open = false;
-                    shell.p2p_open = false;
-                }
-                Task::none()
             }
             ShellMessage::SetStatus(status) => {
                 shell.status_picker_open = false;
@@ -669,12 +718,25 @@ impl BalacopapoApp {
                     Message::StatusUpdated,
                 )
             }
+            ShellMessage::RefreshGroups => {
+                shell.loading_groups = true;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Self::load_groups_task(url, token)
+            }
+            ShellMessage::ToggleStatusPicker => {
+                shell.status_picker_open = !shell.status_picker_open;
+                Task::none()
+            }
             ShellMessage::Chat(action) => self.handle_chat_action(action),
+            ShellMessage::Dm(action) => self.handle_dm_action(action),
             ShellMessage::Voice(action) => self.handle_voice_action(action),
+            ShellMessage::Music(action) => self.handle_music_action(action),
             ShellMessage::Soundboard(action) => self.handle_soundboard_action(action),
             ShellMessage::Stream(action) => self.handle_stream_action(action),
             ShellMessage::P2P(action) => self.handle_p2p_action(action),
             ShellMessage::Overlay(action) => self.handle_overlay_action(action),
+            ShellMessage::Settings(action) => self.handle_settings_action(action),
             ShellMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
                 Task::none()
@@ -1118,6 +1180,209 @@ impl BalacopapoApp {
                 Task::none()
             }
         }
+    }
+
+    fn handle_dm_action(&mut self, action: DmAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            DmAction::Refresh => {
+                shell.dm.loading = true;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Self::load_dms_task(url, token)
+            }
+            DmAction::SearchChanged(v) => {
+                shell.dm.search = v;
+                Task::none()
+            }
+            DmAction::SelectDm(id) => {
+                shell.dm.selected_dm_id = Some(id);
+                Task::none()
+            }
+        }
+    }
+
+    fn handle_music_action(&mut self, action: MusicAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+        let Some(channel_id) = shell.voice.connected_channel_id.clone() else {
+            return Task::none();
+        };
+        let url = shell.instance_url.clone();
+        let token = self.config.auth_token.clone().unwrap_or_default();
+
+        match action {
+            MusicAction::UrlInputChanged(v) => {
+                shell.music.track_url_input = v;
+                Task::none()
+            }
+            MusicAction::AddToQueue => {
+                let track_url = shell.music.track_url_input.trim().to_string();
+                if track_url.is_empty() {
+                    return Task::none();
+                }
+                shell.music.busy = true;
+                shell.music.track_url_input.clear();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.add_music_track(&channel_id, &track_url).await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::TogglePlayPause => {
+                shell.music.busy = true;
+                let cmd = if shell.music.state.status == "playing" {
+                    "pause"
+                } else {
+                    "resume"
+                };
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.control_music(&channel_id, cmd).await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::VoteSkip => {
+                shell.music.busy = true;
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.vote_skip_music(&channel_id).await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::Stop => {
+                shell.music.busy = true;
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.control_music(&channel_id, "stop").await
+                    },
+                    Message::MusicCommandDone,
+                )
+            }
+            MusicAction::Refresh => {
+                shell.music.busy = true;
+                Self::load_music_task(url, token, channel_id)
+            }
+        }
+    }
+
+    fn handle_settings_action(&mut self, action: SettingsAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            SettingsAction::SelectTab(tab) => {
+                shell.settings.active_tab = tab;
+                Task::none()
+            }
+            SettingsAction::VoteSkipInputChanged(v) => {
+                shell.settings.vote_skip_input = v;
+                shell.settings.vote_skip_error = None;
+                shell.settings.vote_skip_saved_note = None;
+                Task::none()
+            }
+            SettingsAction::SaveVoteSkip => {
+                let pct = match parse_vote_skip_percent(&shell.settings.vote_skip_input) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        shell.settings.vote_skip_error = Some(err);
+                        shell.settings.vote_skip_saved_note = None;
+                        return Task::none();
+                    }
+                };
+                // Aplica no canal de voz ativo ou primeiro canal de voz do grupo selecionado
+                let target_voice_id = shell.voice.connected_channel_id.clone().or_else(|| {
+                    shell
+                        .groups
+                        .iter()
+                        .find(|g| shell.selected_group_id.as_deref() == Some(g.id.as_str()))
+                        .and_then(|g| g.channels.iter().find(|c| c.kind == "voice"))
+                        .map(|c| c.id.clone())
+                });
+                let Some(channel_id) = target_voice_id else {
+                    shell.settings.vote_skip_saved_note = Some(format!(
+                        "Vote-Skip definido em {pct}% (selecione um grupo com canal de voz para sincronizar)."
+                    ));
+                    shell.settings.vote_skip_error = None;
+                    return Task::none();
+                };
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.update_music_vote_skip(&channel_id, pct).await?;
+                        Ok(pct)
+                    },
+                    Message::VoteSkipSaved,
+                )
+            }
+            SettingsAction::RefreshApiKeys => {
+                let Some(space_id) = shell.selected_group_id.clone() else {
+                    return Task::none();
+                };
+                shell.settings.loading_keys = true;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Self::load_api_keys_task(url, token, space_id)
+            }
+            SettingsAction::ToggleRetention => {
+                shell.settings.retention_enabled = !shell.settings.retention_enabled;
+                Task::none()
+            }
+            SettingsAction::ToggleLowInterrupt => {
+                shell.settings.low_interrupt_mode = !shell.settings.low_interrupt_mode;
+                self.config.low_interrupt_mode = shell.settings.low_interrupt_mode;
+                let _ = self.config.save();
+                Task::none()
+            }
+            SettingsAction::OpenFeedUrl(url) => {
+                let _ = open::that(url);
+                Task::none()
+            }
+        }
+    }
+
+    fn load_dms_task(url: String, token: String) -> Task<Message> {
+        Task::perform(
+            async move {
+                let client = ApiClient::new(url, Some(token))?;
+                client.fetch_dms().await
+            },
+            Message::DmsLoaded,
+        )
+    }
+
+    fn load_music_task(url: String, token: String, channel_id: String) -> Task<Message> {
+        Task::perform(
+            async move {
+                let client = ApiClient::new(url, Some(token))?;
+                client.fetch_music_state(&channel_id).await
+            },
+            Message::MusicStateLoaded,
+        )
+    }
+
+    fn load_api_keys_task(url: String, token: String, space_id: String) -> Task<Message> {
+        Task::perform(
+            async move {
+                let client = ApiClient::new(url, Some(token))?;
+                client.fetch_space_api_keys(&space_id).await
+            },
+            Message::ApiKeysLoaded,
+        )
     }
 
     fn load_groups_task(url: String, token: String) -> Task<Message> {

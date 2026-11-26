@@ -4,13 +4,27 @@ use std::collections::HashMap;
 
 use crate::core::models::{AuthUser, GroupSummary, PresenceStatus};
 use crate::features::chat::{self, ChatMessageAction, ChatState};
+use crate::features::dm::{self, DmAction, DmState};
+use crate::features::music::{self, MusicAction, MusicUiState};
 use crate::features::overlay::{self, OverlayAction, OverlayAndGameState};
 use crate::features::p2p::{self, P2PAction, P2PState};
+use crate::features::settings::{self, SettingsAction, SettingsState};
 use crate::features::soundboard::{self, SoundboardAction, SoundboardState};
 use crate::features::stream::{self, StreamAction, StreamState};
 use crate::features::voice::{self, VoiceAction, VoiceState};
 use crate::os::updater::UpdateCheckState;
 use crate::ui::aether_drift;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivePanel {
+    Channel,
+    Dms,
+    Soundboard,
+    Stream,
+    P2P,
+    Overlay,
+    Settings,
+}
 
 #[derive(Debug, Clone)]
 pub struct ShellState {
@@ -18,10 +32,7 @@ pub struct ShellState {
     pub user: AuthUser,
     pub presence: PresenceStatus,
     pub status_picker_open: bool,
-    pub soundboard_open: bool,
-    pub stream_open: bool,
-    pub p2p_open: bool,
-    pub overlay_open: bool,
+    pub active_panel: ActivePanel,
     pub ws_connected: bool,
     pub ws_status_label: String,
     pub groups: Vec<GroupSummary>,
@@ -29,11 +40,14 @@ pub struct ShellState {
     pub selected_group_id: Option<String>,
     pub selected_channel_id: Option<String>,
     pub chat: ChatState,
+    pub dm: DmState,
     pub voice: VoiceState,
+    pub music: MusicUiState,
     pub soundboard: SoundboardState,
     pub stream: StreamState,
     pub p2p: P2PState,
     pub overlay: OverlayAndGameState,
+    pub settings: SettingsState,
     pub loading_groups: bool,
     pub error: Option<String>,
 }
@@ -41,15 +55,14 @@ pub struct ShellState {
 impl ShellState {
     pub fn new(instance_url: String, user: AuthUser) -> Self {
         let presence = PresenceStatus::from_api_str(user.status.as_deref());
+        let mut settings = SettingsState::default();
+        settings.low_interrupt_mode = true;
         Self {
             instance_url,
             user,
             presence,
             status_picker_open: false,
-            soundboard_open: false,
-            stream_open: false,
-            p2p_open: false,
-            overlay_open: false,
+            active_panel: ActivePanel::Channel,
             ws_connected: false,
             ws_status_label: "Conectando WS...".to_string(),
             groups: Vec::new(),
@@ -57,11 +70,14 @@ impl ShellState {
             selected_group_id: None,
             selected_channel_id: None,
             chat: ChatState::default(),
+            dm: DmState::default(),
             voice: VoiceState::default(),
+            music: MusicUiState::default(),
             soundboard: SoundboardState::default(),
             stream: StreamState::default(),
             p2p: P2PState::default(),
             overlay: OverlayAndGameState::default(),
+            settings,
             loading_groups: true,
             error: None,
         }
@@ -72,19 +88,19 @@ impl ShellState {
 pub enum ShellMessage {
     SelectGroup(String),
     SelectChannel(String),
+    TogglePanel(ActivePanel),
     RefreshGroups,
     ToggleStatusPicker,
-    ToggleSoundboard,
-    ToggleStream,
-    ToggleP2P,
-    ToggleOverlay,
     SetStatus(PresenceStatus),
     Chat(ChatMessageAction),
+    Dm(DmAction),
     Voice(VoiceAction),
+    Music(MusicAction),
     Soundboard(SoundboardAction),
     Stream(StreamAction),
     P2P(P2PAction),
     Overlay(OverlayAction),
+    Settings(SettingsAction),
     OpenReleasePage(String),
     Logout,
 }
@@ -102,8 +118,15 @@ pub fn view<'a>(
     state: &'a ShellState,
     update_state: &'a UpdateCheckState,
 ) -> Element<'a, ShellMessage> {
-    let mut group_list =
-        column![text("GRUPOS").size(11).color(aether_drift::TEXT_MUTED)].spacing(6);
+    let mut group_list = column![
+        row![
+            text("GRUPOS").size(11).color(aether_drift::TEXT_MUTED),
+            horizontal_space(),
+            panel_small_btn("DMs", ActivePanel::Dms, state.active_panel),
+        ]
+        .align_y(Alignment::Center)
+    ]
+    .spacing(6);
 
     if state.loading_groups && state.groups.is_empty() {
         group_list = group_list.push(
@@ -119,7 +142,8 @@ pub fn view<'a>(
         );
     } else {
         for group in &state.groups {
-            let active = state.selected_group_id.as_deref() == Some(group.id.as_str());
+            let active = state.active_panel != ActivePanel::Dms
+                && state.selected_group_id.as_deref() == Some(group.id.as_str());
             let style = if active {
                 aether_drift::primary_button_style
             } else {
@@ -184,6 +208,12 @@ pub fn view<'a>(
     ]
     .spacing(10);
 
+    // Mini-Player de Música limpo acoplado acima da barra de voz (quando conectado a uma call)
+    if let Some(ch_name) = state.voice.connected_channel_name.as_deref() {
+        sidebar_col = sidebar_col
+            .push(music::view_mini_player(&state.music, ch_name).map(ShellMessage::Music));
+    }
+
     // Barra compacta de voz conectada / teste de loopback
     if state.voice.connected_channel_id.is_some() || state.voice.loopback_active {
         let label = state
@@ -227,11 +257,13 @@ pub fn view<'a>(
         ]
         .spacing(2),
         horizontal_space(),
-        button(text("Sair").size(12))
+        panel_small_btn("⚙", ActivePanel::Settings, state.active_panel),
+        button(text("Sair").size(11))
             .on_press(ShellMessage::Logout)
-            .padding([6, 10])
+            .padding([5, 8])
             .style(aether_drift::ghost_button_style),
     ]
+    .spacing(6)
     .align_y(Alignment::Center)]
     .spacing(8);
 
@@ -253,7 +285,7 @@ pub fn view<'a>(
     );
 
     let sidebar = container(sidebar_col)
-        .width(Length::Fixed(276.0))
+        .width(Length::Fixed(282.0))
         .height(Length::Fill)
         .padding(14)
         .style(aether_drift::sidebar_style);
@@ -262,27 +294,6 @@ pub fn view<'a>(
         aether_drift::SUCCESS_GREEN
     } else {
         aether_drift::TEXT_MUTED
-    };
-
-    let sb_style = if state.soundboard_open {
-        aether_drift::primary_button_style
-    } else {
-        aether_drift::ghost_button_style
-    };
-    let stream_style = if state.stream_open {
-        aether_drift::primary_button_style
-    } else {
-        aether_drift::ghost_button_style
-    };
-    let p2p_style = if state.p2p_open {
-        aether_drift::primary_button_style
-    } else {
-        aether_drift::ghost_button_style
-    };
-    let overlay_style = if state.overlay_open {
-        aether_drift::primary_button_style
-    } else {
-        aether_drift::ghost_button_style
     };
 
     let mut top_bar = row![
@@ -296,28 +307,16 @@ pub fn view<'a>(
             .padding([4, 10])
             .style(aether_drift::pill_style),
         horizontal_space(),
-        button(text("🎮 Overlay").size(12))
-            .on_press(ShellMessage::ToggleOverlay)
-            .padding([6, 12])
-            .style(overlay_style),
-        button(text("🕸️ P2P").size(12))
-            .on_press(ShellMessage::ToggleP2P)
-            .padding([6, 12])
-            .style(p2p_style),
-        button(text("🖥️ Stream").size(12))
-            .on_press(ShellMessage::ToggleStream)
-            .padding([6, 12])
-            .style(stream_style),
-        button(text("🎵 Soundboard").size(12))
-            .on_press(ShellMessage::ToggleSoundboard)
-            .padding([6, 12])
-            .style(sb_style),
-        button(text("Atualizar").size(12))
+        panel_top_btn("🎮 Overlay", ActivePanel::Overlay, state.active_panel),
+        panel_top_btn("🕸️ P2P", ActivePanel::P2P, state.active_panel),
+        panel_top_btn("🖥️ Stream", ActivePanel::Stream, state.active_panel),
+        panel_top_btn("🎵 Soundboard", ActivePanel::Soundboard, state.active_panel),
+        button(text("↻").size(12))
             .on_press(ShellMessage::RefreshGroups)
-            .padding([6, 12])
+            .padding([6, 10])
             .style(aether_drift::ghost_button_style),
     ]
-    .spacing(8)
+    .spacing(6)
     .align_y(Alignment::Center);
 
     if let UpdateCheckState::Available {
@@ -326,9 +325,9 @@ pub fn view<'a>(
     } = update_state
     {
         top_bar = top_bar.push(
-            button(text(format!("Atualizar para {version}")).size(12))
+            button(text(format!("Atualizar {version}")).size(12))
                 .on_press(ShellMessage::OpenReleasePage(release_url.clone()))
-                .padding([6, 12])
+                .padding([6, 10])
                 .style(aether_drift::primary_button_style),
         );
     }
@@ -339,41 +338,47 @@ pub fn view<'a>(
             .find(|c| state.selected_channel_id.as_deref() == Some(c.id.as_str()))
     });
 
-    let center_content: Element<'a, ShellMessage> = if state.overlay_open {
-        overlay::view(&state.overlay).map(ShellMessage::Overlay)
-    } else if state.p2p_open {
-        p2p::view(&state.p2p).map(ShellMessage::P2P)
-    } else if state.stream_open {
-        scrollable(stream::view(&state.stream).map(ShellMessage::Stream))
-            .height(Length::Fill)
-            .into()
-    } else if state.soundboard_open {
-        soundboard::view(&state.soundboard).map(ShellMessage::Soundboard)
-    } else if let Some(ch) = selected_channel {
-        if ch.kind == "voice" {
-            scrollable(voice::view(&state.voice, ch).map(ShellMessage::Voice))
-                .height(Length::Fill)
-                .into()
-        } else {
-            chat::view(&state.chat, ch, &state.user.id).map(ShellMessage::Chat)
-        }
-    } else {
-        container(
-            column![
-                text("Selecione um canal de texto ou voz").size(17),
-                text(format!("Instância conectada: {}", state.instance_url))
-                    .size(13)
-                    .color(aether_drift::TEXT_MUTED),
-                text("Marco 3 ativo: Motor de Áudio Nativo Lock-Free (WASAPI/PipeWire + RNNoise + Opus 5 níveis + Soundboard com Editor WAV em GPU).")
-                    .size(13)
-                    .color(aether_drift::TEXT_MUTED),
-            ]
-            .spacing(10),
+    let center_content: Element<'a, ShellMessage> = match state.active_panel {
+        ActivePanel::Dms => dm::view(&state.dm, &state.user.id).map(ShellMessage::Dm),
+        ActivePanel::Settings => settings::view(
+            &state.settings,
+            &state.instance_url,
+            selected_group.map(|g| g.name.as_str()),
         )
-        .width(Length::Fill)
-        .padding(22)
-        .style(aether_drift::card_style)
-        .into()
+        .map(ShellMessage::Settings),
+        ActivePanel::Overlay => overlay::view(&state.overlay).map(ShellMessage::Overlay),
+        ActivePanel::P2P => p2p::view(&state.p2p).map(ShellMessage::P2P),
+        ActivePanel::Stream => scrollable(stream::view(&state.stream).map(ShellMessage::Stream))
+            .height(Length::Fill)
+            .into(),
+        ActivePanel::Soundboard => {
+            soundboard::view(&state.soundboard).map(ShellMessage::Soundboard)
+        }
+        ActivePanel::Channel => {
+            if let Some(ch) = selected_channel {
+                if ch.kind == "voice" {
+                    scrollable(voice::view(&state.voice, ch).map(ShellMessage::Voice))
+                        .height(Length::Fill)
+                        .into()
+                } else {
+                    chat::view(&state.chat, ch, &state.user.id).map(ShellMessage::Chat)
+                }
+            } else {
+                container(
+                    column![
+                        text("Selecione um canal de texto ou voz").size(17),
+                        text(format!("Instância conectada: {}", state.instance_url))
+                            .size(13)
+                            .color(aether_drift::TEXT_MUTED),
+                    ]
+                    .spacing(10),
+                )
+                .width(Length::Fill)
+                .padding(22)
+                .style(aether_drift::card_style)
+                .into()
+            }
+        }
     };
 
     let mut body = column![top_bar, center_content].spacing(14);
@@ -389,6 +394,40 @@ pub fn view<'a>(
     row![sidebar, main_area].into()
 }
 
+fn panel_top_btn<'a>(
+    label: &'a str,
+    panel: ActivePanel,
+    current: ActivePanel,
+) -> Element<'a, ShellMessage> {
+    let style = if panel == current {
+        aether_drift::primary_button_style
+    } else {
+        aether_drift::ghost_button_style
+    };
+    button(text(label).size(12))
+        .on_press(ShellMessage::TogglePanel(panel))
+        .padding([6, 10])
+        .style(style)
+        .into()
+}
+
+fn panel_small_btn<'a>(
+    label: &'a str,
+    panel: ActivePanel,
+    current: ActivePanel,
+) -> Element<'a, ShellMessage> {
+    let style = if panel == current {
+        aether_drift::primary_button_style
+    } else {
+        aether_drift::ghost_button_style
+    };
+    button(text(label).size(11))
+        .on_press(ShellMessage::TogglePanel(panel))
+        .padding([4, 8])
+        .style(style)
+        .into()
+}
+
 fn channel_button<'a>(
     state: &'a ShellState,
     ch: &'a crate::core::models::ChannelSummary,
@@ -400,10 +439,7 @@ fn channel_button<'a>(
     } else {
         format!("{prefix}{}", ch.name)
     };
-    let active = !state.soundboard_open
-        && !state.stream_open
-        && !state.p2p_open
-        && !state.overlay_open
+    let active = state.active_panel == ActivePanel::Channel
         && state.selected_channel_id.as_deref() == Some(ch.id.as_str());
     let style = if active {
         aether_drift::primary_button_style

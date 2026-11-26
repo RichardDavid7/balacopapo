@@ -40,6 +40,9 @@ Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia
 | Palco de Stream GPU (Zoom/Pan 1x–6x, Apontar, Áudio da Janela) | `src/features/stream/mod.rs` (+ `MODULE.md`) |
 | Malha P2P Híbrida (Grafo GPU, Sobrevivência, Consentimento) | `src/features/p2p/mod.rs`, `src/core/p2p_mesh.rs` |
 | Overlay In-Game (3 camadas), Atalhos Globais & Presença de Jogos | `src/features/overlay/mod.rs`, `src/os/keybinds.rs`, `src/os/activity.rs` |
+| DMs & Grupos Diretos | `src/features/dm/mod.rs` (+ `MODULE.md`) |
+| Mini-Player de Música limpo (sem config de Vote-Skip) | `src/features/music/mod.rs` (+ `MODULE.md`) |
+| Configurações (Usuário, Grupo com Vote-Skip livre %, API Keys, Admin) | `src/features/settings/mod.rs` (+ `MODULE.md`) |
 | Protocolo `stream_pointer` & orçamento dinâmico de upload | `src/core/stream_pointer.rs`, `src/media/screen_share.rs` |
 | Motor de áudio lock-free (`cpal` + `rtrb` + `nnnoiseless`) e WAV DSP | `src/media/audio_engine.rs`, `src/media/wav_dsp.rs` |
 | Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |
