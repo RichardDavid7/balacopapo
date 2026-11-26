@@ -87,7 +87,7 @@ pub struct AuthUser {
     pub username: String,
     #[serde(default)]
     pub display_name: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "avatar")]
     pub avatar_url: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
@@ -178,7 +178,7 @@ impl GroupMember {
 pub struct GroupSummary {
     pub id: String,
     pub name: String,
-    #[serde(default)]
+    #[serde(default, alias = "icon")]
     pub icon_url: Option<String>,
     #[serde(default)]
     pub categories: Vec<ChannelCategory>,
@@ -219,6 +219,82 @@ pub struct ChannelSummary {
     pub position: i32,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageAttachment {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub filename: String,
+    #[serde(default)]
+    pub original_name: String,
+    #[serde(default)]
+    pub mimetype: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub thumbnail_filename: Option<String>,
+}
+
+impl MessageAttachment {
+    pub fn is_image(&self) -> bool {
+        self.mimetype.starts_with("image/")
+    }
+
+    pub fn preview_path(&self) -> String {
+        let name = self
+            .thumbnail_filename
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(&self.filename);
+        if name.starts_with("http://") || name.starts_with("https://") || name.starts_with('/') {
+            name.to_string()
+        } else {
+            format!("/api/uploads/{name}")
+        }
+    }
+
+    pub fn full_path(&self) -> String {
+        let name = &self.filename;
+        if name.starts_with("http://") || name.starts_with("https://") || name.starts_with('/') {
+            name.to_string()
+        } else {
+            format!("/api/uploads/{name}")
+        }
+    }
+
+    pub fn size_label(&self) -> String {
+        if self.size >= 1_048_576 {
+            format!("{:.1} MB", self.size as f64 / 1_048_576.0)
+        } else {
+            format!("{} KB", (self.size / 1024).max(1))
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageReaction {
+    #[serde(default)]
+    pub emoji: String,
+    #[serde(default)]
+    pub user_id: String,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageReplyRef {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub content: Option<String>,
+    #[serde(default)]
+    pub user: Option<AuthUser>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
@@ -227,6 +303,11 @@ pub struct ChatMessage {
     pub channel_id: String,
     #[serde(default)]
     pub user_id: Option<String>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    pub reply_to_id: Option<String>,
+    #[serde(default)]
+    pub reply_to: Option<Box<MessageReplyRef>>,
     #[serde(default)]
     pub content: Option<String>,
     #[serde(default)]
@@ -235,6 +316,10 @@ pub struct ChatMessage {
     pub edited_at: Option<serde_json::Value>,
     #[serde(default)]
     pub user: Option<AuthUser>,
+    #[serde(default)]
+    pub attachments: Vec<MessageAttachment>,
+    #[serde(default)]
+    pub reactions: Vec<MessageReaction>,
 }
 
 impl ChatMessage {
@@ -433,6 +518,10 @@ pub enum WsEvent {
         voice_user_states: HashMap<String, VoiceUserMediaState>,
     },
     MusicStateUpdated(MusicChannelState),
+    Typing {
+        channel_id: String,
+        user_id: String,
+    },
 }
 
 /// Decodifica um frame JSON do servidor sem nunca falhar em eventos desconhecidos.
@@ -521,6 +610,18 @@ pub fn parse_ws_server_event(raw: &str) -> Option<WsEvent> {
             let state: MusicChannelState =
                 serde_json::from_value(val.get("state")?.clone()).ok()?;
             Some(WsEvent::MusicStateUpdated(state))
+        }
+        "typing" | "typing_start" => {
+            let channel_id = val
+                .get("channelId")
+                .or_else(|| val.get("dmChannelId"))?
+                .as_str()?
+                .to_string();
+            let user_id = val.get("userId")?.as_str()?.to_string();
+            Some(WsEvent::Typing {
+                channel_id,
+                user_id,
+            })
         }
         _ => None,
     }

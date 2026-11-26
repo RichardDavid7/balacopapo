@@ -718,6 +718,7 @@ pub fn view<'a>(
                     &dm.id,
                     label_owned,
                     &state.user.id,
+                    &state.instance_url,
                     &state.image_cache,
                 )
             } else {
@@ -788,6 +789,7 @@ pub fn view<'a>(
                         &ch.id,
                         &ch.name,
                         &state.user.id,
+                        &state.instance_url,
                         &state.image_cache,
                     )
                     .map(ShellMessage::Chat)
@@ -846,9 +848,10 @@ fn dm_chat_view<'a>(
     dm_id: &'a str,
     _label: String,
     user_id: &'a str,
+    instance_url: &'a str,
     image_cache: &'a HashMap<String, image::Handle>,
 ) -> Element<'a, ShellMessage> {
-    chat::view(chat_state, dm_id, "DM", user_id, image_cache).map(ShellMessage::Chat)
+    chat::view(chat_state, dm_id, "DM", user_id, instance_url, image_cache).map(ShellMessage::Chat)
 }
 
 fn avatar_circle<'a>(

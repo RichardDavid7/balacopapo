@@ -283,14 +283,23 @@ impl ApiClient {
         Ok(list)
     }
 
-    pub async fn send_dm_message(&self, dm_id: &str, content: &str) -> Result<ChatMessage, String> {
+    pub async fn send_dm_message(
+        &self,
+        dm_id: &str,
+        content: &str,
+        reply_to_id: Option<&str>,
+    ) -> Result<ChatMessage, String> {
         let token = self.require_token()?;
         let url = format!("{}/api/dm/{dm_id}/messages", self.base_url);
+        let body = match reply_to_id {
+            Some(rid) => json!({ "content": content, "replyToId": rid }),
+            None => json!({ "content": content }),
+        };
         let resp = self
             .http
             .post(&url)
             .bearer_auth(token)
-            .json(&json!({ "content": content }))
+            .json(&body)
             .send()
             .await
             .map_err(|e| format!("Erro ao enviar DM: {e}"))?;
@@ -351,14 +360,19 @@ impl ApiClient {
         &self,
         channel_id: &str,
         content: &str,
+        reply_to_id: Option<&str>,
     ) -> Result<ChatMessage, String> {
         let token = self.require_token()?;
         let url = format!("{}/api/channels/{channel_id}/messages", self.base_url);
+        let body = match reply_to_id {
+            Some(rid) => json!({ "content": content, "replyToId": rid }),
+            None => json!({ "content": content }),
+        };
         let resp = self
             .http
             .post(&url)
             .bearer_auth(token)
-            .json(&json!({ "content": content }))
+            .json(&body)
             .send()
             .await
             .map_err(|e| format!("Erro ao enviar mensagem: {e}"))?;
@@ -375,9 +389,46 @@ impl ApiClient {
             .map_err(|e| format!("Erro ao ler mensagem enviada: {e}"))
     }
 
-    pub async fn delete_message(&self, message_id: &str) -> Result<(), String> {
+    pub async fn edit_message(
+        &self,
+        message_id: &str,
+        content: &str,
+        is_dm: bool,
+    ) -> Result<ChatMessage, String> {
         let token = self.require_token()?;
-        let url = format!("{}/api/messages/{message_id}", self.base_url);
+        let url = if is_dm {
+            format!("{}/api/dm/messages/{message_id}", self.base_url)
+        } else {
+            format!("{}/api/messages/{message_id}", self.base_url)
+        };
+        let resp = self
+            .http
+            .patch(&url)
+            .bearer_auth(token)
+            .json(&json!({ "content": content }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao editar mensagem: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao editar mensagem (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<ChatMessage>()
+            .await
+            .map_err(|e| format!("Erro ao ler mensagem editada: {e}"))
+    }
+
+    pub async fn delete_message(&self, message_id: &str, is_dm: bool) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = if is_dm {
+            format!("{}/api/dm/messages/{message_id}", self.base_url)
+        } else {
+            format!("{}/api/messages/{message_id}", self.base_url)
+        };
         let resp = self
             .http
             .delete(&url)
@@ -675,8 +726,10 @@ impl ApiClient {
         }
         let full_url = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
             trimmed.to_string()
+        } else if trimmed.starts_with('/') {
+            format!("{}{trimmed}", self.base_url)
         } else {
-            format!("{}/{}", self.base_url, trimmed.trim_start_matches('/'))
+            format!("{}/api/uploads/{trimmed}", self.base_url)
         };
         let mut req = self.http.get(&full_url);
         if full_url.starts_with(&self.base_url) {

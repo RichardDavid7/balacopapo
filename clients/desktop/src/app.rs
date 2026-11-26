@@ -56,6 +56,7 @@ pub enum Message {
         result: Result<Vec<ChatMessage>, String>,
     },
     ChatSent(Result<ChatMessage, String>),
+    ChatEdited(Result<ChatMessage, String>),
     ChatDeleted {
         channel_id: String,
         message_id: String,
@@ -381,6 +382,23 @@ impl BalacopapoApp {
                         Ok(msg) => {
                             shell.chat.error = None;
                             shell.chat.draft.clear();
+                            shell.chat.replying_to = None;
+                            shell.chat.upsert_message(msg);
+                        }
+                        Err(err) => {
+                            shell.chat.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::ChatEdited(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(msg) => {
+                            shell.chat.error = None;
+                            shell.chat.editing_message_id = None;
+                            shell.chat.edit_draft.clear();
                             shell.chat.upsert_message(msg);
                         }
                         Err(err) => {
@@ -676,6 +694,7 @@ impl BalacopapoApp {
                 if !is_active {
                     *shell.unread_counts.entry(msg.channel_id.clone()).or_insert(0) += 1;
                 }
+                shell.chat.typing_users.remove(&msg.channel_id);
                 shell.chat.upsert_message(msg);
                 self.enqueue_images_for_shell()
             }
@@ -739,6 +758,22 @@ impl BalacopapoApp {
                     shell.settings.vote_skip_input = st.vote_skip_percent.to_string();
                     shell.music.state = st;
                     shell.music.error = None;
+                }
+                Task::none()
+            }
+            WsEvent::Typing {
+                channel_id,
+                user_id,
+            } => {
+                if user_id != shell.user.id {
+                    let name = shell
+                        .groups
+                        .iter()
+                        .flat_map(|g| g.members.iter())
+                        .find(|m| m.user_id == user_id)
+                        .map(|m| m.display_name().to_string())
+                        .unwrap_or_else(|| "Alguém".to_string());
+                    shell.chat.typing_users.insert(channel_id, name);
                 }
                 Task::none()
             }
@@ -1005,6 +1040,61 @@ impl BalacopapoApp {
                 shell.chat.search_query = v;
                 Task::none()
             }
+            ChatMessageAction::ToggleSearch => {
+                shell.chat.show_search = !shell.chat.show_search;
+                if !shell.chat.show_search {
+                    shell.chat.search_query.clear();
+                }
+                Task::none()
+            }
+            ChatMessageAction::StartReply { message_id, author } => {
+                shell.chat.replying_to = Some((message_id, author));
+                Task::none()
+            }
+            ChatMessageAction::CancelReply => {
+                shell.chat.replying_to = None;
+                Task::none()
+            }
+            ChatMessageAction::StartEdit {
+                message_id,
+                current_text,
+            } => {
+                shell.chat.editing_message_id = Some(message_id);
+                shell.chat.edit_draft = current_text;
+                Task::none()
+            }
+            ChatMessageAction::EditDraftChanged(v) => {
+                shell.chat.edit_draft = v;
+                Task::none()
+            }
+            ChatMessageAction::CancelEdit => {
+                shell.chat.editing_message_id = None;
+                shell.chat.edit_draft.clear();
+                Task::none()
+            }
+            ChatMessageAction::CommitEdit => {
+                let Some(message_id) = shell.chat.editing_message_id.clone() else {
+                    return Task::none();
+                };
+                let content = shell.chat.edit_draft.trim().to_string();
+                if content.is_empty() {
+                    return Task::none();
+                }
+                let is_dm = shell.active_panel == ActivePanel::Dms;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.edit_message(&message_id, &content, is_dm).await
+                    },
+                    Message::ChatEdited,
+                )
+            }
+            ChatMessageAction::OpenUrl(url) => {
+                let _ = open::that(url);
+                Task::none()
+            }
             ChatMessageAction::Send => {
                 let is_dm = shell.active_panel == ActivePanel::Dms;
                 let target_id = if is_dm {
@@ -1019,6 +1109,7 @@ impl BalacopapoApp {
                 if content.is_empty() || shell.chat.sending {
                     return Task::none();
                 }
+                let reply_to = shell.chat.replying_to.as_ref().map(|(id, _)| id.clone());
                 shell.chat.sending = true;
                 let url = shell.instance_url.clone();
                 let token = self.config.auth_token.clone().unwrap_or_default();
@@ -1026,9 +1117,13 @@ impl BalacopapoApp {
                     async move {
                         let client = ApiClient::new(url, Some(token))?;
                         if is_dm {
-                            client.send_dm_message(&channel_id, &content).await
+                            client
+                                .send_dm_message(&channel_id, &content, reply_to.as_deref())
+                                .await
                         } else {
-                            client.send_message(&channel_id, &content).await
+                            client
+                                .send_message(&channel_id, &content, reply_to.as_deref())
+                                .await
                         }
                     },
                     Message::ChatSent,
@@ -1055,7 +1150,8 @@ impl BalacopapoApp {
                 }
             }
             ChatMessageAction::DeleteMessage(message_id) => {
-                let target_id = if shell.active_panel == ActivePanel::Dms {
+                let is_dm = shell.active_panel == ActivePanel::Dms;
+                let target_id = if is_dm {
                     shell.dm.selected_dm_id.clone()
                 } else {
                     shell.selected_channel_id.clone()
@@ -1069,7 +1165,7 @@ impl BalacopapoApp {
                 Task::perform(
                     async move {
                         let result = match ApiClient::new(url, Some(token)) {
-                            Ok(client) => client.delete_message(&msg_id_clone).await,
+                            Ok(client) => client.delete_message(&msg_id_clone, is_dm).await,
                             Err(err) => Err(err),
                         };
                         Message::ChatDeleted {
@@ -1907,6 +2003,11 @@ impl BalacopapoApp {
                 for msg in msgs {
                     if let Some(url) = msg.user.as_ref().and_then(|u| u.avatar_url.as_deref()) {
                         candidates.push(url.to_string());
+                    }
+                    for att in &msg.attachments {
+                        if att.is_image() {
+                            candidates.push(att.preview_path());
+                        }
                     }
                 }
             }
