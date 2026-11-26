@@ -1,14 +1,12 @@
-# Balacopapo Desktop
+# Balacopapo Desktop (100% Nativo Rust)
 
-Cliente desktop nativo ultraleve para o **Balacopapo** (Tauri v2 + Rust) para **Windows** e **Linux**, alinhado ao [ROADMAP.md](../../ROADMAP.md).
+Cliente desktop nativo leve para o **Balacopapo** construído em **Rust + `Iced` + `wgpu`** — **zero WebView, zero Electron, zero Chromium, zero Node.js**.
 
-## Destaques
-- **Sem Electron:** usa WebView2 (Windows) / WebKitGTK (Linux), gerando `.exe`/`.msi` e `.AppImage`/`.deb` a partir da mesma base de código.
-- **Deep Links `balacopapo://`:** suporte nativo para convites ("Abrir com Balacopapo") e callback OIDC (`balacopapo://auth/callback`).
-- **Modo Standby na bandeja:** descarrega a WebView ao fechar para a bandeja (~10–15 MB de RAM) e reabre instantaneamente com 1 clique.
-- **Auto-Update Windows + Linux:** via `tauri-plugin-updater` e GitHub Releases.
-- **Fácil de manter e atualizar:** 1 único projeto Rust com módulos diretos (veja [AGENTS.md](./AGENTS.md) e [ARCHITECTURE.md](./ARCHITECTURE.md)).
+Projetado para **não causar queda de FPS nem micro-stuttering em jogos** (zero Garbage Collector, 0% GPU quando parado, arquitetura 100% event-driven).
+
+- **Guia para IA e mantenedores:** [AGENTS.md](./AGENTS.md)
+- **Arquitetura e 8 Marcos:** [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ## Build Automático (GitHub Actions)
-- **Push em `main`:** roda `clippy` e `cargo test` em Windows e Ubuntu (`.github/workflows/ci.yml`).
-- **Tag `v*` ou execução manual (`workflow_dispatch`):** compila e publica os instaladores Windows e Linux em Draft Release (`.github/workflows/release.yml`).
+- **Push em `main` / PR (`clients/desktop/**`):** roda `check-desktop-parity.mjs`, `cargo clippy -- -D warnings`, `cargo test` e compila binários de release em **Windows** e **Linux** (`.github/workflows/desktop-native-ci.yml`).
+- **Tag `v*`:** empacota e anexa os binários nativos Windows e Linux na Release unificada do Balacopapo (`.github/workflows/release.yml`).

@@ -138,52 +138,64 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
+            target_label: windows-x64
           - platform: ubuntu-22.04
+            target_label: linux-x64
     runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
+    defaults:
+      run:
+        working-directory: clients/desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux system dependencies
+      - name: Install Linux graphics/window dependencies (Zero WebView)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: clients/desktop/src-tauri
+          workspaces: clients/desktop
 
-      - name: Determine Tauri build args (signed auto-update vs unsigned)
-        id: build_cfg
-        shell: bash
-        env:
-          HAS_SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+      - name: Run Rust Unit Tests
+        run: cargo test
+
+      - name: Build Native Release Binary
+        run: cargo build --release
+
+      - name: Package Windows Binary
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
         run: |
-          if [ "$HAS_SIGNING_KEY" = "true" ]; then
-            echo "args=" >> "$GITHUB_OUTPUT"
-          else
-            echo "No TAURI_SIGNING_PRIVATE_KEY secret found; building installers without updater signatures."
-            echo 'args=--config {"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_OUTPUT"
-          fi
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $tag = "${{ needs.prepare-release.outputs.tag_name }}"
+          Copy-Item target\release\balacopapo-desktop.exe "dist\Balacopapo-$tag-windows-x64.exe"
+          Compress-Archive -Path "dist\Balacopapo-$tag-windows-x64.exe" -DestinationPath "dist\Balacopapo-$tag-windows-x64.zip" -Force
 
-      - name: Build and attach Desktop installers
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Package Linux Binary
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          mkdir -p dist
+          TAG="${{ needs.prepare-release.outputs.tag_name }}"
+          cp target/release/balacopapo-desktop "dist/balacopapo-desktop"
+          tar -czf "dist/Balacopapo-${TAG}-linux-x64.tar.gz" -C dist balacopapo-desktop
+          rm -f dist/balacopapo-desktop
+
+      - name: Attach Native Desktop Artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          projectPath: clients/desktop
-          tagName: ${{ needs.prepare-release.outputs.tag_name }}
-          releaseName: "Balacopapo ${{ needs.prepare-release.outputs.tag_name }}"
-          releaseDraft: false
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          files: |
+            clients/desktop/dist/*.exe
+            clients/desktop/dist/*.zip
+            clients/desktop/dist/*.tar.gz
           prerelease: ${{ needs.prepare-release.outputs.is_prerelease == 'true' }}
-          args: ${{ steps.build_cfg.outputs.args }}
 
   android-client:
     needs: prepare-release

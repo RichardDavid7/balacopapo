@@ -1,10 +1,6 @@
 # Rust / Cargo
-/src-tauri/target/
+/target/
 **/*.rs.bk
-
-# Tauri local signing keys (NEVER commit)
-*.key
-*.key.pub
 
 # OS & Editors
 .DS_Store

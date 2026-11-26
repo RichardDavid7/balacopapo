@@ -1,0 +1,69 @@
+name: Desktop Native CI (Rust + Iced — Win & Linux)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clients/desktop/**'
+      - 'packages/shared/src/permissions.ts'
+      - 'scripts/check-desktop-parity.mjs'
+      - '.github/workflows/desktop-native-ci.yml'
+  pull_request:
+    paths:
+      - 'clients/desktop/**'
+      - 'packages/shared/src/permissions.ts'
+      - 'scripts/check-desktop-parity.mjs'
+      - '.github/workflows/desktop-native-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-native-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    name: Parity Check (shared -> desktop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check PermissionBits parity
+        run: node scripts/check-desktop-parity.mjs
+
+  build-and-test:
+    name: Rust Native (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: clients/desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux graphics/window dependencies (No WebKitGTK needed)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcb-shape0-dev libxcb-xfixes0-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: clients/desktop
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit Tests
+        run: cargo test
+
+      - name: Release Build Check
+        run: cargo build --release
