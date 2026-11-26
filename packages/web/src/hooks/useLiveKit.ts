@@ -33,6 +33,8 @@ import { AudioManager } from '../audio/AudioManager';
 import { SpeakingDetector } from '../audio/SpeakingDetector';
 import { parseStreamPointer } from '../utils/streamPointerProtocol';
 import { useStreamPointerStore } from '../stores/streamPointerStore';
+import { useP2PStore } from '../stores/p2pStore';
+import { P2PMeshManager } from '../p2p/P2PMeshManager';
 import { resolveAudioPolicyHierarchy } from '../utils/audioPolicy';
 import {
   CAMERA_OVERDRIVE,
@@ -1539,8 +1541,25 @@ export function useLiveKit() {
         // The SDK emits Disconnected before rejecting an initial connect.
         // Keep that attempt current so its catch can report the failure.
         if (!initialConnectPending) _connectGeneration++;
-        AudioManager.getInstance().releaseInputStream();
-    useStreamPointerStore.getState().reset();
+
+        const terminal = reason === DisconnectReason.DUPLICATE_IDENTITY
+          || reason === DisconnectReason.PARTICIPANT_REMOVED
+          || reason === DisconnectReason.ROOM_DELETED;
+
+        // Server-outage P2P Survival Mode: if the server restarted/dropped unexpectedly
+        // while we have connected direct P2P peers, keep the local microphone stream
+        // alive so peers keep talking uninterrupted until the server comes back online.
+        const keepMicForP2PSurvival = !terminal
+          && reason !== DisconnectReason.CLIENT_INITIATED
+          && useP2PStore.getState().enabled
+          && P2PMeshManager.getInstance().hasSurvivingVoicePeer();
+
+        if (keepMicForP2PSurvival) {
+          P2PMeshManager.getInstance().setServerOnline(false);
+        } else {
+          AudioManager.getInstance().releaseInputStream();
+        }
+        useStreamPointerStore.getState().reset();
         SpeakingDetector.getInstance().clear();
         setConnectionState(ConnectionState.Disconnected);
         setIsConnecting(false);
@@ -1555,9 +1574,6 @@ export function useLiveKit() {
 
         // Semantic terminal reasons must never auto-retry. An exhausted network
         // reconnect keeps voice intent so VoiceControls can offer a user retry.
-        const terminal = reason === DisconnectReason.DUPLICATE_IDENTITY
-          || reason === DisconnectReason.PARTICIPANT_REMOVED
-          || reason === DisconnectReason.ROOM_DELETED;
         if (terminal) {
           useVoiceStore.getState().handleForceDisconnect();
         } else if (reason !== DisconnectReason.CLIENT_INITIATED) {

@@ -1,6 +1,6 @@
 import type { P2PSignalKind } from '@backspace/shared';
 import { useP2PStore, type P2PAudioRoute, type P2PPeerState, type P2PRouteKind } from '../stores/p2pStore';
-import { evaluateP2PAudioRoute } from './p2pAudioRouting';
+import { computeSmoothedRttMs, evaluateP2PAudioRoute, P2P_RTT_WINDOW_SIZE } from './p2pAudioRouting';
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -60,6 +60,9 @@ interface PeerSession {
   incomingFiles: Map<string, IncomingFileBuffer>;
   activeIncomingFileId: string | null;
   rttMs: number | null;
+  rttSamples: number[];
+  worseSinceMs: number | null;
+  betterSinceMs: number | null;
   peerInstanceRttMs: number | null;
   serverPathRttMs: number | null;
   audioRoute: P2PAudioRoute;
@@ -108,12 +111,28 @@ export class P2PMeshManager {
     this.sendSignal = sender;
   }
 
+  hasSurvivingVoicePeer(): boolean {
+    if (!this.currentRoomKey) return false;
+    return Array.from(this.sessions.values()).some(
+      (s) =>
+        s.roomKey === this.currentRoomKey
+        && (s.pc.connectionState === 'connected' || s.ctrlChannel?.readyState === 'open')
+        && Boolean(s.remoteAudioTrack && s.remoteAudioTrack.readyState === 'live'),
+    );
+  }
+
   /**
    * Attaches or replaces the local microphone track on all voice-room P2P sessions
    * so direct P2P voice audio can flow immediately when RTT math favors P2P or
    * during server-outage survival mode.
    */
   setLocalAudioTrack(track: MediaStreamTrack | null): void {
+    // During server-outage Survival Mode, LiveKit temporarily empties `participants`
+    // (making `track` null). Keep the live microphone track attached to P2P peers
+    // until explicit leaveRoom() or LiveKit reconnects with a fresh track.
+    if (track === null && !this.serverOnline && this.hasSurvivingVoicePeer()) {
+      return;
+    }
     const prev = this.localAudioTrack;
     this.localAudioTrack = track;
     if (prev === track) return;
@@ -449,6 +468,9 @@ export class P2PMeshManager {
       incomingFiles: new Map(),
       activeIncomingFileId: null,
       rttMs: null,
+      rttSamples: [],
+      worseSinceMs: null,
+      betterSinceMs: null,
       peerInstanceRttMs: null,
       serverPathRttMs: null,
       audioRoute: 'livekit',
@@ -586,7 +608,12 @@ export class P2PMeshManager {
           const sentAt = session.pendingPings.get(msg.seq);
           if (sentAt !== undefined) {
             session.pendingPings.delete(msg.seq);
-            session.rttMs = Math.max(1, Math.round(performance.now() - sentAt));
+            const sample = Math.max(1, Math.round(performance.now() - sentAt));
+            session.rttSamples.push(sample);
+            if (session.rttSamples.length > P2P_RTT_WINDOW_SIZE) {
+              session.rttSamples.shift();
+            }
+            session.rttMs = computeSmoothedRttMs(session.rttSamples);
             this.publishPeerState(session, this.computeHealthState(session));
           }
         }
@@ -756,6 +783,7 @@ export class P2PMeshManager {
 
   private publishPeerState(session: PeerSession, state: P2PPeerState): void {
     const store = useP2PStore.getState();
+    const nowMs = Date.now();
     const decision = evaluateP2PAudioRoute({
       p2pRttMs: session.rttMs,
       myInstanceRttMs: store.instanceRttMs,
@@ -764,9 +792,14 @@ export class P2PMeshManager {
       hasRemoteAudioTrack: Boolean(session.remoteAudioTrack && session.remoteAudioTrack.readyState === 'live'),
       serverOnline: this.serverOnline,
       currentlyUsingP2P: session.audioRoute === 'p2p',
+      nowMs,
+      worseSinceMs: session.worseSinceMs,
+      betterSinceMs: session.betterSinceMs,
     });
     session.audioRoute = decision.route;
     session.serverPathRttMs = decision.serverPathRttMs;
+    session.worseSinceMs = decision.nextWorseSinceMs;
+    session.betterSinceMs = decision.nextBetterSinceMs;
 
     store.upsertPeer({
       userId: session.userId,

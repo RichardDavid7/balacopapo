@@ -426,6 +426,8 @@
     "serverPathRtt": "Server path: ~{{ms}} ms",
     "audioDirect": "Direct P2P audio",
     "audioDirectSaved": "P2P audio (-{{ms}} ms)",
-    "audioServer": "Via server"
+    "audioServer": "Via server",
+    "disableQuick": "Disable P2P",
+    "enableQuick": "Enable P2P"
   }
 }

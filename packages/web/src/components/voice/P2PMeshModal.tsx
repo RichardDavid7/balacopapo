@@ -8,6 +8,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useSpaceStore } from '../../stores/spaceStore';
 import { P2PMeshManager } from '../../p2p/P2PMeshManager';
 import { wsSend } from '../../hooks/useWebSocket';
+import { reconnectVoice } from '../../utils/voiceActions';
 import { useUIStore } from '../../stores/uiStore';
 
 function formatBytes(bytes: number): string {
@@ -84,18 +85,35 @@ export function useP2PMeshSync(): void {
     manager.syncRoomPeers(myUserId, roomKey, remoteIds);
   }, [myUserId, currentVoiceChannelId, activeDmCall, participants, p2pEnabled]);
 
+  const survivalMode = useP2PStore((s) => s.survivalMode);
+
   useEffect(() => {
     if (!currentVoiceChannelId && !activeDmCall) {
       useP2PStore.getState().setInstanceRttMs(null);
       return;
     }
     let cancelled = false;
+    let lastAutoRejoinAt = 0;
     const probe = async () => {
       const t0 = performance.now();
       try {
-        await fetch('/api/health', { cache: 'no-store' });
+        const res = await fetch('/api/health', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         if (!cancelled) {
           useP2PStore.getState().setInstanceRttMs(Math.max(1, Math.round(performance.now() - t0)));
+          // If the server just came back online after a restart while we were in P2P Survival Mode,
+          // silently rejoin the LiveKit room so everyone re-syncs without dropping the P2P call.
+          const voiceState = useVoiceStore.getState();
+          const p2pState = useP2PStore.getState();
+          if (
+            p2pState.survivalMode
+            && !voiceState.isLiveKitConnected
+            && voiceState.voiceConnectionStatus === 'disconnected'
+            && Date.now() - lastAutoRejoinAt >= 10_000
+          ) {
+            lastAutoRejoinAt = Date.now();
+            reconnectVoice();
+          }
         }
       } catch {
         if (!cancelled) {
@@ -104,12 +122,13 @@ export function useP2PMeshSync(): void {
       }
     };
     void probe();
-    const timer = setInterval(() => { void probe(); }, 8_000);
+    const intervalMs = survivalMode ? 4_000 : 8_000;
+    const timer = setInterval(() => { void probe(); }, intervalMs);
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [currentVoiceChannelId, activeDmCall]);
+  }, [currentVoiceChannelId, activeDmCall, survivalMode]);
 }
 
 /**
@@ -119,6 +138,7 @@ export function useP2PMeshSync(): void {
 export function P2PStatusButton() {
   const { t } = useTranslation(['voice', 'common']);
   const enabled = useP2PStore((s) => s.enabled);
+  const setEnabled = useP2PStore((s) => s.setEnabled);
   const peersMap = useP2PStore((s) => s.peers);
   const survivalMode = useP2PStore((s) => s.survivalMode);
   const setMeshModalOpen = useP2PStore((s) => s.setMeshModalOpen);
@@ -134,40 +154,59 @@ export function P2PStatusButton() {
   );
 
   return (
-    <button
-      type="button"
-      onClick={() => setMeshModalOpen(true)}
-      title={t('voice:p2p.openMeshTitle')}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
-        !enabled
-          ? 'bg-white/[0.04] text-txt-tertiary hover:text-txt-secondary'
-          : survivalMode
-            ? 'bg-accent-amber/20 text-accent-amber hover:bg-accent-amber/30'
-            : directAudioPeers.length > 0 || connectedPeers.length > 0
-              ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
-              : 'bg-white/[0.06] text-txt-secondary hover:bg-white/[0.10]'
-      }`}
-    >
-      <span
-        className={`w-1.5 h-1.5 rounded-full ${
+    <div className="inline-flex items-center gap-0.5">
+      <button
+        type="button"
+        onClick={() => setMeshModalOpen(true)}
+        title={t('voice:p2p.openMeshTitle')}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-l text-[10px] font-semibold transition-colors ${
           !enabled
-            ? 'bg-txt-tertiary/50'
+            ? 'bg-white/[0.04] text-txt-tertiary hover:text-txt-secondary'
             : survivalMode
-              ? 'bg-accent-amber animate-pulse'
-              : connectedPeers.length > 0
-                ? 'bg-accent-mint'
-                : 'bg-accent-amber'
+              ? 'bg-accent-amber/20 text-accent-amber hover:bg-accent-amber/30'
+              : directAudioPeers.length > 0 || connectedPeers.length > 0
+                ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
+                : 'bg-white/[0.06] text-txt-secondary hover:bg-white/[0.10]'
         }`}
-      />
-      {/* i18n-check: allow-literal "P2P" is the protocol acronym */}
-      <span>P2P</span>
-      {connectedPeers.length > 0 && (
-        <span className="tabular-nums opacity-90">
-          {connectedPeers.length}
-          {bestRtt !== null ? ` · ${t('common:units.ms', { value: bestRtt })}` : ''}
-        </span>
-      )}
-    </button>
+      >
+        <span
+          className={`w-1.5 h-1.5 rounded-full ${
+            !enabled
+              ? 'bg-txt-tertiary/50'
+              : survivalMode
+                ? 'bg-accent-amber animate-pulse'
+                : connectedPeers.length > 0
+                  ? 'bg-accent-mint'
+                  : 'bg-accent-amber'
+          }`}
+        />
+        {/* i18n-check: allow-literal "P2P" is the protocol acronym */}
+        <span>P2P</span>
+        {connectedPeers.length > 0 && (
+          <span className="tabular-nums opacity-90">
+            {connectedPeers.length}
+            {bestRtt !== null ? ` · ${t('common:units.ms', { value: bestRtt })}` : ''}
+          </span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEnabled(!enabled)}
+        aria-pressed={enabled}
+        title={enabled ? t('voice:p2p.disableQuick') : t('voice:p2p.enableQuick')}
+        aria-label={enabled ? t('voice:p2p.disableQuick') : t('voice:p2p.enableQuick')}
+        className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-r text-[10px] font-semibold transition-colors ${
+          enabled
+            ? 'bg-white/[0.06] text-txt-tertiary hover:bg-accent-rose/20 hover:text-accent-rose'
+            : 'bg-white/[0.04] text-txt-tertiary hover:bg-accent-mint/20 hover:text-accent-mint'
+        }`}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+          <line x1="12" y1="2" x2="12" y2="12" />
+        </svg>
+      </button>
+    </div>
   );
 }
 

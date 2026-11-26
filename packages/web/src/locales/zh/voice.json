@@ -424,6 +424,8 @@
     "serverPathRtt": "经服务器：约 {{ms}} ms",
     "audioDirect": "P2P 直连音频",
     "audioDirectSaved": "P2P 音频 (-{{ms}} ms)",
-    "audioServer": "经服务器"
+    "audioServer": "经服务器",
+    "disableQuick": "禁用 P2P",
+    "enableQuick": "启用 P2P"
   }
 }

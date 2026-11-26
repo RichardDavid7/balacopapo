@@ -430,6 +430,8 @@
     "serverPathRtt": "Через сервер: ~{{ms}} мс",
     "audioDirect": "Прямое P2P-аудио",
     "audioDirectSaved": "P2P-аудио (-{{ms}} мс)",
-    "audioServer": "Через сервер"
+    "audioServer": "Через сервер",
+    "disableQuick": "Отключить P2P",
+    "enableQuick": "Включить P2P"
   }
 }

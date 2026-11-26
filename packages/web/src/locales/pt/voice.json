@@ -428,6 +428,8 @@
     "serverPathRtt": "Via servidor: ~{{ms}} ms",
     "audioDirect": "Áudio P2P direto",
     "audioDirectSaved": "Áudio P2P (-{{ms}} ms)",
-    "audioServer": "Via servidor"
+    "audioServer": "Via servidor",
+    "disableQuick": "Desativar P2P",
+    "enableQuick": "Ativar P2P"
   }
 }
