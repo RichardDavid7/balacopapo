@@ -2418,3 +2418,45 @@ export type FederationRejectedReason =
 
 /** `federation_peers.status_reason`: set for `needs_attention` and `rejected`, null otherwise. */
 export type FederationPeerStatusReason = FederationNeedsAttentionReason | FederationRejectedReason;
+
+// ─── Per-Space API Keys & Companion Apps (Balacopapo Utilidades, Bots) ───────
+
+export type SpaceApiKeyScope = 'music' | 'voice_bridge';
+
+export interface SpaceApiKeySummary {
+  id: string;
+  spaceId: string;
+  name: string;
+  keyPrefix: string;
+  scopes: SpaceApiKeyScope[];
+  createdBy: string | null;
+  lastUsedAt: number | null;
+  createdAt: number;
+}
+
+export interface CreateSpaceApiKeyRequest {
+  name: string;
+  scopes?: SpaceApiKeyScope[];
+}
+
+export interface CreateSpaceApiKeyResponse {
+  apiKey: SpaceApiKeySummary;
+  /** Full secret key — shown ONLY once at creation time. */
+  secret: string;
+}
+
+export interface SpaceBotInfoResponse {
+  space: {
+    id: string;
+    name: string;
+  };
+  key: {
+    id: string;
+    name: string;
+    scopes: SpaceApiKeyScope[];
+  };
+  voiceChannels: Array<{
+    id: string;
+    name: string;
+  }>;
+}

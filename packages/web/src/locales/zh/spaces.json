@@ -300,7 +300,8 @@
         "discovery": "发现",
         "audio": "音频",
         "roles": "身份组",
-        "bans": "封禁名单"
+        "bans": "封禁名单",
+        "apiKeys": "API 与应用"
       }
     },
     "audio": {
@@ -405,6 +406,34 @@
       "banFailed": "封禁成员失败",
       "rolesAboveYou": "与您的最高身份组同级或更高的身份组已锁定。",
       "rolesUnheld": "无法授予拥有您没有的权限的身份组。"
+    },
+    "apiKeys": {
+      "title": "API 与已连接应用",
+      "subtitle": "为此空间创建专属 API 密钥，用于连接 Balacopapo Utilidades、音乐机器人、语音桥接或自定义应用。",
+      "createHeading": "创建新 API 密钥",
+      "nameLabel": "应用或机器人名称",
+      "namePlaceholder": "例如：Balacopapo Utilidades、电台机器人...",
+      "scopesLabel": "权限范围",
+      "scopes": {
+        "music": "音乐机器人",
+        "voice_bridge": "语音桥接"
+      },
+      "createButton": "生成 API 密钥",
+      "createdTitle": "已为“{{name}}”创建密钥",
+      "createdHint": "请立即复制此密钥。出于安全考虑，之后将不再显示。",
+      "copy": "复制密钥",
+      "copiedShort": "已复制",
+      "copied": "API 密钥已复制到剪贴板",
+      "copyFailed": "无法自动复制密钥",
+      "revoked": "API 密钥已吊销",
+      "listHeading": "有效密钥 ({{total}})",
+      "empty": "此空间尚未创建任何 API 密钥。",
+      "createdAt": "创建于 {{date}}",
+      "lastUsed": "上次使用：{{date}}",
+      "neverUsed": "尚未使用",
+      "revoke": "吊销",
+      "connectHeading": "如何连接应用",
+      "connectDesc": "将实例地址和密钥粘贴到 Balacopapo Utilidades，或通过 X-Api-Key 请求头发送："
     }
   },
   "bans": {

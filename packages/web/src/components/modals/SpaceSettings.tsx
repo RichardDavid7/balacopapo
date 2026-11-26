@@ -13,6 +13,7 @@ import { getApiForOrigin } from '../../utils/crossStoreResolvers';
 import { hasPermissionBit, PermissionBits } from '../../utils/permissions';
 import { OverviewPanel, MembersPanel, RolesPanel, BansPanel, SettingsPanelSuspense } from './lazySettingsPanels';
 import { SoundboardManagerPanel } from '../voice/SoundboardManagerPanel';
+import { SpaceApiKeysPanel } from './spaceSettingsPanels/SpaceApiKeysPanel';
 import { VoiceAudioSettingsCard, type VoiceAudioSettingsPatch } from './VoiceAudioSettingsCard';
 import { resolveInstanceAudioPolicy } from '../../utils/audioPolicy';
 import { useVisibilityOptions } from './spaceSettingsPanels/spaceOptions';
@@ -646,9 +647,9 @@ function SpaceAudioPanel({ spaceId }: { spaceId: string }) {
   );
 }
 
-type SpaceSettingsTab = 'overview' | 'discovery' | 'audio' | 'soundboard' | 'members' | 'roles' | 'bans';
+type SpaceSettingsTab = 'overview' | 'discovery' | 'audio' | 'soundboard' | 'apiKeys' | 'members' | 'roles' | 'bans';
 
-const SPACE_SETTINGS_TABS: readonly SpaceSettingsTab[] = ['overview', 'discovery', 'audio', 'soundboard', 'members', 'roles', 'bans'];
+const SPACE_SETTINGS_TABS: readonly SpaceSettingsTab[] = ['overview', 'discovery', 'audio', 'soundboard', 'apiKeys', 'members', 'roles', 'bans'];
 
 function isSpaceSettingsTab(value: unknown): value is SpaceSettingsTab {
   return typeof value === 'string' && (SPACE_SETTINGS_TABS as readonly string[]).includes(value);
@@ -705,6 +706,7 @@ export function SpaceSettingsModal() {
       discovery: canManageSpace,
       audio: canManageSpace,
       soundboard: showSoundboardTab,
+      apiKeys: canManageSpace,
       members: true,
       roles: canManageRoles,
       bans: canBanMembers,
@@ -766,6 +768,9 @@ export function SpaceSettingsModal() {
             {showSoundboardTab && (
               <button onClick={() => handleTabClick('soundboard')} className={tabClass('soundboard')}>{t('voice:soundboard.title')}</button>
             )}
+            {canManageSpace && (
+              <button onClick={() => handleTabClick('apiKeys')} className={tabClass('apiKeys')}>{t('spaces:settings.nav.tabs.apiKeys')}</button>
+            )}
             {canManageRoles && (
               <button onClick={() => handleTabClick('roles')} className={tabClass('roles')}>{t('spaces:settings.nav.tabs.roles')}</button>
             )}
@@ -809,6 +814,9 @@ export function SpaceSettingsModal() {
               {showSoundboardTab && (
                 <button onClick={() => handleTabClick('soundboard')} className={tabClass('soundboard')}>{t('voice:soundboard.title')}</button>
               )}
+              {canManageSpace && (
+                <button onClick={() => handleTabClick('apiKeys')} className={tabClass('apiKeys')}>{t('spaces:settings.nav.tabs.apiKeys')}</button>
+              )}
               {canManageRoles && (
                 <button onClick={() => handleTabClick('roles')} className={tabClass('roles')}>{t('spaces:settings.nav.tabs.roles')}</button>
               )}
@@ -841,6 +849,7 @@ export function SpaceSettingsModal() {
                 {tab === 'discovery' && canManageSpace && <DiscoveryPanel spaceId={currentSpaceId} />}
                 {tab === 'audio' && canManageSpace && <SpaceAudioPanel spaceId={currentSpaceId} />}
                 {tab === 'soundboard' && showSoundboardTab && <SoundboardManagerPanel scopeType="space" scopeId={currentSpaceId} origin={spaceOrigin} />}
+                {tab === 'apiKeys' && canManageSpace && <SpaceApiKeysPanel spaceId={currentSpaceId} origin={spaceOrigin} />}
                 {tab === 'members' && <MembersPanel spaceId={currentSpaceId} />}
                 {tab === 'roles' && canManageRoles && <RolesPanel spaceId={currentSpaceId} />}
                 {tab === 'bans' && canBanMembers && <BansPanel spaceId={currentSpaceId} />}

@@ -101,6 +101,9 @@ import type {
   MusicQueueAddRequest,
   MusicControlRequest,
   MusicSettingsRequest,
+  SpaceApiKeySummary,
+  CreateSpaceApiKeyRequest,
+  CreateSpaceApiKeyResponse,
 } from '@backspace/shared';
 import { MESSAGE_PAGING_AFTER, MESSAGE_PAGING_HEADER } from '@backspace/shared';
 
@@ -514,6 +517,12 @@ export class BackspaceApiClient {
     voteSkip: (channelId: string) => Promise<{ state: MusicPlayerState; skipped: boolean; requiredVotes: number }>;
     control: (channelId: string, data: MusicControlRequest) => Promise<MusicPlayerState>;
     updateSettings: (channelId: string, data: MusicSettingsRequest) => Promise<MusicPlayerState>;
+  };
+
+  readonly spaceApiKeys: {
+    list: (spaceId: string) => Promise<{ apiKeys: SpaceApiKeySummary[] }>;
+    create: (spaceId: string, data: CreateSpaceApiKeyRequest) => Promise<CreateSpaceApiKeyResponse>;
+    revoke: (spaceId: string, keyId: string) => Promise<{ success: boolean }>;
   };
 
   constructor(baseUrl: string, getToken: () => string | null, onUnauthorized?: () => void) {
@@ -1177,6 +1186,15 @@ export class BackspaceApiClient {
         request<MusicPlayerState>('POST', `/channels/${encodeURIComponent(channelId)}/music/control`, data),
       updateSettings: (channelId, data) =>
         request<MusicPlayerState>('PATCH', `/channels/${encodeURIComponent(channelId)}/music/settings`, data),
+    };
+
+    this.spaceApiKeys = {
+      list: (spaceId) =>
+        request<{ apiKeys: SpaceApiKeySummary[] }>('GET', `/spaces/${encodeURIComponent(spaceId)}/api-keys`),
+      create: (spaceId, data) =>
+        request<CreateSpaceApiKeyResponse>('POST', `/spaces/${encodeURIComponent(spaceId)}/api-keys`, data),
+      revoke: (spaceId, keyId) =>
+        request<{ success: boolean }>('DELETE', `/spaces/${encodeURIComponent(spaceId)}/api-keys/${encodeURIComponent(keyId)}`),
     };
   }
 }

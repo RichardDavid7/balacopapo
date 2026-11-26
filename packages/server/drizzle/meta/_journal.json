@@ -302,6 +302,13 @@
       "when": 1795745600000,
       "tag": "0042_channel_message_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795832000000,
+      "tag": "0043_space_api_keys",
+      "breakpoints": true
     }
   ]
 }

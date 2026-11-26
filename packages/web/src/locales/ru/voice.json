@@ -438,7 +438,7 @@
     "title": "Музыкальный бот",
     "idleReady": "Бот подключён — добавьте трек",
     "botOfflineShort": "Ожидание музыкального бота",
-    "botOfflineHint": "Запустите Balacopapo Utilidades с MUSIC_BOT_API_KEY для воспроизведения аудио в этом звонке.",
+    "botOfflineHint": "Создайте ключ в Настройках пространства → API и приложения и подключите Balacopapo Utilidades.",
     "pause": "Пауза",
     "play": "Воспроизвести",
     "stop": "Стоп",

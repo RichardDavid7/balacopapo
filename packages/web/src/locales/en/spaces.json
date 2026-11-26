@@ -303,7 +303,8 @@
         "discovery": "Discovery",
         "audio": "Audio",
         "roles": "Roles",
-        "bans": "Bans"
+        "bans": "Bans",
+        "apiKeys": "API & Apps"
       }
     },
     "audio": {
@@ -408,6 +409,34 @@
       "banFailed": "Failed to ban member",
       "rolesAboveYou": "Roles at or above your highest role are locked.",
       "rolesUnheld": "Roles with permissions you do not have cannot be given."
+    },
+    "apiKeys": {
+      "title": "API & Connected Apps",
+      "subtitle": "Create scoped API keys for this space to connect Balacopapo Utilidades, music bots, voice bridges, or custom apps.",
+      "createHeading": "Create new API key",
+      "nameLabel": "App or bot name",
+      "namePlaceholder": "e.g. Balacopapo Utilidades, Radio Bot...",
+      "scopesLabel": "Permissions (scopes)",
+      "scopes": {
+        "music": "Music Bot",
+        "voice_bridge": "Voice Bridge"
+      },
+      "createButton": "Generate API Key",
+      "createdTitle": "Key created for \"{{name}}\"",
+      "createdHint": "Copy this key now. For security, it will not be shown again.",
+      "copy": "Copy key",
+      "copiedShort": "Copied",
+      "copied": "API key copied to clipboard",
+      "copyFailed": "Could not copy key automatically",
+      "revoked": "API key revoked",
+      "listHeading": "Active keys ({{total}})",
+      "empty": "No API keys created for this space yet.",
+      "createdAt": "Created {{date}}",
+      "lastUsed": "Last used {{date}}",
+      "neverUsed": "Never used yet",
+      "revoke": "Revoke",
+      "connectHeading": "How to connect an app",
+      "connectDesc": "Paste the instance URL and your key in Balacopapo Utilidades or send it in the X-Api-Key header:"
     }
   },
   "bans": {

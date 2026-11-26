@@ -893,3 +893,18 @@ export const userOidcLinks = sqliteTable('user_oidc_links', {
   issuerSubjectUnique: uniqueIndex('idx_user_oidc_links_issuer_subject').on(table.issuer, table.subject),
   userIdx: index('idx_user_oidc_links_user_id').on(table.userId),
 }));
+
+export const spaceApiKeys = sqliteTable('space_api_keys', {
+  id: text('id').primaryKey(),
+  spaceId: text('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  keyPrefix: text('key_prefix').notNull(),
+  keyHash: text('key_hash').notNull(),
+  scopes: text('scopes').notNull().default('["music"]'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  lastUsedAt: integer('last_used_at'),
+  createdAt: integer('created_at').notNull(),
+}, (table) => ({
+  hashUnique: uniqueIndex('idx_space_api_keys_hash').on(table.keyHash),
+  spaceIdx: index('idx_space_api_keys_space_id').on(table.spaceId),
+}));

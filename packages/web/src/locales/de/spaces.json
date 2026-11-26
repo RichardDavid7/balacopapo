@@ -303,7 +303,8 @@
         "discovery": "Entdecken",
         "audio": "Audio",
         "roles": "Rollen",
-        "bans": "Sperren"
+        "bans": "Sperren",
+        "apiKeys": "API und Apps"
       }
     },
     "audio": {
@@ -408,6 +409,34 @@
       "banFailed": "Mitglied konnte nicht gesperrt werden",
       "rolesAboveYou": "Rollen auf oder über deiner höchsten Rolle sind gesperrt.",
       "rolesUnheld": "Rollen mit Berechtigungen, die du nicht hast, kannst du nicht vergeben."
+    },
+    "apiKeys": {
+      "title": "API & Verbundene Apps",
+      "subtitle": "Erstelle API-Schlüssel für diesen Bereich, um Balacopapo Utilidades, Musik-Bots, Sprachbrücken oder eigene Apps zu verbinden.",
+      "createHeading": "Neuen API-Schlüssel erstellen",
+      "nameLabel": "App- oder Bot-Name",
+      "namePlaceholder": "z. B. Balacopapo Utilidades, Radio-Bot...",
+      "scopesLabel": "Berechtigungen (Bereiche)",
+      "scopes": {
+        "music": "Musik-Bot",
+        "voice_bridge": "Sprachbrücke"
+      },
+      "createButton": "API-Schlüssel generieren",
+      "createdTitle": "Schlüssel für „{{name}}“ erstellt",
+      "createdHint": "Kopiere diesen Schlüssel jetzt. Aus Sicherheitsgründen wird er nicht erneut angezeigt.",
+      "copy": "Schlüssel kopieren",
+      "copiedShort": "Kopiert",
+      "copied": "API-Schlüssel in die Zwischenablage kopiert",
+      "copyFailed": "Schlüssel konnte nicht automatisch kopiert werden",
+      "revoked": "API-Schlüssel widerrufen",
+      "listHeading": "Aktive Schlüssel ({{total}})",
+      "empty": "Noch keine API-Schlüssel für diesen Bereich erstellt.",
+      "createdAt": "Erstellt am {{date}}",
+      "lastUsed": "Zuletzt verwendet am {{date}}",
+      "neverUsed": "Noch nie verwendet",
+      "revoke": "Widerrufen",
+      "connectHeading": "App verbinden",
+      "connectDesc": "Füge die Instanz-URL und deinen Schlüssel in Balacopapo Utilidades ein oder sende ihn im Header X-Api-Key:"
     }
   },
   "bans": {

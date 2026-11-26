@@ -434,7 +434,7 @@
     "title": "Musik-Bot",
     "idleReady": "Bot verbunden — Titel einreihen",
     "botOfflineShort": "Warte auf Musik-Bot",
-    "botOfflineHint": "Starte Balacopapo Utilidades mit MUSIC_BOT_API_KEY, um Audio in diesen Anruf zu streamen.",
+    "botOfflineHint": "Erstelle einen Schlüssel unter Bereichseinstellungen → API & Apps und verbinde Balacopapo Utilidades.",
     "pause": "Pausieren",
     "play": "Abspielen",
     "stop": "Stoppen",

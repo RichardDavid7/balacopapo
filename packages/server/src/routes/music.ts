@@ -1,5 +1,4 @@
-import crypto from 'node:crypto';
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { AccessToken, TrackSource } from 'livekit-server-sdk';
 import type { MusicControlRequest, MusicQueueAddRequest, MusicSettingsRequest } from '@backspace/shared';
@@ -9,6 +8,11 @@ import { authenticate } from '../utils/auth.js';
 import { hasPermission, PermissionBits } from '../utils/permissions.js';
 import { sendError } from '../utils/httpErrors.js';
 import { connectionManager } from '../ws/handler.js';
+import {
+  extractApiKeyFromRequest,
+  isGlobalMusicBotKey,
+  resolveSpaceApiKey,
+} from '../utils/spaceApiKeyAuth.js';
 import {
   applyBotStateReport,
   applyMusicControl,
@@ -24,30 +28,45 @@ function countVoiceListeners(channelId: string): number {
   return Math.max(1, room?.participants.size ?? 0);
 }
 
-function isValidBotApiKey(request: FastifyRequest): boolean {
-  const configured = config.musicBotApiKey;
-  if (!configured) return false;
-  const headerKey =
-    (typeof request.headers['x-music-bot-key'] === 'string' ? request.headers['x-music-bot-key'] : null)
-    ?? (typeof request.headers['x-bot-key'] === 'string' ? request.headers['x-bot-key'] : null)
-    ?? (typeof request.headers.authorization === 'string' && request.headers.authorization.startsWith('Bearer ')
-      ? request.headers.authorization.slice(7).trim()
-      : null);
-  if (!headerKey) return false;
-  const expected = Buffer.from(configured, 'utf8');
-  const actual = Buffer.from(headerKey, 'utf8');
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
-}
+/**
+ * Authorize a companion Music Bot request for a specific voice channel's space.
+ * Accepts (in order):
+ * 1. A per-space API key (`bp_...`) with the `music` scope belonging to `channelSpaceId`.
+ * 2. The optional instance-wide `MUSIC_BOT_API_KEY`.
+ * 3. A user JWT with instance admin or `MANAGE_SPACE` permission on `channelSpaceId`.
+ * Returns the resolved space key name (if any) on success, or `null` after sending an error reply.
+ */
+async function authorizeBotForSpace(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  channelSpaceId: string,
+): Promise<{ botDefaultName: string } | null> {
+  const secret = extractApiKeyFromRequest(request);
+  if (secret) {
+    if (isGlobalMusicBotKey(secret)) {
+      return { botDefaultName: 'Balacopapo Música' };
+    }
+    const resolved = resolveSpaceApiKey(secret, 'music');
+    if (!resolved) {
+      sendError(reply, 401, 'unauthorized');
+      return null;
+    }
+    if (resolved.spaceId !== channelSpaceId) {
+      sendError(reply, 403, 'forbidden');
+      return null;
+    }
+    return { botDefaultName: resolved.name || 'Balacopapo Música' };
+  }
 
-async function authenticateBotOrAdmin(request: FastifyRequest, reply: import('fastify').FastifyReply): Promise<void> {
-  if (isValidBotApiKey(request)) return;
   await authenticate(request, reply);
-  if (reply.sent) return;
+  if (reply.sent) return null;
   const db = getDb();
   const user = db.select({ isAdmin: schema.users.isAdmin }).from(schema.users).where(eq(schema.users.id, request.userId)).get();
-  if (!user || user.isAdmin !== 1) {
-    return sendError(reply, 403, 'forbidden');
+  if (user?.isAdmin === 1 || hasPermission(request.userId, channelSpaceId, PermissionBits.MANAGE_SPACE)) {
+    return { botDefaultName: 'Balacopapo Música' };
   }
+  sendError(reply, 403, 'forbidden');
+  return null;
 }
 
 export async function musicRoutes(app: FastifyInstance): Promise<void> {
@@ -196,7 +215,6 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { channelId: string }; Body: Record<string, unknown> }>(
     '/api/music/bot/:channelId/state',
-    { preHandler: authenticateBotOrAdmin },
     async (request, reply) => {
       const { channelId } = request.params;
       const db = getDb();
@@ -204,6 +222,8 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
       if (!channel || channel.type !== 'voice') {
         return sendError(reply, 404, 'channel_not_found');
       }
+      const auth = await authorizeBotForSpace(request, reply, channel.spaceId);
+      if (!auth) return;
 
       const state = applyBotStateReport(channelId, request.body ?? {}, countVoiceListeners(channelId));
       connectionManager.sendToSpace(channel.spaceId, { type: 'music_state_updated', state });
@@ -213,16 +233,22 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: { channelId: string } }>(
     '/api/music/bot/:channelId/commands',
-    { preHandler: authenticateBotOrAdmin },
     async (request, reply) => {
       const { channelId } = request.params;
+      const db = getDb();
+      const channel = db.select().from(schema.channels).where(eq(schema.channels.id, channelId)).get();
+      if (!channel || channel.type !== 'voice') {
+        return sendError(reply, 404, 'channel_not_found');
+      }
+      const auth = await authorizeBotForSpace(request, reply, channel.spaceId);
+      if (!auth) return;
+
       return reply.code(200).send({ commands: drainBotCommands(channelId) });
     },
   );
 
   app.post<{ Params: { channelId: string }; Body: { botName?: string } }>(
     '/api/music/bot/:channelId/livekit-token',
-    { preHandler: authenticateBotOrAdmin },
     async (request, reply) => {
       const { channelId } = request.params;
       if (!config.livekit.apiKey || !config.livekit.apiSecret || !config.livekit.url) {
@@ -233,8 +259,10 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
       if (!channel || channel.type !== 'voice') {
         return sendError(reply, 404, 'channel_not_found');
       }
+      const auth = await authorizeBotForSpace(request, reply, channel.spaceId);
+      if (!auth) return;
 
-      const botName = (request.body?.botName?.trim() || 'Balacopapo Música').slice(0, 48);
+      const botName = (request.body?.botName?.trim() || auth.botDefaultName).slice(0, 48);
       const token = new AccessToken(config.livekit.apiKey, config.livekit.apiSecret, {
         identity: `bot-music:${channelId}`,
         name: botName,

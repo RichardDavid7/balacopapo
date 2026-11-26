@@ -306,7 +306,8 @@
         "discovery": "Descoberta",
         "audio": "Áudio",
         "roles": "Cargos",
-        "bans": "Banimentos"
+        "bans": "Banimentos",
+        "apiKeys": "API e Apps"
       }
     },
     "audio": {
@@ -411,6 +412,34 @@
       "banFailed": "Falha ao banir o membro",
       "rolesAboveYou": "Cargos iguais ou superiores ao seu cargo mais alto ficam bloqueados.",
       "rolesUnheld": "Cargos com permissões que você não tem não podem ser concedidos."
+    },
+    "apiKeys": {
+      "title": "API e Apps Conectados",
+      "subtitle": "Crie chaves de API exclusivas deste grupo para conectar o Balacopapo Utilidades, bots de música, pontes de voz ou apps próprios.",
+      "createHeading": "Criar nova chave de API",
+      "nameLabel": "Nome do app ou bot",
+      "namePlaceholder": "Ex.: Balacopapo Utilidades, Bot de Rádio...",
+      "scopesLabel": "Permissões (escopos)",
+      "scopes": {
+        "music": "Bot de Música",
+        "voice_bridge": "Ponte de Voz"
+      },
+      "createButton": "Gerar Chave de API",
+      "createdTitle": "Chave criada para \"{{name}}\"",
+      "createdHint": "Copie esta chave agora. Por segurança, ela não será exibida novamente.",
+      "copy": "Copiar chave",
+      "copiedShort": "Copiada",
+      "copied": "Chave de API copiada para a área de transferência",
+      "copyFailed": "Não foi possível copiar a chave automaticamente",
+      "revoked": "Chave de API revogada",
+      "listHeading": "Chaves ativas ({{total}})",
+      "empty": "Nenhuma chave de API criada para este grupo ainda.",
+      "createdAt": "Criada em {{date}}",
+      "lastUsed": "Último uso em {{date}}",
+      "neverUsed": "Nunca usada ainda",
+      "revoke": "Revogar",
+      "connectHeading": "Como conectar um app",
+      "connectDesc": "Cole a URL da instância e sua chave no Balacopapo Utilidades ou envie no cabeçalho X-Api-Key:"
     }
   },
   "bans": {

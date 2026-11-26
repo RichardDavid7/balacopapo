@@ -432,7 +432,7 @@
     "title": "音乐机器人",
     "idleReady": "机器人已连接 — 添加曲目",
     "botOfflineShort": "等待音乐机器人",
-    "botOfflineHint": "使用 MUSIC_BOT_API_KEY 启动 Balacopapo Utilidades 以在此通话中播放音频。",
+    "botOfflineHint": "在空间设置 → API 与应用中创建密钥，并连接 Balacopapo Utilidades 即可在此播放音频。",
     "pause": "暂停",
     "play": "播放",
     "stop": "停止",

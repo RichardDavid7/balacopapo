@@ -84,9 +84,13 @@ Itens já identificados durante os testes e uso real:
 - [x] **API oficial do Bot de Música & Mini-player no Balacopapo (`packages/server/src/routes/music.ts` + `MusicMiniPlayer.tsx`):**
   - **Mini-player acoplado acima do status da call (`VoiceControls`)** com faixa atual, play/pause, volume, fila, adição de URLs e **Vote-Skip configurável por porcentagem (`25% / 50% / 60% / 75% / 100%`)** calculado dinamicamente sobre o número de ouvintes na call.
   - **Broadcast em tempo real** via WebSocket (`music_state_updated`) para todos os usuários do grupo.
-  - **Contrato de API para o app companheiro (`Balacopapo Utilidades`):**
-    - Autenticação por header `X-Music-Bot-Key: <MUSIC_BOT_API_KEY>` (ou `Authorization: Bearer <admin-jwt>`).
-    - `POST /api/music/bot/:channelId/livekit-token` — emite token LiveKit para o bot publicar áudio na sala de voz do canal (identidade `music-bot:<channelId>`).
+  - **Chaves de API por Grupo (`Configurações do Grupo → API & Apps`):**
+    - Cada grupo pode criar, listar e revogar múltiplas chaves próprias (`bp_...`, salvas com hash SHA-256 em `0043_space_api_keys.sql`) com escopos (`music`, `voice_bridge`), permitindo conectar o **Balacopapo Utilidades** ou qualquer app/bot próprio com isolamento estrito ao grupo.
+  - **Contrato de API para o app companheiro (`Balacopapo Utilidades` ou apps de terceiros):**
+    - Autenticação por header `X-Api-Key: bp_...` (ou `X-Music-Bot-Key` / `Authorization: Bearer bp_...`; mantém fallback opcional para `MUSIC_BOT_API_KEY` global).
+    - `GET /api/spaces/bot/info` — descobre automaticamente o nome/ID do grupo, escopos da chave e lista de canais de voz disponíveis.
+    - `POST /api/spaces/bot/:channelId/livekit-token` — emite token LiveKit para apps do grupo (suporta escopo `music` e `voice_bridge` com `canSubscribe: true`).
+    - `POST /api/music/bot/:channelId/livekit-token` — emite token LiveKit dedicado para o bot de música publicar áudio na sala de voz do canal.
     - `GET /api/music/bot/:channelId/commands` — consome a fila de comandos emitidos pelos usuários (adicionar faixa, pausar, retomar, pular por vote-skip/forçado, parar, volume, loop, remover/limpar fila).
     - `POST /api/music/bot/:channelId/state` — reporta o estado real de reprodução (`status`, `currentTrack`, `positionSec`, `queue`, `volume`, `botConnected`) e sincroniza todos os clientes via WebSocket.
     - Endpoints de usuário (JWT normal): `GET /api/channels/:channelId/music`, `POST .../queue`, `POST .../vote-skip`, `POST .../control`, `PATCH .../settings`.

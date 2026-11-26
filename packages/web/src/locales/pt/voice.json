@@ -436,7 +436,7 @@
     "title": "Bot de Música",
     "idleReady": "Bot conectado — adicione uma faixa",
     "botOfflineShort": "Aguardando Bot de Música",
-    "botOfflineHint": "Inicie o Balacopapo Utilidades com MUSIC_BOT_API_KEY para tocar áudio nesta chamada.",
+    "botOfflineHint": "Crie uma chave em Configurações do Grupo → API & Apps e conecte o Balacopapo Utilidades para tocar áudio aqui.",
     "pause": "Pausar",
     "play": "Tocar",
     "stop": "Parar",

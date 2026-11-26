@@ -434,7 +434,7 @@
     "title": "Music Bot",
     "idleReady": "Bot connected — queue a track",
     "botOfflineShort": "Waiting for Music Bot",
-    "botOfflineHint": "Start Balacopapo Utilidades with MUSIC_BOT_API_KEY to stream audio into this call.",
+    "botOfflineHint": "Create an API key in Space Settings → API & Apps and connect Balacopapo Utilidades to stream audio here.",
     "pause": "Pause",
     "play": "Play",
     "stop": "Stop",
