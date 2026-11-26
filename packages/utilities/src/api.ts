@@ -11,6 +11,8 @@ export interface LivekitCredentials {
   token: string;
   url: string;
   room: string;
+  maxBitrateBps?: number;
+  stereo?: boolean;
 }
 
 export interface BotStateReport {
@@ -84,6 +86,7 @@ export class BalacopapoApi {
   async getLivekitCredentials(channelId: string): Promise<LivekitCredentials> {
     const creds = await this.request<LivekitCredentials>('POST', `/api/music/bot/${channelId}/livekit-token`, {
       botName: this.cfg.botName,
+      botAvatarUrl: this.cfg.botAvatarUrl || undefined,
     });
     if (creds.url.startsWith('/')) {
       const u = new URL(creds.url, this.cfg.baseUrl);

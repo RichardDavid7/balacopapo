@@ -247,7 +247,7 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.post<{ Params: { channelId: string }; Body: { botName?: string } }>(
+  app.post<{ Params: { channelId: string }; Body: { botName?: string; botAvatarUrl?: string } }>(
     '/api/music/bot/:channelId/livekit-token',
     async (request, reply) => {
       const { channelId } = request.params;
@@ -262,10 +262,29 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
       const auth = await authorizeBotForSpace(request, reply, channel.spaceId);
       if (!auth) return;
 
+      const space = db.select().from(schema.spaces).where(eq(schema.spaces.id, channel.spaceId)).get();
+      const category = channel.categoryId
+        ? db.select().from(schema.channelCategories).where(eq(schema.channelCategories.id, channel.categoryId)).get()
+        : undefined;
+      const inst = db.select().from(schema.instanceSettings).get();
+
+      const rawMaxKbps =
+        channel.maxAudioBitrateKbps
+        ?? category?.maxAudioBitrateKbps
+        ?? space?.maxAudioBitrateKbps
+        ?? inst?.maxAudioBitrateKbps
+        ?? 510;
+      const maxBitrateKbps = Math.max(64, Math.min(510, rawMaxKbps));
+      const stereo = (channel.allowStereoAudio ?? category?.allowStereoAudio ?? space?.allowStereoAudio ?? 1) !== 0;
+
       const botName = (request.body?.botName?.trim() || auth.botDefaultName).slice(0, 48);
+      const rawAvatar = typeof request.body?.botAvatarUrl === 'string' ? request.body.botAvatarUrl.trim() : '';
+      const botAvatarUrl = /^https?:\/\/.{1,500}$/i.test(rawAvatar) ? rawAvatar : null;
+
       const token = new AccessToken(config.livekit.apiKey, config.livekit.apiSecret, {
-        identity: `bot-music:${channelId}`,
+        identity: `bot-music-${channelId}:${botName}`,
         name: botName,
+        metadata: JSON.stringify({ bot: true, displayName: botName, avatar: botAvatarUrl }),
         ttl: '6h',
       });
       token.addGrant({
@@ -281,6 +300,8 @@ export async function musicRoutes(app: FastifyInstance): Promise<void> {
         token: await token.toJwt(),
         url: config.livekit.url,
         room: channelId,
+        maxBitrateBps: maxBitrateKbps * 1000,
+        stereo,
       });
     },
   );

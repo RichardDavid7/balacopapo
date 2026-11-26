@@ -8,6 +8,7 @@ export interface Settings {
   /** Vazio = todos os canais de voz do Grupo. */
   channelIds: string[];
   botName: string;
+  botAvatarUrl: string;
   cacheMaxMb: number;
   idleLeaveSec: number;
 }
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
   channelIds: [],
   botName: 'Balacopapo Música',
+  botAvatarUrl: '',
   cacheMaxMb: 2048,
   idleLeaveSec: 300,
 };
@@ -32,6 +34,8 @@ export function normalizeSettings(input: Partial<Settings>, base: Settings = DEF
       throw new Error('URL da instância inválida');
     }
   }
+  const rawAvatar = typeof input.botAvatarUrl === 'string' ? input.botAvatarUrl.trim() : base.botAvatarUrl;
+  if (rawAvatar && !/^https?:\/\//i.test(rawAvatar)) throw new Error('A URL da foto do bot deve começar com http:// ou https://');
   return {
     baseUrl,
     apiKey: typeof input.apiKey === 'string' && input.apiKey.trim() ? input.apiKey.trim() : base.apiKey,
@@ -39,6 +43,7 @@ export function normalizeSettings(input: Partial<Settings>, base: Settings = DEF
       ? input.channelIds.filter((c): c is string => typeof c === 'string' && c.length > 0)
       : base.channelIds,
     botName: (typeof input.botName === 'string' && input.botName.trim() ? input.botName.trim() : base.botName).slice(0, 48),
+    botAvatarUrl: rawAvatar.slice(0, 500),
     cacheMaxMb: num(input.cacheMaxMb, base.cacheMaxMb),
     idleLeaveSec: num(input.idleLeaveSec, base.idleLeaveSec),
   };
@@ -67,6 +72,7 @@ export interface UtilitiesConfig {
   apiKey: string;
   channelIds: string[];
   botName: string;
+  botAvatarUrl: string;
   ytdlpPath: string;
   ffmpegPath: string;
   cacheDir: string;
@@ -87,6 +93,7 @@ export function buildConfig(
     apiKey: s.apiKey,
     channelIds: s.channelIds,
     botName: s.botName,
+    botAvatarUrl: s.botAvatarUrl,
     ytdlpPath: tools.ytdlpPath,
     ffmpegPath: tools.ffmpegPath,
     cacheDir: cacheDir(home),

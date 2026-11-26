@@ -690,8 +690,27 @@ export function useLiveKit() {
         cachedUser = myRowForOrigin(voiceSessionOrigin(useVoiceStore.getState()));
         homeUserId = cachedUser?.homeUserId ?? null;
       } else {
-        // Space switched — carry forward from previous cycle
-        cachedUser = prevCacheMap.get(p.identity) ?? null;
+        // Companion bot metadata (e.g. Balacopapo Utilidades music bot) or space-switch carry-forward
+        let botUser: User | null = null;
+        if (p.metadata) {
+          try {
+            const meta = JSON.parse(p.metadata) as { bot?: boolean; displayName?: string; avatar?: string | null };
+            if (meta?.bot) {
+              const label = meta.displayName || p.name || username;
+              botUser = {
+                id: userId,
+                username: label,
+                displayName: label,
+                avatar: meta.avatar ?? null,
+                avatarColor: '#7c5cff',
+                status: 'online',
+              } as User;
+            }
+          } catch {
+            /* non-JSON metadata */
+          }
+        }
+        cachedUser = botUser ?? prevCacheMap.get(p.identity) ?? null;
         homeUserId = cachedUser?.homeUserId ?? null;
       }
       let audioTrack: MediaStreamTrack | null = null;

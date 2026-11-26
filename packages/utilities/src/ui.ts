@@ -210,6 +210,12 @@ pre.logs{background:var(--bg);border:1px solid var(--border);border-radius:8px;p
           </div>
         </div>
 
+        <label for="botAvatarUrl">Foto do bot (URL de imagem PNG/JPG/WebP — opcional)</label>
+        <div class="row" style="margin-top:4px">
+          <img id="botAvatarPreview" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--surface-2);border:1px solid var(--border);display:none">
+          <input type="text" id="botAvatarUrl" placeholder="https://exemplo.com/avatar-bot.png" style="flex:1">
+        </div>
+
         <div class="row" style="margin-top:14px">
           <button class="sec" id="btnTest">Testar conexão</button>
           <button id="btnSaveStart">Salvar e conectar</button>
@@ -324,6 +330,8 @@ async function loadSettings() {
   const s = await api('/api/settings');
   $('baseUrl').value = s.baseUrl || '';
   $('botName').value = s.botName || 'Balacopapo Música';
+  $('botAvatarUrl').value = s.botAvatarUrl || '';
+  updateAvatarPreview(s.botAvatarUrl || '');
   $('cacheMaxMb').value = s.cacheMaxMb || 2048;
   $('apiKey').placeholder = s.hasApiKey ? '•••••••••••••••• (salva — digite só se quiser trocar)' : 'bp_...';
   $('keySavedBadge').style.display = s.hasApiKey ? 'inline-flex' : 'none';
@@ -521,11 +529,20 @@ $('fileInput').onchange = async e => {
   }
 };
 
+function updateAvatarPreview(url) {
+  const img = $('botAvatarPreview');
+  const clean = (url || '').trim();
+  if (clean.startsWith('http://') || clean.startsWith('https://')) { img.src = clean; img.style.display = 'block'; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; }
+}
+$('botAvatarUrl').oninput = e => updateAvatarPreview(e.target.value);
+
 function readForm() {
   return {
     baseUrl: $('baseUrl').value,
     apiKey: $('apiKey').value,
     botName: $('botName').value,
+    botAvatarUrl: $('botAvatarUrl').value,
     cacheMaxMb: Number($('cacheMaxMb').value) || 2048,
     channelIds: selectedChannelIdsConfig,
   };

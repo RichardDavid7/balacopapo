@@ -50,6 +50,7 @@ export function startUiServer(controller: Controller, home: string | undefined, 
         return send(res, 200, {
           baseUrl: s.baseUrl,
           botName: s.botName,
+          botAvatarUrl: s.botAvatarUrl,
           channelIds: s.channelIds,
           cacheMaxMb: s.cacheMaxMb,
           idleLeaveSec: s.idleLeaveSec,

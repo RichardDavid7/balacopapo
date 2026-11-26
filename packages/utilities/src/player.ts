@@ -2,13 +2,13 @@ import type { MusicBotCommand, MusicLoopMode, MusicPlaybackStatus, MusicTrack } 
 import type { BalacopapoApi } from './api.js';
 import { applyGain, decode } from './audio.js';
 import type { UtilitiesConfig } from './config.js';
-import type { AudioSink } from './livekit.js';
+import type { AudioSink, VoiceConnectOptions } from './livekit.js';
 import { TrackQueue } from './queue.js';
 import type { TrackResolver } from './resolver.js';
 
 export interface VoiceConnection extends AudioSink {
   readonly connected: boolean;
-  connect(url: string, token: string): Promise<void>;
+  connect(url: string, token: string, options?: VoiceConnectOptions): Promise<void>;
   disconnect(): Promise<void>;
 }
 
@@ -149,8 +149,9 @@ export class ChannelPlayer {
       if (!this.voice.connected) {
         const creds = await this.api.getLivekitCredentials(this.channelId);
         if (gen !== this.generation) return;
-        await this.voice.connect(creds.url, creds.token);
-        this.log(`[${this.channelId}] conectado à sala ${creds.room}`);
+        const kbps = Math.round((creds.maxBitrateBps ?? 510_000) / 1000);
+        await this.voice.connect(creds.url, creds.token, { maxBitrateBps: creds.maxBitrateBps, stereo: creds.stereo });
+        this.log(`[${this.channelId}] conectado à sala ${creds.room} (${kbps} kbps ${creds.stereo === false ? 'mono' : 'estéreo'})`);
       }
       await this.report(true);
 
@@ -257,8 +258,9 @@ export class ChannelPlayer {
     this.lastError = null;
     if (!this.voice.connected) {
       const creds = await this.api.getLivekitCredentials(this.channelId);
-      await this.voice.connect(creds.url, creds.token);
-      this.log(`[${this.channelId}] entrou na sala ${creds.room}`);
+      const kbps = Math.round((creds.maxBitrateBps ?? 510_000) / 1000);
+      await this.voice.connect(creds.url, creds.token, { maxBitrateBps: creds.maxBitrateBps, stereo: creds.stereo });
+      this.log(`[${this.channelId}] entrou na sala ${creds.room} (${kbps} kbps ${creds.stereo === false ? 'mono' : 'estéreo'})`);
     }
     this.armIdleTimer();
     await this.report(true);

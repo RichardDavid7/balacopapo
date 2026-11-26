@@ -10,6 +10,11 @@ export interface AudioSink {
   clear(): void;
 }
 
+export interface VoiceConnectOptions {
+  maxBitrateBps?: number;
+  stereo?: boolean;
+}
+
 export class LiveKitVoice implements AudioSink {
   private room: Room | null = null;
   private source: AudioSource | null = null;
@@ -18,13 +23,18 @@ export class LiveKitVoice implements AudioSink {
     return this.room !== null;
   }
 
-  async connect(url: string, token: string): Promise<void> {
+  async connect(url: string, token: string, options?: VoiceConnectOptions): Promise<void> {
     const room = new Room();
     await room.connect(url, token, { autoSubscribe: false, dynacast: false });
+    const bitrateBps = Math.max(64_000, Math.min(510_000, Math.round(options?.maxBitrateBps ?? 510_000)));
     const source = new AudioSource(SAMPLE_RATE, CHANNELS, 1000);
     const track = LocalAudioTrack.createAudioTrack('music', source);
-    const opts = new TrackPublishOptions();
-    opts.source = TrackSource.SOURCE_MICROPHONE;
+    const opts = new TrackPublishOptions({
+      source: TrackSource.SOURCE_MICROPHONE,
+      dtx: false,
+      red: false,
+      audioEncoding: { maxBitrate: BigInt(bitrateBps) },
+    });
     await room.localParticipant?.publishTrack(track, opts);
     this.room = room;
     this.source = source;
