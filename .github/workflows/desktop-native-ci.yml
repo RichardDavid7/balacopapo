@@ -118,10 +118,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="desktop-edge"
           TITLE="Balacopapo Desktop (Edge — ${SHORT_SHA})"
-          NOTES="Cliente desktop **100% Nativo em Rust (\`Iced\` + \`wgpu\`, Zero WebView / Zero Electron)** para **Windows** e **Linux (Fedora, CachyOS/Arch e distros modernas)** — commit \`${SHORT_SHA}\`.
-
-- **Windows:** execute \`Balacopapo-Desktop-windows-x64.exe\` diretamente (auto-update silencioso incluso).
-- **Linux (Fedora / CachyOS):** baixe \`Balacopapo-Desktop-linux-x64\` (ou \`.tar.gz\`), dê \`chmod +x\` e execute."
+          NOTES="Cliente desktop 100% Nativo em Rust (Iced + wgpu, Zero WebView / Zero Electron) para Windows e Linux (Fedora, CachyOS/Arch) — commit ${SHORT_SHA}. Windows: execute Balacopapo-Desktop-windows-x64.exe diretamente (auto-update silencioso). Linux: baixe Balacopapo-Desktop-linux-x64 (ou .tar.gz), dê chmod +x e execute."
 
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"
