@@ -49,6 +49,7 @@ pub enum Message {
     LoginCompleted(Result<(String, LoginResponse), String>),
     SessionRestored(Result<(String, AuthUser), String>),
     GroupsLoaded(Result<Vec<GroupSummary>, String>),
+    GroupDetailLoaded(Result<GroupSummary, String>),
     MessagesLoaded {
         channel_id: String,
         prepend: bool,
@@ -198,8 +199,12 @@ impl BalacopapoApp {
                     shell_state.settings.theme = AppThemeId::from_code(&self.config.theme);
                     shell_state.settings.language = AppLanguage::from_code(&self.config.language);
                     shell_state.settings.low_interrupt_mode = self.config.low_interrupt_mode;
+                    shell_state.dm.loading = true;
                     self.screen = Screen::Shell(Box::new(shell_state));
-                    Self::load_groups_task(url, resp.token)
+                    Task::batch([
+                        Self::load_groups_task(url.clone(), resp.token.clone()),
+                        Self::load_dms_task(url, resp.token),
+                    ])
                 }
                 Err(err) => {
                     if let Screen::Auth(state) = &mut self.screen {
@@ -216,8 +221,12 @@ impl BalacopapoApp {
                     shell_state.settings.theme = AppThemeId::from_code(&self.config.theme);
                     shell_state.settings.language = AppLanguage::from_code(&self.config.language);
                     shell_state.settings.low_interrupt_mode = self.config.low_interrupt_mode;
+                    shell_state.dm.loading = true;
                     self.screen = Screen::Shell(Box::new(shell_state));
-                    Self::load_groups_task(url, token)
+                    Task::batch([
+                        Self::load_groups_task(url.clone(), token.clone()),
+                        Self::load_dms_task(url, token),
+                    ])
                 }
                 Err(_) => {
                     self.config.auth_token = None;
@@ -231,7 +240,8 @@ impl BalacopapoApp {
                 }
             },
             Message::GroupsLoaded(result) => {
-                let mut auto_fetch: Option<(String, String, String)> = None;
+                let mut auto_fetch_msgs: Option<(String, String, String)> = None;
+                let mut auto_fetch_detail: Option<(String, String, String)> = None;
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.loading_groups = false;
                     match result {
@@ -240,27 +250,31 @@ impl BalacopapoApp {
                             if shell.selected_group_id.is_none() {
                                 shell.selected_group_id = groups.first().map(|g| g.id.clone());
                             }
-                            if shell.selected_channel_id.is_none() {
-                                if let Some(first_ch) = groups
-                                    .iter()
-                                    .find(|g| {
-                                        shell.selected_group_id.as_deref() == Some(g.id.as_str())
-                                    })
-                                    .and_then(|g| {
-                                        g.channels
-                                            .iter()
-                                            .find(|c| c.kind != "voice")
-                                            .or_else(|| g.channels.first())
-                                    })
-                                {
-                                    shell.selected_channel_id = Some(first_ch.id.clone());
-                                    if first_ch.kind != "voice" {
-                                        shell.chat.loading_history = true;
-                                        auto_fetch = Some((
+                            if let Some(sel_id) = shell.selected_group_id.clone() {
+                                if let Some(sel_group) = groups.iter().find(|g| g.id == sel_id) {
+                                    if sel_group.channels.is_empty() {
+                                        auto_fetch_detail = Some((
                                             shell.instance_url.clone(),
                                             self.config.auth_token.clone().unwrap_or_default(),
-                                            first_ch.id.clone(),
+                                            sel_id,
                                         ));
+                                    } else if shell.selected_channel_id.is_none() {
+                                        if let Some(first_ch) = sel_group
+                                            .channels
+                                            .iter()
+                                            .find(|c| c.kind != "voice")
+                                            .or_else(|| sel_group.channels.first())
+                                        {
+                                            shell.selected_channel_id = Some(first_ch.id.clone());
+                                            if first_ch.kind != "voice" {
+                                                shell.chat.loading_history = true;
+                                                auto_fetch_msgs = Some((
+                                                    shell.instance_url.clone(),
+                                                    self.config.auth_token.clone().unwrap_or_default(),
+                                                    first_ch.id.clone(),
+                                                ));
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -271,7 +285,55 @@ impl BalacopapoApp {
                         }
                     }
                 }
-                if let Some((url, token, channel_id)) = auto_fetch {
+                if let Some((url, token, space_id)) = auto_fetch_detail {
+                    Self::load_group_detail_task(url, token, space_id)
+                } else if let Some((url, token, channel_id)) = auto_fetch_msgs {
+                    Self::load_messages_task(url, token, channel_id, None, false)
+                } else {
+                    Task::none()
+                }
+            }
+            Message::GroupDetailLoaded(result) => {
+                let mut auto_fetch_msgs: Option<(String, String, String)> = None;
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(detail) => {
+                            let detail_id = detail.id.clone();
+                            let first_text = detail
+                                .channels
+                                .iter()
+                                .find(|c| c.kind != "voice")
+                                .or_else(|| detail.channels.first())
+                                .cloned();
+                            if let Some(existing) =
+                                shell.groups.iter_mut().find(|g| g.id == detail_id)
+                            {
+                                *existing = detail;
+                            } else {
+                                shell.groups.push(detail);
+                            }
+                            if shell.selected_group_id.as_deref() == Some(detail_id.as_str())
+                                && shell.selected_channel_id.is_none()
+                            {
+                                if let Some(first_ch) = first_text {
+                                    shell.selected_channel_id = Some(first_ch.id.clone());
+                                    if first_ch.kind != "voice" {
+                                        shell.chat.loading_history = true;
+                                        auto_fetch_msgs = Some((
+                                            shell.instance_url.clone(),
+                                            self.config.auth_token.clone().unwrap_or_default(),
+                                            first_ch.id,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            shell.error = Some(err);
+                        }
+                    }
+                }
+                if let Some((url, token, channel_id)) = auto_fetch_msgs {
                     Self::load_messages_task(url, token, channel_id, None, false)
                 } else {
                     Task::none()
@@ -523,13 +585,40 @@ impl BalacopapoApp {
                 shell.user = user;
                 shell.unread_counts = unread_counts;
                 shell.loading_groups = false;
+                let mut auto_fetch_msgs: Option<(String, String, String)> = None;
                 if !groups.is_empty() {
                     if shell.selected_group_id.is_none() {
                         shell.selected_group_id = groups.first().map(|g| g.id.clone());
                     }
+                    if shell.selected_channel_id.is_none() {
+                        if let Some(first_ch) = groups
+                            .iter()
+                            .find(|g| shell.selected_group_id.as_deref() == Some(g.id.as_str()))
+                            .and_then(|g| {
+                                g.channels
+                                    .iter()
+                                    .find(|c| c.kind != "voice")
+                                    .or_else(|| g.channels.first())
+                            })
+                        {
+                            shell.selected_channel_id = Some(first_ch.id.clone());
+                            if first_ch.kind != "voice" {
+                                shell.chat.loading_history = true;
+                                auto_fetch_msgs = Some((
+                                    shell.instance_url.clone(),
+                                    self.config.auth_token.clone().unwrap_or_default(),
+                                    first_ch.id.clone(),
+                                ));
+                            }
+                        }
+                    }
                     shell.groups = groups;
                 }
-                Task::none()
+                if let Some((url, token, channel_id)) = auto_fetch_msgs {
+                    Self::load_messages_task(url, token, channel_id, None, false)
+                } else {
+                    Task::none()
+                }
             }
             WsEvent::MessageCreated(msg) => {
                 let is_active =
@@ -673,9 +762,29 @@ impl BalacopapoApp {
 
         match msg {
             ShellMessage::SelectGroup(id) => {
-                shell.selected_group_id = Some(id);
+                shell.selected_group_id = Some(id.clone());
                 shell.selected_channel_id = None;
                 shell.active_panel = ActivePanel::Channel;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                let existing = shell.groups.iter().find(|g| g.id == id);
+                let has_channels = existing.is_some_and(|g| !g.channels.is_empty());
+                if !has_channels {
+                    return Self::load_group_detail_task(url, token, id);
+                }
+                if let Some(first_ch) = existing.and_then(|g| {
+                    g.channels
+                        .iter()
+                        .find(|c| c.kind != "voice")
+                        .or_else(|| g.channels.first())
+                        .cloned()
+                }) {
+                    shell.selected_channel_id = Some(first_ch.id.clone());
+                    if first_ch.kind != "voice" {
+                        shell.chat.loading_history = true;
+                        return Self::load_messages_task(url, token, first_ch.id, None, false);
+                    }
+                }
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
@@ -797,7 +906,13 @@ impl BalacopapoApp {
                 Task::none()
             }
             ChatMessageAction::Send => {
-                let Some(channel_id) = shell.selected_channel_id.clone() else {
+                let is_dm = shell.active_panel == ActivePanel::Dms;
+                let target_id = if is_dm {
+                    shell.dm.selected_dm_id.clone()
+                } else {
+                    shell.selected_channel_id.clone()
+                };
+                let Some(channel_id) = target_id else {
                     return Task::none();
                 };
                 let content = shell.chat.draft.trim().to_string();
@@ -810,23 +925,42 @@ impl BalacopapoApp {
                 Task::perform(
                     async move {
                         let client = ApiClient::new(url, Some(token))?;
-                        client.send_message(&channel_id, &content).await
+                        if is_dm {
+                            client.send_dm_message(&channel_id, &content).await
+                        } else {
+                            client.send_message(&channel_id, &content).await
+                        }
                     },
                     Message::ChatSent,
                 )
             }
             ChatMessageAction::LoadOlder => {
-                let Some(channel_id) = shell.selected_channel_id.clone() else {
+                let is_dm = shell.active_panel == ActivePanel::Dms;
+                let target_id = if is_dm {
+                    shell.dm.selected_dm_id.clone()
+                } else {
+                    shell.selected_channel_id.clone()
+                };
+                let Some(channel_id) = target_id else {
                     return Task::none();
                 };
                 let before = shell.chat.oldest_message_id(&channel_id);
                 shell.chat.loading_history = true;
                 let url = shell.instance_url.clone();
                 let token = self.config.auth_token.clone().unwrap_or_default();
-                Self::load_messages_task(url, token, channel_id, before, true)
+                if is_dm {
+                    Self::load_dm_messages_task(url, token, channel_id, before, true)
+                } else {
+                    Self::load_messages_task(url, token, channel_id, before, true)
+                }
             }
             ChatMessageAction::DeleteMessage(message_id) => {
-                let Some(channel_id) = shell.selected_channel_id.clone() else {
+                let target_id = if shell.active_panel == ActivePanel::Dms {
+                    shell.dm.selected_dm_id.clone()
+                } else {
+                    shell.selected_channel_id.clone()
+                };
+                let Some(channel_id) = target_id else {
                     return Task::none();
                 };
                 let url = shell.instance_url.clone();
@@ -1245,8 +1379,13 @@ impl BalacopapoApp {
                 Task::none()
             }
             DmAction::SelectDm(id) => {
-                shell.dm.selected_dm_id = Some(id);
-                Task::none()
+                shell.dm.selected_dm_id = Some(id.clone());
+                shell.active_panel = ActivePanel::Dms;
+                shell.chat.loading_history = true;
+                shell.chat.error = None;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Self::load_dm_messages_task(url, token, id, None, false)
             }
         }
     }
@@ -1461,6 +1600,39 @@ impl BalacopapoApp {
                 client.fetch_groups().await
             },
             Message::GroupsLoaded,
+        )
+    }
+
+    fn load_group_detail_task(url: String, token: String, space_id: String) -> Task<Message> {
+        Task::perform(
+            async move {
+                let client = ApiClient::new(url, Some(token))?;
+                client.fetch_group_detail(&space_id).await
+            },
+            Message::GroupDetailLoaded,
+        )
+    }
+
+    fn load_dm_messages_task(
+        url: String,
+        token: String,
+        dm_id: String,
+        before: Option<String>,
+        prepend: bool,
+    ) -> Task<Message> {
+        Task::perform(
+            async move {
+                let result = match ApiClient::new(url, Some(token)) {
+                    Ok(client) => client.fetch_dm_messages(&dm_id, before.as_deref()).await,
+                    Err(err) => Err(err),
+                };
+                Message::MessagesLoaded {
+                    channel_id: dm_id,
+                    prepend,
+                    result,
+                }
+            },
+            std::convert::identity,
         )
     }
 

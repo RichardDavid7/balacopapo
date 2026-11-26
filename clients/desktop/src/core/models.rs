@@ -147,15 +147,16 @@ pub struct ChannelSummary {
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
     pub id: String,
+    #[serde(default, alias = "dmChannelId")]
     pub channel_id: String,
     #[serde(default)]
     pub user_id: Option<String>,
     #[serde(default)]
-    pub content: String,
+    pub content: Option<String>,
     #[serde(default)]
-    pub created_at: String,
+    pub created_at: serde_json::Value,
     #[serde(default)]
-    pub updated_at: Option<String>,
+    pub edited_at: Option<serde_json::Value>,
     #[serde(default)]
     pub user: Option<AuthUser>,
 }
@@ -167,6 +168,39 @@ impl ChatMessage {
             .map(AuthUser::label)
             .or(self.user_id.as_deref())
             .unwrap_or("Usuário")
+    }
+
+    pub fn body_text(&self) -> &str {
+        self.content.as_deref().unwrap_or("")
+    }
+
+    pub fn is_edited(&self) -> bool {
+        matches!(&self.edited_at, Some(v) if !v.is_null())
+    }
+
+    pub fn sort_key(&self) -> i64 {
+        if let Some(ms) = self.created_at.as_i64() {
+            return ms;
+        }
+        self.id.parse::<i64>().unwrap_or(0)
+    }
+
+    pub fn short_time(&self) -> String {
+        if let Some(ms) = self.created_at.as_i64() {
+            let secs = ms / 1000;
+            let day_secs = secs.rem_euclid(86_400);
+            let h = (day_secs / 3600) as u8;
+            let m = ((day_secs % 3600) / 60) as u8;
+            return format!("{h:02}:{m:02}");
+        }
+        if let Some(iso) = self.created_at.as_str() {
+            if let Some((_, rest)) = iso.split_once('T') {
+                if rest.len() >= 5 {
+                    return rest[..5].to_string();
+                }
+            }
+        }
+        String::new()
     }
 }
 
@@ -200,13 +234,13 @@ pub struct DmChannelSummary {
     pub name: Option<String>,
     #[serde(default)]
     pub owner_id: Option<String>,
-    #[serde(default)]
-    pub participants: Vec<AuthUser>,
+    #[serde(default, alias = "participants")]
+    pub members: Vec<AuthUser>,
 }
 
 impl DmChannelSummary {
     pub fn is_group_dm(&self) -> bool {
-        self.owner_id.is_some() || self.participants.len() > 2
+        self.owner_id.is_some() || self.members.len() > 2
     }
 
     pub fn display_label(&self, my_user_id: &str) -> String {
@@ -214,13 +248,16 @@ impl DmChannelSummary {
             return name.to_string();
         }
         let others: Vec<&str> = self
-            .participants
+            .members
             .iter()
             .filter(|u| u.id != my_user_id)
             .map(AuthUser::label)
             .collect();
         if others.is_empty() {
-            "Conversa Direta".to_string()
+            self.members
+                .first()
+                .map(|u| u.label().to_string())
+                .unwrap_or_else(|| "Conversa Direta".to_string())
         } else {
             others.join(", ")
         }
@@ -353,7 +390,7 @@ mod tests {
             Some(WsEvent::MessageCreated(msg)) => {
                 assert_eq!(msg.id, "m1");
                 assert_eq!(msg.channel_id, "c1");
-                assert_eq!(msg.content, "oi");
+                assert_eq!(msg.body_text(), "oi");
             }
             other => panic!("esperava MessageCreated, veio {other:?}"),
         }

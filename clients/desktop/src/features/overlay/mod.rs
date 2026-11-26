@@ -185,7 +185,7 @@ impl canvas::Program<OverlayAction> for OverlayPreviewCanvas {
                 Color::from_rgba(0.11, 0.12, 0.18, alpha),
             );
             frame.fill_text(canvas::Text {
-                content: "● Lucas entrou na call".to_string(),
+                content: "Lucas entrou na call".to_string(),
                 position: Point::new(hx + 8.0, ty + 5.0),
                 color: Color::from_rgba(0.204, 0.827, 0.600, alpha),
                 size: 10.5.into(),

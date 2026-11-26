@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use iced::widget::{button, column, container, horizontal_space, row, scrollable, text, text_input};
 use iced::{Alignment, Element, Length};
 

@@ -191,7 +191,7 @@ pub fn view<'a>(
         UpdateCheckState::ReadyToRestart {
             version,
             staged_path,
-        } => button(text(format!("↑ {version}")).size(11))
+        } => button(text(format!("Atualizar {version}")).size(11))
             .on_press(AuthMessage::ApplyStagedUpdate(staged_path.clone()))
             .padding([3, 8])
             .style(aether_drift::primary_button_style)
@@ -199,7 +199,7 @@ pub fn view<'a>(
         UpdateCheckState::AvailableManual {
             version,
             release_url,
-        } => button(text(format!("↑ {version}")).size(11))
+        } => button(text(format!("Nova {version}")).size(11))
             .on_press(AuthMessage::OpenReleasePage(release_url.clone()))
             .padding([3, 8])
             .style(aether_drift::ghost_button_style)

@@ -127,7 +127,7 @@ pub fn view<'a>(state: &'a VoiceState, channel: &'a ChannelSummary) -> Element<'
 
     let header = row![
         column![
-            text(format!("🔊 {}", channel.name)).size(18),
+            text(&channel.name).size(18),
             text(if is_here {
                 format!(
                     "Conectado · LiveKit: {}",

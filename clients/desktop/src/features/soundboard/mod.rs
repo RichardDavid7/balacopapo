@@ -165,11 +165,10 @@ pub fn view<'a>(state: &'a SoundboardState) -> Element<'a, SoundboardAction> {
             {
                 continue;
             }
-            let emoji = s.emoji.as_deref().unwrap_or("🎵");
             let label = if folder.is_empty() {
-                format!("{emoji} {}", s.name)
+                s.name.clone()
             } else {
-                format!("{emoji} {}  [{folder}]", s.name)
+                format!("{}  [{folder}]", s.name)
             };
             sound_list = sound_list.push(
                 button(text(label).size(13))
@@ -233,7 +232,7 @@ pub fn view<'a>(state: &'a SoundboardState) -> Element<'a, SoundboardAction> {
                     .on_press(SoundboardAction::NormalizeActiveRms)
                     .padding([8, 14])
                     .style(aether_drift::ghost_button_style),
-                button(text("▶ Ouvir Prévia Recortada").size(12))
+                button(text("Ouvir Prévia Recortada").size(12))
                     .on_press(SoundboardAction::PreviewEditorClip)
                     .padding([8, 16])
                     .style(aether_drift::primary_button_style),

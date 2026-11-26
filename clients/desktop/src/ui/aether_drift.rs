@@ -4,10 +4,12 @@
 use iced::widget::{button, container, text_input};
 use iced::{theme::Palette, Background, Border, Color, Theme};
 
-pub const BG_OBSIDIAN: Color = Color::from_rgb(0.047, 0.051, 0.071); // #0c0d12
-pub const SURFACE: Color = Color::from_rgb(0.078, 0.086, 0.125); // #141620
-pub const SURFACE_ELEVATED: Color = Color::from_rgb(0.110, 0.122, 0.180); // #1c1f2e
-pub const BORDER_SUBTLE: Color = Color::from_rgba(0.655, 0.545, 0.980, 0.20);
+pub const BG_RAIL: Color = Color::from_rgb(0.035, 0.039, 0.059); // #090a0f (Discord/Backspace server rail)
+pub const BG_OBSIDIAN: Color = Color::from_rgb(0.086, 0.094, 0.141); // #161824 (main chat canvas)
+pub const SURFACE: Color = Color::from_rgb(0.067, 0.075, 0.110); // #11131c (channel sidebar)
+pub const SURFACE_DOCK: Color = Color::from_rgb(0.051, 0.059, 0.090); // #0d0f17 (user footer dock)
+pub const SURFACE_ELEVATED: Color = Color::from_rgb(0.118, 0.129, 0.192); // #1e2131 (composer / hover)
+pub const BORDER_SUBTLE: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.07);
 pub const TEXT_PRIMARY: Color = Color::from_rgb(0.953, 0.957, 0.973); // #f3f4f8
 pub const TEXT_MUTED: Color = Color::from_rgb(0.604, 0.627, 0.706); // #9aa0b4
 pub const ACCENT_VIOLET: Color = Color::from_rgb(0.545, 0.361, 0.965); // #8b5cf6
@@ -107,11 +109,121 @@ pub fn sidebar_style(_theme: &Theme) -> container::Style {
         background: Some(Background::Color(SURFACE)),
         text_color: Some(TEXT_PRIMARY),
         border: Border {
+            color: Color::from_rgba(1.0, 1.0, 1.0, 0.05),
+            width: 1.0,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn rail_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(BG_RAIL)),
+        text_color: Some(TEXT_PRIMARY),
+        ..Default::default()
+    }
+}
+
+pub fn dock_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(SURFACE_DOCK)),
+        text_color: Some(TEXT_PRIMARY),
+        border: Border {
+            color: Color::from_rgba(1.0, 1.0, 1.0, 0.05),
+            width: 1.0,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn header_bar_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(BG_OBSIDIAN)),
+        text_color: Some(TEXT_PRIMARY),
+        border: Border {
             color: Color::from_rgba(1.0, 1.0, 1.0, 0.06),
             width: 1.0,
             radius: 0.0.into(),
         },
         ..Default::default()
+    }
+}
+
+/// Botão redondo/squircle da barra lateral esquerda de Grupos (estilo Discord/Backspace).
+pub fn rail_icon_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_theme, status| {
+        let (bg, radius) = if active {
+            (ACCENT_VIOLET, 16.0)
+        } else {
+            match status {
+                button::Status::Hovered | button::Status::Pressed => (ACCENT_VIOLET, 16.0),
+                _ => (SURFACE_ELEVATED, 24.0),
+            }
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            text_color: Color::WHITE,
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: radius.into(),
+            },
+            ..Default::default()
+        }
+    }
+}
+
+/// Linha limpa de canal/DM sem borda pesada (estilo Discord/Backspace).
+pub fn channel_row_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_theme, status| {
+        let (bg, text_color) = if active {
+            (Color::from_rgba(0.545, 0.361, 0.965, 0.18), TEXT_PRIMARY)
+        } else {
+            match status {
+                button::Status::Hovered | button::Status::Pressed => {
+                    (Color::from_rgba(1.0, 1.0, 1.0, 0.06), TEXT_PRIMARY)
+                }
+                _ => (Color::TRANSPARENT, TEXT_MUTED),
+            }
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            text_color,
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 8.0.into(),
+            },
+            ..Default::default()
+        }
+    }
+}
+
+/// Botão de ícone discreto (sem borda) para dock de usuário e barra superior.
+pub fn icon_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |_theme, status| {
+        let bg = if active {
+            Color::from_rgba(0.545, 0.361, 0.965, 0.24)
+        } else {
+            match status {
+                button::Status::Hovered | button::Status::Pressed => {
+                    Color::from_rgba(1.0, 1.0, 1.0, 0.08)
+                }
+                _ => Color::TRANSPARENT,
+            }
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            text_color: TEXT_PRIMARY,
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 8.0.into(),
+            },
+            ..Default::default()
+        }
     }
 }
 

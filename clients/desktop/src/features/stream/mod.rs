@@ -288,7 +288,7 @@ pub fn view<'a>(state: &'a StreamState) -> Element<'a, StreamAction> {
 
     let toolbar = row![
         toggle_btn(
-            if state.pointer_mode { "🎯 Modo Apontar: ON" } else { "✋ Modo Arrastar (Pan)" },
+            if state.pointer_mode { "Modo Apontar: ON" } else { "Modo Arrastar (Pan)" },
             state.pointer_mode,
             StreamAction::TogglePointerMode
         ),
@@ -401,7 +401,7 @@ pub fn view<'a>(state: &'a StreamState) -> Element<'a, StreamAction> {
         .into(),
         RemoteControlState::PendingConsent { requester } => row![
             column![
-                text(format!("⚠️ {requester} solicitou controle da sua tela"))
+                text(format!("{requester} solicitou controle da sua tela"))
                     .size(13)
                     .color(aether_drift::DANGER_RED),
                 text("Nenhum evento de mouse/teclado é aceito até você aprovar explicitamente.")
@@ -437,7 +437,7 @@ pub fn view<'a>(state: &'a StreamState) -> Element<'a, StreamAction> {
         } => row![
             column![
                 text(format!(
-                    "🔴 CONTROLE REMOTO ATIVO — {controller} ({})",
+                    "CONTROLE REMOTO ATIVO — {controller} ({})",
                     if *allow_keyboard {
                         "Mouse + Teclado"
                     } else {

@@ -22,7 +22,7 @@ pub enum MusicAction {
     Refresh,
 }
 
-/// Mini-player enxuto (sem poluição de configurações — Vote-Skip % fica nas Configurações do Grupo).
+/// Mini-player enxuto (sem poluição de configurações e sem emojis quebrados).
 pub fn view_mini_player<'a>(
     ui: &'a MusicUiState,
     voice_channel_name: &'a str,
@@ -43,29 +43,29 @@ pub fn view_mini_player<'a>(
     let is_playing = ui.state.status == "playing";
 
     let controls = row![
-        button(text(if is_playing { "⏸" } else { "▶" }).size(12))
+        button(text(if is_playing { "Pausar" } else { "Tocar" }).size(11))
             .on_press(MusicAction::TogglePlayPause)
-            .padding([4, 9])
+            .padding([4, 8])
             .style(aether_drift::primary_button_style),
-        button(text("⏭ Vote-Skip").size(11))
+        button(text("Vote-Skip").size(11))
             .on_press(MusicAction::VoteSkip)
-            .padding([4, 9])
+            .padding([4, 8])
             .style(aether_drift::ghost_button_style),
-        button(text("⏹").size(12))
+        button(text("Parar").size(11))
             .on_press(MusicAction::Stop)
             .padding([4, 8])
             .style(aether_drift::ghost_button_style),
         horizontal_space(),
-        button(text("↻").size(11))
+        button(text("Sync").size(10))
             .on_press(MusicAction::Refresh)
-            .padding([4, 7])
-            .style(aether_drift::ghost_button_style),
+            .padding([4, 6])
+            .style(aether_drift::icon_button_style(false)),
     ]
-    .spacing(6)
+    .spacing(5)
     .align_y(Alignment::Center);
 
     let add_row = row![
-        text_input("Colar link (YouTube / Navidrome)...", &ui.track_url_input)
+        text_input("Link YouTube / Navidrome...", &ui.track_url_input)
             .on_input(MusicAction::UrlInputChanged)
             .on_submit(MusicAction::AddToQueue)
             .padding(6)
@@ -81,7 +81,7 @@ pub fn view_mini_player<'a>(
     .spacing(6);
 
     let mut col = column![
-        text(format!("🎵 Música · {voice_channel_name}"))
+        text(format!("Música · {voice_channel_name}"))
             .size(11)
             .color(aether_drift::ACCENT_VIOLET),
         text(now_playing).size(12),

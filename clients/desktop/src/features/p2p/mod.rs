@@ -1,9 +1,7 @@
 use iced::widget::{button, canvas, column, container, horizontal_space, row, scrollable, text};
 use iced::{Alignment, Color, Element, Length, Point, Rectangle, Renderer, Theme};
 
-use crate::core::p2p_mesh::{
-    FileTransferStatus, P2PFileOffer, P2PPeerMetrics, P2PRouteKind,
-};
+use crate::core::p2p_mesh::{FileTransferStatus, P2PFileOffer, P2PPeerMetrics};
 use crate::ui::aether_drift;
 
 #[derive(Debug, Clone)]
@@ -17,43 +15,12 @@ pub struct P2PState {
 
 impl Default for P2PState {
     fn default() -> Self {
-        let mut peers = vec![
-            P2PPeerMetrics {
-                peer_id: "peer-lan".to_string(),
-                display_name: "Peer LAN (Exemplo)".to_string(),
-                route: P2PRouteKind::Lan,
-                direct_rtt_samples_ms: vec![4.0, 5.0, 4.5, 5.0],
-                peer_server_rtt_ms: 24.0,
-                using_p2p_audio: true,
-                connected: true,
-            },
-            P2PPeerMetrics {
-                peer_id: "peer-nat".to_string(),
-                display_name: "Peer NAT (Exemplo)".to_string(),
-                route: P2PRouteKind::Nat,
-                direct_rtt_samples_ms: vec![28.0, 31.0, 29.0, 30.0],
-                peer_server_rtt_ms: 26.0,
-                using_p2p_audio: true,
-                connected: true,
-            },
-        ];
-        for p in &mut peers {
-            p.evaluate_route(22.0, true, true);
-        }
-
         Self {
             p2p_enabled: true,
             server_online: true,
-            my_server_rtt_ms: 22.0,
-            peers,
-            file_offers: vec![P2PFileOffer {
-                id: "offer-demo-1".to_string(),
-                sender_name: "Peer LAN".to_string(),
-                file_name: "clip-jogada.mp4".to_string(),
-                size_bytes: 18_400_000,
-                chunks_received: 0,
-                status: FileTransferStatus::PendingConsent,
-            }],
+            my_server_rtt_ms: 0.0,
+            peers: Vec::new(),
+            file_offers: Vec::new(),
         }
     }
 }
@@ -229,6 +196,13 @@ pub fn view<'a>(state: &'a P2PState) -> Element<'a, P2PAction> {
     .height(Length::Fixed(210.0));
 
     let mut peers_col = column![text("Peers na Malha").size(14)].spacing(6);
+    if state.peers.is_empty() {
+        peers_col = peers_col.push(
+            text("Nenhum peer P2P conectado no momento. Entre em uma chamada de voz com outro participante para iniciar a malha.")
+                .size(12)
+                .color(aether_drift::TEXT_MUTED),
+        );
+    }
     for peer in &state.peers {
         let direct = peer
             .trimmed_direct_rtt_ms()
@@ -256,9 +230,17 @@ pub fn view<'a>(state: &'a P2PState) -> Element<'a, P2PAction> {
     }
 
     let mut transfers_col = column![
-        text("Bandeja de Transferência P2P (Consentimento Obrigatório · Chunks 16 KB)").size(14)
+        text("Transferências P2P (Consentimento Obrigatório · Chunks 16 KB)").size(14)
     ]
     .spacing(8);
+
+    if state.file_offers.is_empty() {
+        transfers_col = transfers_col.push(
+            text("Nenhuma transferência P2P pendente.")
+                .size(12)
+                .color(aether_drift::TEXT_MUTED),
+        );
+    }
 
     for offer in &state.file_offers {
         let status_widget: Element<'a, P2PAction> = match offer.status {
@@ -313,7 +295,7 @@ pub fn view<'a>(state: &'a P2PState) -> Element<'a, P2PAction> {
     if state.survival_mode_active() {
         root = root.push(
             container(
-                text("🛡️ MODO SOBREVIVÊNCIA P2P ATIVO — Instância indisponível; áudio mantido direto entre peers!")
+                text("MODO SOBREVIVÊNCIA P2P ATIVO — Instância indisponível; áudio mantido direto entre peers!")
                     .size(12)
                     .color(aether_drift::SUCCESS_GREEN),
             )

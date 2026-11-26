@@ -221,6 +221,92 @@ impl ApiClient {
             .map_err(|e| format!("Erro ao interpretar lista de grupos: {e}"))
     }
 
+    /// Busca detalhes completos de um Grupo (com `channels` e `categories`) via `GET /api/spaces/:id`.
+    pub async fn fetch_group_detail(&self, space_id: &str) -> Result<GroupSummary, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/spaces/{space_id}", self.base_url);
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao carregar canais do grupo: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao carregar grupo (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<GroupSummary>()
+            .await
+            .map_err(|e| format!("Erro ao interpretar canais do grupo: {e}"))
+    }
+
+    pub async fn fetch_dm_messages(
+        &self,
+        dm_id: &str,
+        before: Option<&str>,
+    ) -> Result<Vec<ChatMessage>, String> {
+        let token = self.require_token()?;
+        let mut url = format!("{}/api/dm/{dm_id}/messages?limit=50", self.base_url);
+        if let Some(cursor) = before {
+            url.push_str(&format!("&before={cursor}"));
+        }
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao buscar mensagens da DM: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao buscar mensagens da DM (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        let payload = resp
+            .json::<MessagesPayload>()
+            .await
+            .map_err(|e| format!("Erro ao interpretar mensagens da DM: {e}"))?;
+
+        let mut list = match payload {
+            MessagesPayload::List(v) => v,
+            MessagesPayload::Wrapped { messages } => messages,
+        };
+        list.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()).then(a.id.cmp(&b.id)));
+        Ok(list)
+    }
+
+    pub async fn send_dm_message(&self, dm_id: &str, content: &str) -> Result<ChatMessage, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/dm/{dm_id}/messages", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "content": content }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao enviar DM: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao enviar DM (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<ChatMessage>()
+            .await
+            .map_err(|e| format!("Erro ao ler DM enviada: {e}"))
+    }
+
     pub async fn fetch_messages(
         &self,
         channel_id: &str,
@@ -257,7 +343,7 @@ impl ApiClient {
             MessagesPayload::Wrapped { messages } => messages,
         };
         // Garante ordem cronológica (mais antigas em cima, mais novas embaixo).
-        list.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.id.cmp(&b.id)));
+        list.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()).then(a.id.cmp(&b.id)));
         Ok(list)
     }
 
