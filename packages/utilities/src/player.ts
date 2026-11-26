@@ -154,6 +154,7 @@ export class ChannelPlayer {
       }
       await this.report(true);
 
+      this.log(`[${this.channelId}] resolvendo faixa (${track.source}): ${track.url}`);
       const resolved = await this.resolver.resolve(track);
       if (gen !== this.generation) return;
       if (resolved.meta && this.queue.current?.id === track.id) {
@@ -164,6 +165,7 @@ export class ChannelPlayer {
           thumbnailUrl: resolved.meta.thumbnailUrl ?? track.thumbnailUrl,
         });
       }
+      this.log(`[${this.channelId}] tocando: ${this.queue.current?.title ?? track.title}`);
       this.prefetchNext();
       void this.report();
       this.startReportTimer(gen);

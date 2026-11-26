@@ -81,7 +81,15 @@ export class BalacopapoApi {
     return this.request('POST', `/api/music/bot/${channelId}/state`, report);
   }
 
-  getLivekitCredentials(channelId: string): Promise<LivekitCredentials> {
-    return this.request('POST', `/api/music/bot/${channelId}/livekit-token`, { botName: this.cfg.botName });
+  async getLivekitCredentials(channelId: string): Promise<LivekitCredentials> {
+    const creds = await this.request<LivekitCredentials>('POST', `/api/music/bot/${channelId}/livekit-token`, {
+      botName: this.cfg.botName,
+    });
+    if (creds.url.startsWith('/')) {
+      const u = new URL(creds.url, this.cfg.baseUrl);
+      u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      creds.url = u.toString();
+    }
+    return creds;
   }
 }

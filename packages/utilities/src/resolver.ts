@@ -74,20 +74,19 @@ export class TrackResolver {
     const cached = await this.cache.find(key);
     if (cached) return { input: cached };
 
-    const json = await run(
-      this.cfg.ytdlpPath,
-      [
-        '--no-playlist',
-        '--no-progress',
-        '--no-warnings',
-        '-f', 'bestaudio/best',
-        '-o', `${this.cache.dir}/${key}.%(ext)s`,
-        '--no-simulate',
-        '-J',
-        url,
-      ],
-      signal,
-    );
+    const args = [
+      '--no-playlist',
+      '--no-progress',
+      '--no-warnings',
+      '--js-runtimes', `node:${process.execPath}`,
+      '--ffmpeg-location', this.cfg.ffmpegPath,
+      '-f', 'bestaudio/best',
+      '-o', `${this.cache.dir}/${key}.%(ext)s`,
+      '--no-simulate',
+      '-J',
+      url,
+    ];
+    const json = await run(this.cfg.ytdlpPath, args, signal);
     const file = await this.cache.find(key);
     if (!file) throw new Error('yt-dlp não gerou arquivo de áudio');
     void this.cache.prune();
