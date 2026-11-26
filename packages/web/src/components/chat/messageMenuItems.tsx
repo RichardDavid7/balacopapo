@@ -24,6 +24,8 @@ interface MessageMenuParams {
   onReaction: (emoji: string) => void;
   onOpenEmojiPicker: () => void;
   onMarkUnread: (messageId: string) => void;
+  canRetainFiles?: boolean;
+  onToggleRetainFiles?: () => void;
   imageUrl?: string | null;
   stickerSource?: string | null;
   stickerName?: string;
@@ -52,6 +54,8 @@ export function buildMessageMenuItems(params: MessageMenuParams): ContextMenuIte
     onReaction,
     onOpenEmojiPicker,
     onMarkUnread,
+    canRetainFiles,
+    onToggleRetainFiles,
     imageUrl,
     sourceUrl,
     videoUrl,
@@ -235,6 +239,23 @@ export function buildMessageMenuItems(params: MessageMenuParams): ContextMenuIte
         </svg>
       ),
       onClick: onEdit,
+    });
+  }
+
+  // ── Retain Message Files (authorized space + MANAGE_MESSAGES + attachments) ──
+  if (canRetainFiles && onToggleRetainFiles) {
+    items.push({
+      key: 'retain-files',
+      type: 'action',
+      label: message.retainFiles
+        ? i18n.t('chat:menu.unretainFiles')
+        : i18n.t('chat:menu.retainFiles'),
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      ),
+      onClick: onToggleRetainFiles,
     });
   }
 

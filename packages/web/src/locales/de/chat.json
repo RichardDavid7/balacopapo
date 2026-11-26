@@ -110,7 +110,9 @@
     "editMessage": "Nachricht bearbeiten",
     "deleteMessage": "Nachricht löschen",
     "linkCopied": "Link kopiert",
-    "linkCopyFailed": "Link konnte nicht kopiert werden"
+    "linkCopyFailed": "Link konnte nicht kopiert werden",
+    "retainFiles": "Dateien behalten",
+    "unretainFiles": "Dateiaufbewahrung entfernen"
   },
   "attachment": {
     "progress": {

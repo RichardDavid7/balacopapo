@@ -107,7 +107,9 @@
     "editMessage": "编辑消息",
     "deleteMessage": "删除消息",
     "linkCopied": "已复制链接",
-    "linkCopyFailed": "复制链接失败"
+    "linkCopyFailed": "复制链接失败",
+    "retainFiles": "保留文件",
+    "unretainFiles": "取消保留文件"
   },
   "attachment": {
     "progress": {

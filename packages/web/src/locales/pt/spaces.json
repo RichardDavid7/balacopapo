@@ -94,6 +94,10 @@
           "disabledByInstance": "O áudio estéreo está desativado nas configurações da instância.",
           "disabledByParent": "O áudio estéreo está desativado em um nível superior (instância, grupo ou categoria)."
         }
+      },
+      "retainFiles": {
+        "title": "Manter arquivos deste canal",
+        "description": "Protege arquivos enviados neste canal de texto contra a limpeza automática de mídia da instância (ideal para tutoriais e guias)."
       }
     },
     "delete": {

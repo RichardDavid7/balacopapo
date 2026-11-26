@@ -305,7 +305,10 @@
       "authorizedWaiting": "Authorized · not enabled by group yet",
       "activeInSpace": "Authorized · file retention active",
       "authorize": "Authorize",
-      "revoke": "Revoke"
+      "revoke": "Revoke",
+      "memberCount": "{{total}} members",
+      "deletedSpace": "Deleted group \"{{name}}\"",
+      "deleteSpaceFailed": "Failed to delete group"
     }
   },
   "streaming": {

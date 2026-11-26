@@ -14,7 +14,7 @@ import { menuPositionFor, useContextMenuStore } from '../../stores/contextMenuSt
 import { buildMessageMenuItems } from './messageMenuItems';
 import { useAuthStore, useSelfIdentity } from '../../stores/authStore';
 import { useChatStore } from '../../stores/chatStore';
-import { selectMyRoleIdsInChannel, useSpaceStore } from '../../stores/spaceStore';
+import { getApiForOrigin, selectMyRoleIdsInChannel, useSpaceStore } from '../../stores/spaceStore';
 import { useUIStore } from '../../stores/uiStore';
 import { AttachmentRenderer, attUrlOf } from './AttachmentRenderer';
 import { AttachmentProgress } from './AttachmentProgress';
@@ -389,6 +389,20 @@ export function Message({ message, isCompact, isFirstInGroup, previousMessageId 
         setReactionPicker('row');
       },
       onMarkUnread: (msgId: string) => markUnread(channelKey, msgId),
+      canRetainFiles: !isDmMessage
+        && canManageMessages
+        && Boolean(message.attachments && message.attachments.length > 0)
+        && Boolean(useSpaceStore.getState().spaces.find((s) => s.id === useSpaceStore.getState().currentSpaceId)?.allowFileRetention),
+      onToggleRetainFiles: () => {
+        const nextRetain = !message.retainFiles;
+        void getApiForOrigin(messageOrigin).messages.setRetainFiles(message.id, nextRetain)
+          .then((updated) => {
+            useChatStore.getState().updateMessage(updated);
+          })
+          .catch(() => {
+            useUIStore.getState().addToast(t('common:states.saveFailed'), 'warning');
+          });
+      },
     });
 
     if (items.length === 0) return;

@@ -333,7 +333,10 @@
       "authorizedWaiting": "Разрешено · ещё не включено в группе",
       "activeInSpace": "Разрешено · хранение активно в группе",
       "authorize": "Разрешить",
-      "revoke": "Отозвать"
+      "revoke": "Отозвать",
+      "memberCount": "Участников: {{total}}",
+      "deletedSpace": "Группа «{{name}}» удалена",
+      "deleteSpaceFailed": "Не удалось удалить группу"
     }
   },
   "streaming": {

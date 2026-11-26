@@ -295,6 +295,13 @@
       "when": 1795659200000,
       "tag": "0041_file_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1795745600000,
+      "tag": "0042_channel_message_retention",
+      "breakpoints": true
     }
   ]
 }

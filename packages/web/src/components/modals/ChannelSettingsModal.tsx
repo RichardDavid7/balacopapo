@@ -16,6 +16,7 @@ import { PrivacySetting } from './PrivacySetting';
 import { ChannelTopicEditor } from './ChannelTopicEditor';
 import { VoiceAudioSettingsCard, type VoiceAudioSettingsPatch } from './VoiceAudioSettingsCard';
 import { LOCK_ICON } from '../ui/LockNote';
+import { Toggle } from '../ui/Toggle';
 import { CHANNEL_NAME_MAX_LENGTH, normalizeChannelName } from '@backspace/shared/src/constants';
 
 // ─── Permission Definitions for Channel Overrides ──────────────────────────────
@@ -55,6 +56,8 @@ function OverviewTab({
   channelMaxAudioBitrateKbps,
   channelAllowMusicMode,
   channelAllowStereoAudio,
+  channelRetainFiles,
+  spaceAllowsFileRetention,
   parentAudioPolicy,
   isPrivate,
   isFetching,
@@ -63,6 +66,7 @@ function OverviewTab({
   canManageChannels,
   canManageRoles,
   onTogglePrivate,
+  onToggleRetainFiles,
   onDeleteChannel,
   onRename,
   onSaveTopic,
@@ -76,6 +80,8 @@ function OverviewTab({
   channelMaxAudioBitrateKbps: number | null;
   channelAllowMusicMode: boolean | null;
   channelAllowStereoAudio: boolean | null;
+  channelRetainFiles: boolean;
+  spaceAllowsFileRetention: boolean;
   parentAudioPolicy: ResolvedAudioPolicy;
   isPrivate: boolean;
   isFetching: boolean;
@@ -84,6 +90,7 @@ function OverviewTab({
   canManageChannels: boolean;
   canManageRoles: boolean;
   onTogglePrivate: () => void;
+  onToggleRetainFiles: (retainFiles: boolean) => Promise<void>;
   onDeleteChannel: () => void;
   onRename: (name: string) => Promise<void>;
   onSaveTopic: (topic: string | null) => Promise<void>;
@@ -116,6 +123,25 @@ function OverviewTab({
           they offer to edit one, the same as the create dialog. */}
       {channelType === 'text' && (
         <ChannelTopicEditor key={channelId} topic={channelTopic} canEdit={canManageChannels} onSave={onSaveTopic} />
+      )}
+
+      {/* Text channels: per-channel file retention (only when instance authorized the group) */}
+      {channelType === 'text' && spaceAllowsFileRetention && canManageChannels && (
+        <div className="p-3 rounded-lg bg-surface-elevated border border-border-soft flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-txt-primary">
+              {t('spaces:channel.settings.retainFiles.title')}
+            </div>
+            <div className="text-xs text-txt-tertiary mt-0.5">
+              {t('spaces:channel.settings.retainFiles.description')}
+            </div>
+          </div>
+          <Toggle
+            enabled={channelRetainFiles}
+            onChange={(val) => { void onToggleRetainFiles(val); }}
+            ariaLabel={t('spaces:channel.settings.retainFiles.title')}
+          />
+        </div>
       )}
 
       {/* Voice channels: per-channel Opus bitrate & Music/Stereo policy */}
@@ -264,6 +290,15 @@ export function ChannelSettingsModal() {
     }
   };
 
+  const handleToggleRetainFiles = async (retainFiles: boolean): Promise<void> => {
+    setError('');
+    try {
+      await useSpaceStore.getState().updateChannel(channelId, { retainFiles });
+    } catch (err) {
+      setError(describeError(err));
+    }
+  };
+
   const parentCategory = channel.categoryId
     ? categories.find((c) => c.id === channel.categoryId)
     : undefined;
@@ -318,6 +353,8 @@ export function ChannelSettingsModal() {
                   channelMaxAudioBitrateKbps={channel.maxAudioBitrateKbps ?? null}
                   channelAllowMusicMode={channel.allowMusicMode ?? null}
                   channelAllowStereoAudio={channel.allowStereoAudio ?? null}
+                  channelRetainFiles={Boolean(channel.retainFiles)}
+                  spaceAllowsFileRetention={Boolean(space?.allowFileRetention)}
                   parentAudioPolicy={parentAudioPolicy}
                   isPrivate={isPrivate}
                   isFetching={isFetching}
@@ -326,6 +363,7 @@ export function ChannelSettingsModal() {
                   canManageChannels={canManageChannels}
                   canManageRoles={canManageRoles}
                   onTogglePrivate={handleToggle}
+                  onToggleRetainFiles={handleToggleRetainFiles}
                   onDeleteChannel={() => setShowDeleteConfirm(true)}
                   onRename={handleRenameChannel}
                   onSaveTopic={handleSaveTopic}
@@ -357,6 +395,8 @@ export function ChannelSettingsModal() {
             channelMaxAudioBitrateKbps={channel.maxAudioBitrateKbps ?? null}
             channelAllowMusicMode={channel.allowMusicMode ?? null}
             channelAllowStereoAudio={channel.allowStereoAudio ?? null}
+            channelRetainFiles={Boolean(channel.retainFiles)}
+            spaceAllowsFileRetention={Boolean(space?.allowFileRetention)}
             parentAudioPolicy={parentAudioPolicy}
             isPrivate={isPrivate}
             isFetching={isFetching}
@@ -365,6 +405,7 @@ export function ChannelSettingsModal() {
             canManageChannels={canManageChannels}
             canManageRoles={canManageRoles}
             onTogglePrivate={handleToggle}
+            onToggleRetainFiles={handleToggleRetainFiles}
             onDeleteChannel={() => setShowDeleteConfirm(true)}
             onRename={handleRenameChannel}
             onSaveTopic={handleSaveTopic}

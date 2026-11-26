@@ -128,6 +128,7 @@ export function fetchReplyToMessages(
       replyToId: rm.replyToId,
       content: rm.content,
       type: rm.type,
+      retainFiles: rm.retainFiles === 1,
       editedAt: rm.editedAt,
       createdAt: rm.createdAt,
       user: sanitizeUser(user),
@@ -203,6 +204,7 @@ export function buildMessageWithUser(
     replyToId: message.replyToId,
     content: message.content,
     type: message.type,
+    retainFiles: message.retainFiles === 1,
     editedAt: message.editedAt,
     createdAt: message.createdAt,
     ...storedMassMentionFields(message),
@@ -533,6 +535,69 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.code(200).send(messageWithUser);
+  });
+
+  // PATCH /api/messages/:id/retain - Toggle file retention on a message (MANAGE_MESSAGES, owner, or instance admin)
+  app.patch<{ Params: { id: string }; Body: { retainFiles?: boolean } }>('/api/messages/:id/retain', {
+    preHandler: authenticate,
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { retainFiles } = request.body ?? {};
+    if (typeof retainFiles !== 'boolean') {
+      return sendError(reply, 400, 'field_not_boolean', { field: 'retainFiles' });
+    }
+
+    const db = getDb();
+    const message = db.select().from(schema.messages).where(eq(schema.messages.id, id)).get();
+    if (!message) {
+      return sendError(reply, 404, 'message_not_found');
+    }
+
+    const channel = db.select().from(schema.channels).where(eq(schema.channels.id, message.channelId)).get();
+    if (!channel) {
+      return sendError(reply, 404, 'channel_not_found');
+    }
+
+    const space = db.select().from(schema.spaces).where(eq(schema.spaces.id, channel.spaceId)).get();
+    if (!space) {
+      return sendError(reply, 404, 'space_not_found');
+    }
+
+    const canManage = hasPermission(request.userId, channel.spaceId, PermissionBits.MANAGE_MESSAGES, channel.id)
+      || space.ownerId === request.userId;
+    if (!canManage) {
+      return sendError(reply, 403, 'missing_permission', { permission: 'MANAGE_MESSAGES' });
+    }
+
+    if (retainFiles && space.allowFileRetention !== 1) {
+      return reply.code(403).send({ error: 'File retention is not authorized for this group by the instance administrator.' });
+    }
+
+    db.update(schema.messages)
+      .set({ retainFiles: retainFiles ? 1 : 0 })
+      .where(eq(schema.messages.id, id))
+      .run();
+
+    const updated = db.select().from(schema.messages).where(eq(schema.messages.id, id)).get();
+    if (!updated) {
+      return sendError(reply, 404, 'message_not_found');
+    }
+    const user = db.select().from(schema.users).where(eq(schema.users.id, updated.userId)).get();
+    if (!user) {
+      return sendError(reply, 500, 'internal_error');
+    }
+    const attachmentRows = db.select().from(schema.attachments).where(eq(schema.attachments.messageId, id)).all();
+    const reactions = fetchReactionsForMessages([id]).get(id) ?? [];
+    const replyTo = updated.replyToId
+      ? (fetchReplyToMessages(updated.channelId, [updated]).get(updated.replyToId) ?? null)
+      : null;
+    const embeds = fetchEmbedsForMessages([id]).get(id) ?? [];
+    const enriched = buildMessageWithUser(updated, user, attachmentRows, reactions, replyTo, embeds);
+    connectionManager.sendToChannel(channel.spaceId, message.channelId, {
+      type: 'message_updated',
+      message: enriched,
+    });
+    return reply.code(200).send(enriched);
   });
 
   // DELETE /api/messages/:id - Delete a message (author or admin)

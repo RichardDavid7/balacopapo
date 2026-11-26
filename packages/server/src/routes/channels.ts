@@ -51,6 +51,7 @@ function rowToChannel(row: typeof schema.channels.$inferSelect): Channel {
     maxAudioBitrateKbps: row.maxAudioBitrateKbps ?? null,
     allowMusicMode: row.allowMusicMode === null || row.allowMusicMode === undefined ? null : row.allowMusicMode === 1,
     allowStereoAudio: row.allowStereoAudio === null || row.allowStereoAudio === undefined ? null : row.allowStereoAudio === 1,
+    retainFiles: row.retainFiles === 1,
     createdAt: row.createdAt,
   };
 }
@@ -423,7 +424,7 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
     preHandler: authenticate,
   }, async (request, reply) => {
     const { id } = request.params;
-    const { name, topic, position, categoryId, audioBitrateKbps, maxAudioBitrateKbps, allowMusicMode, allowStereoAudio } = request.body;
+    const { name, topic, position, categoryId, audioBitrateKbps, maxAudioBitrateKbps, allowMusicMode, allowStereoAudio, retainFiles } = request.body;
     const db = getDb();
 
     const channel = db.select().from(schema.channels).where(eq(schema.channels.id, id)).get();
@@ -534,6 +535,22 @@ export async function channelRoutes(app: FastifyInstance): Promise<void> {
       } else {
         updates.allowStereoAudio = allowStereoAudio ? 1 : 0;
       }
+    }
+
+    if (retainFiles !== undefined) {
+      if (typeof retainFiles !== 'boolean') {
+        return sendError(reply, 400, 'field_not_boolean', { field: 'retainFiles' });
+      }
+      if (retainFiles) {
+        const space = db.select({ allowFileRetention: schema.spaces.allowFileRetention })
+          .from(schema.spaces)
+          .where(eq(schema.spaces.id, spaceId))
+          .get();
+        if (!space || space.allowFileRetention !== 1) {
+          return reply.code(403).send({ error: 'File retention is not authorized for this group by the instance administrator.' });
+        }
+      }
+      updates.retainFiles = retainFiles ? 1 : 0;
     }
 
     // Keep channel default bitrate <= channel max bitrate when both are set

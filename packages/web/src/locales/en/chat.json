@@ -110,7 +110,9 @@
     "editMessage": "Edit Message",
     "deleteMessage": "Delete Message",
     "linkCopied": "Copied link",
-    "linkCopyFailed": "Failed to copy link"
+    "linkCopyFailed": "Failed to copy link",
+    "retainFiles": "Retain Files",
+    "unretainFiles": "Remove File Retention"
   },
   "attachment": {
     "progress": {

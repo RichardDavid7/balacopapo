@@ -405,7 +405,10 @@ export function cleanupOldMedia(maxAgeDays: number, dryRun: boolean): CleanupRes
     LEFT JOIN spaces s ON c.space_id = s.id
     WHERE (a.message_id IS NOT NULL OR a.dm_message_id IS NOT NULL)
       AND a.created_at < ?
-      AND NOT (s.allow_file_retention = 1 AND s.file_retention_enabled = 1)
+      AND NOT (
+        s.allow_file_retention = 1
+        AND (s.file_retention_enabled = 1 OR c.retain_files = 1 OR m.retain_files = 1)
+      )
   `).all(cutoff) as { id: string; filename: string; size: number }[];
 
   for (const att of oldMedia) {

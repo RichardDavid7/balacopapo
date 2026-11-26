@@ -121,6 +121,7 @@ export const channels = sqliteTable('channels', {
   maxAudioBitrateKbps: integer('max_audio_bitrate_kbps'),
   allowMusicMode: integer('allow_music_mode'),
   allowStereoAudio: integer('allow_stereo_audio'),
+  retainFiles: integer('retain_files').notNull().default(0),
   createdAt: integer('created_at').notNull(),
 }, (table) => ({
   spaceIdx: index('idx_channels_space_id').on(table.spaceId),
@@ -133,6 +134,7 @@ export const messages = sqliteTable('messages', {
   replyToId: text('reply_to_id'),
   content: text('content'),
   type: text('type', { enum: ['user', 'system'] }).notNull().default('user'),
+  retainFiles: integer('retain_files').notNull().default(0),
   editedAt: integer('edited_at'),
   createdAt: integer('created_at').notNull(),
 }, (table) => ({

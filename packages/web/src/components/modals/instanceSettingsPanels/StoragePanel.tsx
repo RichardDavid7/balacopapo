@@ -56,6 +56,8 @@ export function StoragePanel() {
   // Per-space file retention authorization (instance admin controls which spaces may enable retention)
   const [retentionSpaces, setRetentionSpaces] = useState<AdminSpaceRetentionItem[]>([]);
   const [retentionSavingId, setRetentionSavingId] = useState<string | null>(null);
+  const [confirmDeleteSpaceId, setConfirmDeleteSpaceId] = useState<string | null>(null);
+  const [deletingSpaceId, setDeletingSpaceId] = useState<string | null>(null);
 
   const fetchRetentionSpaces = useCallback(async () => {
     try {
@@ -70,12 +72,29 @@ export function StoragePanel() {
     setRetentionSavingId(item.id);
     try {
       const updated = await api.admin.spacesRetention.setAllowed(item.id, !item.allowFileRetention);
-      setRetentionSpaces((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setRetentionSpaces((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...s, allowFileRetention: updated.allowFileRetention, fileRetentionEnabled: updated.fileRetentionEnabled } : s)),
+      );
       addToast(t('common:states.settingsSaved'), 'success', 2000);
     } catch {
       addToast(t('common:states.saveFailed'), 'warning');
     } finally {
       setRetentionSavingId(null);
+    }
+  };
+
+  const handleDeleteSpace = async (item: AdminSpaceRetentionItem) => {
+    setDeletingSpaceId(item.id);
+    try {
+      await api.admin.spacesRetention.deleteSpace(item.id);
+      setRetentionSpaces((prev) => prev.filter((s) => s.id !== item.id));
+      setConfirmDeleteSpaceId(null);
+      addToast(t('admin:storage.retention.deletedSpace', { name: item.name }), 'success', 2500);
+      void fetchStats();
+    } catch {
+      addToast(t('admin:storage.retention.deleteSpaceFailed'), 'warning');
+    } finally {
+      setDeletingSpaceId(null);
     }
   };
 
@@ -511,32 +530,75 @@ export function StoragePanel() {
             <div className="text-xs text-txt-tertiary">{t('admin:storage.retention.empty')}</div>
           ) : (
             <div className="divide-y divide-border-soft border border-border-soft rounded-lg overflow-hidden bg-surface-elevated">
-              {retentionSpaces.map((sp) => (
-                <div key={sp.id} className="px-3 py-2.5 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-txt-primary truncate">{sp.name}</div>
-                    <div className="text-xs text-txt-tertiary">
-                      {!sp.allowFileRetention
-                        ? t('admin:storage.retention.notAuthorized')
-                        : sp.fileRetentionEnabled
-                          ? t('admin:storage.retention.activeInSpace')
-                          : t('admin:storage.retention.authorizedWaiting')}
+              {retentionSpaces.map((sp) => {
+                const isConfirming = confirmDeleteSpaceId === sp.id;
+                const isDeleting = deletingSpaceId === sp.id;
+                return (
+                  <div key={sp.id} className="px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium text-txt-primary truncate">{sp.name}</span>
+                        {typeof sp.memberCount === 'number' && (
+                          <span className="text-[11px] text-txt-tertiary shrink-0">
+                            {t('admin:storage.retention.memberCount', { total: sp.memberCount })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-txt-tertiary">
+                        {sp.ownerUsername ? `@${sp.ownerUsername} · ` : ''}
+                        {!sp.allowFileRetention
+                          ? t('admin:storage.retention.notAuthorized')
+                          : sp.fileRetentionEnabled
+                            ? t('admin:storage.retention.activeInSpace')
+                            : t('admin:storage.retention.authorizedWaiting')}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={retentionSavingId === sp.id || isDeleting}
+                        onClick={() => void handleToggleSpaceRetention(sp)}
+                        className={`px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50 ${
+                          sp.allowFileRetention
+                            ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
+                            : 'bg-surface-overlay text-txt-secondary hover:text-txt-primary border border-border-soft'
+                        }`}
+                      >
+                        {sp.allowFileRetention ? t('admin:storage.retention.revoke') : t('admin:storage.retention.authorize')}
+                      </button>
+                      {isConfirming ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() => void handleDeleteSpace(sp)}
+                            className="px-2.5 py-1 rounded text-xs font-semibold bg-accent-rose text-white hover:bg-accent-rose/85 transition-colors disabled:opacity-50"
+                          >
+                            {t('common:actions.confirm')}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() => setConfirmDeleteSpaceId(null)}
+                            className="px-2 py-1 rounded text-xs text-txt-secondary hover:text-txt-primary"
+                          >
+                            {t('common:actions.cancel')}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={() => setConfirmDeleteSpaceId(sp.id)}
+                          className="px-2.5 py-1 rounded text-xs font-medium bg-accent-rose/10 text-accent-rose hover:bg-accent-rose/20 transition-colors disabled:opacity-50"
+                        >
+                          {t('common:actions.delete')}
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={retentionSavingId === sp.id}
-                    onClick={() => void handleToggleSpaceRetention(sp)}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors shrink-0 disabled:opacity-50 ${
-                      sp.allowFileRetention
-                        ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
-                        : 'bg-surface-overlay text-txt-secondary hover:text-txt-primary border border-border-soft'
-                    }`}
-                  >
-                    {sp.allowFileRetention ? t('admin:storage.retention.revoke') : t('admin:storage.retention.authorize')}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

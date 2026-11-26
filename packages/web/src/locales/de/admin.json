@@ -305,7 +305,10 @@
       "authorizedWaiting": "Erlaubt · in der Gruppe noch nicht aktiviert",
       "activeInSpace": "Erlaubt · Aufbewahrung in der Gruppe aktiv",
       "authorize": "Erlauben",
-      "revoke": "Entziehen"
+      "revoke": "Entziehen",
+      "memberCount": "{{total}} Mitglieder",
+      "deletedSpace": "Gruppe \"{{name}}\" gelöscht",
+      "deleteSpaceFailed": "Gruppe konnte nicht gelöscht werden"
     }
   },
   "streaming": {

@@ -94,6 +94,10 @@
           "disabledByInstance": "Stereo-Audio ist in den Instanzeinstellungen deaktiviert.",
           "disabledByParent": "Stereo-Audio ist auf einer übergeordneten Ebene (Instanz, Space oder Kategorie) deaktiviert."
         }
+      },
+      "retainFiles": {
+        "title": "Dateien in diesem Kanal behalten",
+        "description": "Schützt Dateien in diesem Textkanal vor der automatischen Medienbereinigung der Instanz (ideal für Anleitungen)."
       }
     },
     "delete": {

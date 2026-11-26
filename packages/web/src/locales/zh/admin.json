@@ -291,7 +291,10 @@
       "authorizedWaiting": "已授权 · 群组尚未启用",
       "activeInSpace": "已授权 · 群组已启用文件保留",
       "authorize": "授权",
-      "revoke": "撤销"
+      "revoke": "撤销",
+      "memberCount": "{{total}} 位成员",
+      "deletedSpace": "已删除群组「{{name}}」",
+      "deleteSpaceFailed": "删除群组失败"
     }
   },
   "streaming": {

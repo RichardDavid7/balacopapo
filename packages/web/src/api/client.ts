@@ -318,6 +318,7 @@ export class BackspaceApiClient {
   readonly messages: {
     update: (id: string, data: UpdateMessageRequest) => Promise<MessageWithUser>;
     delete: (id: string) => Promise<{ success: boolean }>;
+    setRetainFiles: (id: string, retainFiles: boolean) => Promise<MessageWithUser>;
   };
 
   readonly uploads: {
@@ -473,6 +474,7 @@ export class BackspaceApiClient {
     spacesRetention: {
       list: () => Promise<{ spaces: AdminSpaceRetentionItem[] }>;
       setAllowed: (spaceId: string, allowFileRetention: boolean) => Promise<AdminSpaceRetentionItem>;
+      deleteSpace: (spaceId: string) => Promise<{ success: boolean }>;
     };
   };
 
@@ -811,6 +813,8 @@ export class BackspaceApiClient {
     this.messages = {
       update: (id: string, data: UpdateMessageRequest) => request<MessageWithUser>('PATCH', `/messages/${id}`, data),
       delete: (id: string) => request<{ success: boolean }>('DELETE', `/messages/${id}`),
+      setRetainFiles: (id: string, retainFiles: boolean) =>
+        request<MessageWithUser>('PATCH', `/messages/${id}/retain`, { retainFiles }),
     };
 
     this.uploads = {
@@ -1142,6 +1146,8 @@ export class BackspaceApiClient {
         list: () => request<{ spaces: AdminSpaceRetentionItem[] }>('GET', '/admin/spaces/retention'),
         setAllowed: (spaceId: string, allowFileRetention: boolean) =>
           request<AdminSpaceRetentionItem>('PATCH', `/admin/spaces/${encodeURIComponent(spaceId)}/retention`, { allowFileRetention }),
+        deleteSpace: (spaceId: string) =>
+          request<{ success: boolean }>('DELETE', `/admin/spaces/${encodeURIComponent(spaceId)}`),
       },
     };
   }

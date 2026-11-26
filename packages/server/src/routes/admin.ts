@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
-import { eq, like, or, and, ne, sql, isNull, isNotNull, gte, lte, asc, desc } from 'drizzle-orm';
+import { eq, like, or, and, ne, sql, isNull, isNotNull, gte, lte, asc, desc, inArray } from 'drizzle-orm';
 import { authenticate, requireAdmin, hashPassword } from '../utils/auth.js';
 import { getStorageStats, getOrphanedFiles, cleanupStorage, cleanupOldMedia, cleanupStaleTusSessions } from '../utils/storageJanitor.js';
-import { getDb, schema } from '../db/index.js';
+import { getDb, getRawDb, schema } from '../db/index.js';
 import { connectionManager } from '../ws/handler.js';
 import { checkVoicePermissions } from '../ws/events.js';
 import { tombstoneUser, collectDeletionBroadcastTargets } from '../utils/userDeletion.js';
-import { deleteUploadFile } from '../utils/fileCleanup.js';
+import { deleteUploadFile, deleteAttachmentFiles } from '../utils/fileCleanup.js';
+import { markDirectoryDirty } from '../directory/state.js';
 import { sanitizeUser } from '../utils/sanitize.js';
 import { sendError, ERROR_MESSAGES } from '../utils/httpErrors.js';
 import type { AdminUser, AdminUserListResponse, AdminResetPasswordResponse, Space } from '@backspace/shared';
@@ -431,12 +432,32 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const rows = db.select({
       id: schema.spaces.id,
       name: schema.spaces.name,
+      ownerId: schema.spaces.ownerId,
       allowFileRetention: schema.spaces.allowFileRetention,
       fileRetentionEnabled: schema.spaces.fileRetentionEnabled,
+      createdAt: schema.spaces.createdAt,
     })
       .from(schema.spaces)
       .orderBy(asc(schema.spaces.name))
       .all();
+
+    const memberCounts = db.select({
+      spaceId: schema.spaceMembers.spaceId,
+      count: sql<number>`count(*)`,
+    })
+      .from(schema.spaceMembers)
+      .groupBy(schema.spaceMembers.spaceId)
+      .all();
+    const countMap = new Map(memberCounts.map((m) => [m.spaceId, Number(m.count)]));
+
+    const ownerIds = Array.from(new Set(rows.map((r) => r.ownerId).filter(Boolean)));
+    const owners = ownerIds.length > 0
+      ? db.select({ id: schema.users.id, username: schema.users.username })
+        .from(schema.users)
+        .where(inArray(schema.users.id, ownerIds))
+        .all()
+      : [];
+    const ownerMap = new Map(owners.map((o) => [o.id, o.username]));
 
     return reply.code(200).send({
       spaces: rows.map((r) => ({
@@ -444,9 +465,70 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         name: r.name,
         allowFileRetention: r.allowFileRetention === 1,
         fileRetentionEnabled: r.fileRetentionEnabled === 1,
+        memberCount: countMap.get(r.id) ?? 0,
+        ownerUsername: ownerMap.get(r.ownerId) ?? null,
+        createdAt: r.createdAt,
       })),
     });
   });
+
+  app.delete<{ Params: { spaceId: string } }>(
+    '/api/admin/spaces/:spaceId',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const { spaceId } = request.params;
+      const db = getDb();
+
+      const space = db.select().from(schema.spaces).where(eq(schema.spaces.id, spaceId)).get();
+      if (!space) {
+        return sendError(reply, 404, 'space_not_found');
+      }
+
+      const channelIds = db.select({ id: schema.channels.id })
+        .from(schema.channels)
+        .where(eq(schema.channels.spaceId, spaceId))
+        .all()
+        .map((c) => c.id);
+
+      let attachmentRows: { filename: string }[] = [];
+      if (channelIds.length > 0) {
+        const messageIds = db.select({ id: schema.messages.id })
+          .from(schema.messages)
+          .where(inArray(schema.messages.channelId, channelIds))
+          .all()
+          .map((m) => m.id);
+        if (messageIds.length > 0) {
+          attachmentRows = db.select({ filename: schema.attachments.filename })
+            .from(schema.attachments)
+            .where(inArray(schema.attachments.messageId, messageIds))
+            .all();
+        }
+      }
+
+      const spaceIcon = space.icon;
+      const spaceBanner = space.banner;
+
+      db.transaction((tx) => {
+        if (channelIds.length > 0) {
+          tx.delete(schema.readStates).where(inArray(schema.readStates.channelId, channelIds)).run();
+        }
+        tx.delete(schema.channels).where(eq(schema.channels.spaceId, spaceId)).run();
+        tx.delete(schema.spaceMembers).where(eq(schema.spaceMembers.spaceId, spaceId)).run();
+        tx.delete(schema.spaceFolderMembers).where(eq(schema.spaceFolderMembers.spaceId, spaceId)).run();
+        tx.delete(schema.spaces).where(eq(schema.spaces.id, spaceId)).run();
+      });
+
+      if (space.directoryListed === 1) {
+        markDirectoryDirty(getRawDb());
+      }
+
+      deleteAttachmentFiles(attachmentRows);
+      if (spaceIcon && !spaceIcon.startsWith('http')) deleteUploadFile(spaceIcon);
+      if (spaceBanner && !spaceBanner.startsWith('http')) deleteUploadFile(spaceBanner);
+
+      return reply.code(200).send({ success: true });
+    },
+  );
 
   app.patch<{ Params: { spaceId: string }; Body: { allowFileRetention?: boolean } }>(
     '/api/admin/spaces/:spaceId/retention',

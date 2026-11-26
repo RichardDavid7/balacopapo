@@ -94,6 +94,10 @@
           "disabledByInstance": "实例设置中已禁用立体声音频。",
           "disabledByParent": "立体声音频已被更高层级（实例、空间或分类）禁用。"
         }
+      },
+      "retainFiles": {
+        "title": "保留频道文件",
+        "description": "保护此文字频道中上传的文件免受实例自动媒体清理（适合教程和指南）。"
       }
     },
     "delete": {

@@ -116,7 +116,9 @@
     "editMessage": "Изменить сообщение",
     "deleteMessage": "Удалить сообщение",
     "linkCopied": "Ссылка скопирована",
-    "linkCopyFailed": "Не удалось скопировать ссылку"
+    "linkCopyFailed": "Не удалось скопировать ссылку",
+    "retainFiles": "Сохранять файлы",
+    "unretainFiles": "Отменить сохранение файлов"
   },
   "attachment": {
     "progress": {

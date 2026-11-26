@@ -94,6 +94,10 @@
           "disabledByInstance": "Stereo audio is disabled in the instance settings.",
           "disabledByParent": "Stereo audio is disabled by a higher level (instance, space, or category)."
         }
+      },
+      "retainFiles": {
+        "title": "Retain Channel Files",
+        "description": "Protect files uploaded in this text channel from automatic instance media cleanup (ideal for tutorials and guides)."
       }
     },
     "delete": {

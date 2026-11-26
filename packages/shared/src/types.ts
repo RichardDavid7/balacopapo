@@ -327,6 +327,8 @@ export interface Channel {
   position: number;
   categoryId: string | null;
   isPrivate?: boolean;
+  /** When true (and space has allowFileRetention), attachments in this channel are protected from auto-cleanup. */
+  retainFiles?: boolean;
   createdAt: number;
   lastMessageId?: string | null;
   myPermissions?: string; // Computed per-user BigInt decimal string
@@ -502,6 +504,8 @@ export interface Message {
   replyToId: string | null;
   content: string | null;
   type?: 'user' | 'system';
+  /** When true (and space has allowFileRetention), this message's attachments are protected from auto-cleanup. */
+  retainFiles?: boolean;
   editedAt: number | null;
   createdAt: number;
   /**
@@ -924,6 +928,8 @@ export interface UpdateChannelRequest {
   allowMusicMode?: boolean | null;
   /** Voice channels: `null` inherits instance stereo policy. */
   allowStereoAudio?: boolean | null;
+  /** Text channels: protect attachments from auto-cleanup when space has allowFileRetention. */
+  retainFiles?: boolean;
 }
 
 export interface UpdateCategoryRequest {
@@ -1422,6 +1428,9 @@ export interface AdminSpaceRetentionItem {
   name: string;
   allowFileRetention: boolean;
   fileRetentionEnabled: boolean;
+  memberCount?: number;
+  ownerUsername?: string | null;
+  createdAt?: number;
 }
 
 export interface AdminIpBan {

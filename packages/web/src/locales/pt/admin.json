@@ -319,7 +319,10 @@
       "authorizedWaiting": "Autorizado · aguardando ativação no grupo",
       "activeInSpace": "Autorizado · retenção ativa no grupo",
       "authorize": "Autorizar",
-      "revoke": "Revogar"
+      "revoke": "Revogar",
+      "memberCount": "{{total}} membros",
+      "deletedSpace": "Grupo \"{{name}}\" excluído",
+      "deleteSpaceFailed": "Falha ao excluir grupo"
     }
   },
   "streaming": {
