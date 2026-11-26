@@ -11,7 +11,7 @@ name = "balacopapo-desktop"
 path = "src/main.rs"
 
 [dependencies]
-iced = { version = "0.13", features = ["tokio", "wgpu", "svg", "image", "advanced"] }
+iced = { version = "0.13", features = ["tokio", "wgpu", "svg", "image", "canvas", "advanced"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 futures-util = "0.3"
@@ -21,6 +21,10 @@ serde_json = "1"
 url = "2"
 directories = "5"
 open = "5"
+cpal = "0.15"
+rtrb = "0.3"
+nnnoiseless = "0.5"
+hound = "3.5"
 
 [profile.release]
 panic = "abort"

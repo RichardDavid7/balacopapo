@@ -144,6 +144,28 @@ impl ChatMessage {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveKitTokenResponse {
+    pub token: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoundboardSound {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub emoji: Option<String>,
+    #[serde(default)]
+    pub folder: Option<String>,
+    #[serde(default)]
+    pub file_url: String,
+    #[serde(default)]
+    pub duration_ms: Option<u32>,
+}
+
 #[derive(Debug, Clone)]
 pub enum WsEvent {
     Connected,

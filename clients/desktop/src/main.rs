@@ -3,6 +3,7 @@
 mod app;
 mod core;
 mod features;
+mod media;
 mod net;
 mod os;
 mod ui;

@@ -35,6 +35,9 @@ Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia
 | Design System **Aether Drift** (`Iced` styles + tokens) | `src/ui/aether_drift.rs` |
 | Tela de login / instância / OIDC | `src/features/auth/mod.rs` (+ `MODULE.md`) |
 | Chat ao vivo (histórico paginado, envio, exclusão, filtro) | `src/features/chat/mod.rs` (+ `MODULE.md`) |
+| Painel de Voz nativo (dispositivos, RNNoise, loopback, Opus, Jitter) | `src/features/voice/mod.rs` (+ `MODULE.md`) |
+| Soundboard & Editor WAV em Canvas GPU | `src/features/soundboard/mod.rs` (+ `MODULE.md`) |
+| Motor de áudio lock-free (`cpal` + `rtrb` + `nnnoiseless`) e WAV DSP | `src/media/audio_engine.rs`, `src/media/wav_dsp.rs` |
 | Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |
 | Guardião automático de paridade (`PermissionBits`) | `../../scripts/check-desktop-parity.mjs` |
 | CI automático Windows + Linux | `../../.github/workflows/desktop-native-ci.yml` |

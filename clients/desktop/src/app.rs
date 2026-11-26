@@ -1,13 +1,19 @@
 use iced::{Element, Subscription, Task, Theme};
+use std::sync::atomic::Ordering;
 
 use crate::core::config::{normalize_instance_url, AppConfig};
 use crate::core::deep_link::{parse_deep_link, DeepLinkTarget};
 use crate::core::models::{
-    AuthUser, ChatMessage, GroupSummary, InstanceInfo, LoginResponse, PresenceStatus, WsEvent,
+    AuthUser, ChatMessage, GroupSummary, InstanceInfo, LiveKitTokenResponse, LoginResponse,
+    PresenceStatus, SoundboardSound, WsEvent,
 };
 use crate::features::auth::{self, AuthMessage, AuthState};
 use crate::features::chat::ChatMessageAction;
 use crate::features::shell::{self, ShellMessage, ShellState};
+use crate::features::soundboard::SoundboardAction;
+use crate::features::voice::VoiceAction;
+use crate::media::audio_engine::{self, ActiveLoopback, AudioParams};
+use crate::media::wav_dsp::{quadratic_gain, WavClip};
 use crate::net::client::ApiClient;
 use crate::net::ws;
 use crate::os::updater::{self, UpdateCheckState};
@@ -22,6 +28,8 @@ pub struct BalacopapoApp {
     config: AppConfig,
     screen: Screen,
     update_state: UpdateCheckState,
+    audio_params: AudioParams,
+    active_loopback: Option<ActiveLoopback>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +53,16 @@ pub enum Message {
         result: Result<(), String>,
     },
     StatusUpdated(Result<PresenceStatus, String>),
+    VoiceTokenReceived {
+        channel_id: String,
+        channel_name: String,
+        result: Result<LiveKitTokenResponse, String>,
+    },
+    SoundboardLoaded(Result<Vec<SoundboardSound>, String>),
+    SoundboardClipFetched {
+        name: String,
+        result: Result<Vec<u8>, String>,
+    },
     UpdateChecked(UpdateCheckState),
 }
 
@@ -53,7 +71,6 @@ impl BalacopapoApp {
         let mut config = AppConfig::load();
         let raw_args: Vec<String> = std::env::args().collect();
 
-        // Suporte cold-start para `balacopapo://auth/callback?token=...`
         let mut initial_note: Option<String> = None;
         for arg in &raw_args {
             if let Some(target) = parse_deep_link(arg) {
@@ -103,6 +120,8 @@ impl BalacopapoApp {
             config,
             screen: Screen::Auth(auth_state),
             update_state: UpdateCheckState::Checking,
+            audio_params: AudioParams::default(),
+            active_loopback: None,
         };
 
         (app, Task::batch(tasks))
@@ -119,7 +138,6 @@ impl BalacopapoApp {
         aether_drift::theme()
     }
 
-    /// 100% Event-Driven: só mantém o socket WS ativo quando autenticado (zero polling).
     pub fn subscription(&self) -> Subscription<Message> {
         match &self.screen {
             Screen::Auth(_) => Subscription::none(),
@@ -306,6 +324,66 @@ impl BalacopapoApp {
                 }
                 Task::none()
             }
+            Message::VoiceTokenReceived {
+                channel_id,
+                channel_name,
+                result,
+            } => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.voice.connecting = false;
+                    match result {
+                        Ok(resp) => {
+                            shell.voice.error = None;
+                            shell.voice.connected_channel_id = Some(channel_id);
+                            shell.voice.connected_channel_name = Some(channel_name);
+                            shell.voice.livekit_url = Some(resp.url);
+                        }
+                        Err(err) => {
+                            shell.voice.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::SoundboardLoaded(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.soundboard.loading = false;
+                    match result {
+                        Ok(sounds) => {
+                            shell.soundboard.error = None;
+                            shell.soundboard.sounds = sounds;
+                        }
+                        Err(err) => {
+                            shell.soundboard.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::SoundboardClipFetched { name, result } => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(bytes) => match WavClip::from_wav_bytes(&bytes) {
+                            Ok(clip) => {
+                                let gain = quadratic_gain(shell.soundboard.volume_pct);
+                                let out = shell.voice.selected_output.clone();
+                                audio_engine::play_clip_once(clip.samples.clone(), gain, out);
+                                shell.soundboard.load_clip_into_editor(clip, name);
+                                shell.soundboard.error = None;
+                            }
+                            Err(err) => {
+                                shell.soundboard.error = Some(format!(
+                                    "Som '{name}' baixado, mas formato não-WAV ({err})."
+                                ));
+                            }
+                        },
+                        Err(err) => {
+                            shell.soundboard.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
             Message::UpdateChecked(status) => {
                 self.update_state = status;
                 Task::none()
@@ -354,7 +432,8 @@ impl BalacopapoApp {
                 Task::none()
             }
             WsEvent::MessageCreated(msg) => {
-                let is_active = shell.selected_channel_id.as_deref() == Some(msg.channel_id.as_str());
+                let is_active =
+                    shell.selected_channel_id.as_deref() == Some(msg.channel_id.as_str());
                 if !is_active {
                     *shell.unread_counts.entry(msg.channel_id.clone()).or_insert(0) += 1;
                 }
@@ -482,10 +561,12 @@ impl BalacopapoApp {
             ShellMessage::SelectGroup(id) => {
                 shell.selected_group_id = Some(id);
                 shell.selected_channel_id = None;
+                shell.soundboard_open = false;
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
                 shell.selected_channel_id = Some(channel_id.clone());
+                shell.soundboard_open = false;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
@@ -515,6 +596,17 @@ impl BalacopapoApp {
                 shell.status_picker_open = !shell.status_picker_open;
                 Task::none()
             }
+            ShellMessage::ToggleSoundboard => {
+                shell.soundboard_open = !shell.soundboard_open;
+                if shell.soundboard_open && shell.soundboard.sounds.is_empty() {
+                    shell.soundboard.loading = true;
+                    let url = shell.instance_url.clone();
+                    let token = self.config.auth_token.clone().unwrap_or_default();
+                    let space_id = shell.selected_group_id.clone();
+                    return Self::load_soundboard_task(url, token, space_id);
+                }
+                Task::none()
+            }
             ShellMessage::SetStatus(status) => {
                 shell.status_picker_open = false;
                 shell.presence = status;
@@ -530,11 +622,14 @@ impl BalacopapoApp {
                 )
             }
             ShellMessage::Chat(action) => self.handle_chat_action(action),
+            ShellMessage::Voice(action) => self.handle_voice_action(action),
+            ShellMessage::Soundboard(action) => self.handle_soundboard_action(action),
             ShellMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
                 Task::none()
             }
             ShellMessage::Logout => {
+                self.active_loopback = None;
                 self.config.auth_token = None;
                 let _ = self.config.save();
                 self.screen = Screen::Auth(AuthState::new(self.config.instance_url.clone()));
@@ -611,6 +706,197 @@ impl BalacopapoApp {
         }
     }
 
+    fn handle_voice_action(&mut self, action: VoiceAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            VoiceAction::JoinChannel { channel_id, name } => {
+                shell.voice.connecting = true;
+                shell.voice.error = None;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let result = match ApiClient::new(url, Some(token)) {
+                            Ok(client) => client.request_livekit_token(&channel_id).await,
+                            Err(err) => Err(err),
+                        };
+                        Message::VoiceTokenReceived {
+                            channel_id,
+                            channel_name: name,
+                            result,
+                        }
+                    },
+                    std::convert::identity,
+                )
+            }
+            VoiceAction::LeaveChannel => {
+                self.active_loopback = None;
+                shell.voice.connected_channel_id = None;
+                shell.voice.connected_channel_name = None;
+                shell.voice.livekit_url = None;
+                shell.voice.loopback_active = false;
+                shell.voice.loopback_sample_rate = None;
+                Task::none()
+            }
+            VoiceAction::ToggleMute => {
+                shell.voice.muted = !shell.voice.muted;
+                self.audio_params
+                    .muted
+                    .store(shell.voice.muted, Ordering::Relaxed);
+                Task::none()
+            }
+            VoiceAction::ToggleDeafen => {
+                shell.voice.deafened = !shell.voice.deafened;
+                self.audio_params
+                    .deafened
+                    .store(shell.voice.deafened, Ordering::Relaxed);
+                Task::none()
+            }
+            VoiceAction::ToggleRnnoise => {
+                shell.voice.rnnoise_enabled = !shell.voice.rnnoise_enabled;
+                self.audio_params
+                    .rnnoise_enabled
+                    .store(shell.voice.rnnoise_enabled, Ordering::Relaxed);
+                Task::none()
+            }
+            VoiceAction::ToggleLoopback => {
+                if self.active_loopback.is_some() {
+                    self.active_loopback = None;
+                    shell.voice.loopback_active = false;
+                    shell.voice.loopback_sample_rate = None;
+                } else {
+                    match audio_engine::start_mic_loopback(
+                        shell.voice.selected_input.as_deref(),
+                        shell.voice.selected_output.as_deref(),
+                        self.audio_params.clone(),
+                    ) {
+                        Ok(active) => {
+                            shell.voice.loopback_sample_rate = Some(active.sample_rate);
+                            shell.voice.loopback_active = true;
+                            shell.voice.error = None;
+                            self.active_loopback = Some(active);
+                        }
+                        Err(err) => {
+                            shell.voice.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            VoiceAction::RefreshDevices => {
+                shell.voice.input_devices = audio_engine::list_input_devices();
+                shell.voice.output_devices = audio_engine::list_output_devices();
+                Task::none()
+            }
+            VoiceAction::SelectInput(dev) => {
+                shell.voice.selected_input = Some(dev);
+                Task::none()
+            }
+            VoiceAction::SelectOutput(dev) => {
+                shell.voice.selected_output = Some(dev);
+                Task::none()
+            }
+            VoiceAction::MicGainChanged(pct) => {
+                shell.voice.mic_gain_pct = pct;
+                self.audio_params.set_mic_gain(pct / 100.0);
+                Task::none()
+            }
+            VoiceAction::VadThresholdChanged(db) => {
+                shell.voice.vad_threshold_db = db;
+                self.audio_params.set_vad_threshold_db(db);
+                Task::none()
+            }
+            VoiceAction::JitterBufferChanged(ms) => {
+                shell.voice.jitter_buffer_ms = ms;
+                Task::none()
+            }
+            VoiceAction::ToggleOpusMode => {
+                shell.voice.opus_music_mode = !shell.voice.opus_music_mode;
+                Task::none()
+            }
+            VoiceAction::ToggleOpusStereo => {
+                shell.voice.opus_stereo = !shell.voice.opus_stereo;
+                Task::none()
+            }
+            VoiceAction::OpusBitrateChanged(kbps) => {
+                shell.voice.opus_bitrate_kbps = kbps;
+                Task::none()
+            }
+        }
+    }
+
+    fn handle_soundboard_action(&mut self, action: SoundboardAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            SoundboardAction::Refresh => {
+                shell.soundboard.loading = true;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                let space_id = shell.selected_group_id.clone();
+                Self::load_soundboard_task(url, token, space_id)
+            }
+            SoundboardAction::SearchChanged(v) => {
+                shell.soundboard.search = v;
+                Task::none()
+            }
+            SoundboardAction::VolumeChanged(v) => {
+                shell.soundboard.volume_pct = v;
+                Task::none()
+            }
+            SoundboardAction::PreviewServerSound { name, file_url } => {
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let result = match ApiClient::new(url, Some(token)) {
+                            Ok(client) => client.fetch_audio_bytes(&file_url).await,
+                            Err(err) => Err(err),
+                        };
+                        Message::SoundboardClipFetched { name, result }
+                    },
+                    std::convert::identity,
+                )
+            }
+            SoundboardAction::TrimStartChanged(v) => {
+                let max_start = (shell.soundboard.trim_end - 0.05).max(0.0);
+                shell.soundboard.trim_start = v.clamp(0.0, max_start);
+                Task::none()
+            }
+            SoundboardAction::TrimEndChanged(v) => {
+                let min_end = (shell.soundboard.trim_start + 0.05).min(1.0);
+                shell.soundboard.trim_end = v.clamp(min_end, 1.0);
+                Task::none()
+            }
+            SoundboardAction::NormalizeActiveRms => {
+                shell.soundboard.normalize_editor_clip();
+                Task::none()
+            }
+            SoundboardAction::PreviewEditorClip => {
+                let trimmed = shell
+                    .soundboard
+                    .editor_clip
+                    .trimmed(shell.soundboard.trim_start, shell.soundboard.trim_end);
+                let gain = quadratic_gain(shell.soundboard.volume_pct);
+                let out = shell.voice.selected_output.clone();
+                audio_engine::play_clip_once(trimmed.samples, gain, out);
+                shell.soundboard.status_note = Some("Reproduzindo prévia recortada...".to_string());
+                Task::none()
+            }
+            SoundboardAction::LoadDemoClip => {
+                shell
+                    .soundboard
+                    .load_clip_into_editor(WavClip::demo_chime(), "Clipe Demo".to_string());
+                Task::none()
+            }
+        }
+    }
+
     fn load_groups_task(url: String, token: String) -> Task<Message> {
         Task::perform(
             async move {
@@ -641,6 +927,20 @@ impl BalacopapoApp {
                 }
             },
             std::convert::identity,
+        )
+    }
+
+    fn load_soundboard_task(
+        url: String,
+        token: String,
+        space_id: Option<String>,
+    ) -> Task<Message> {
+        Task::perform(
+            async move {
+                let client = ApiClient::new(url, Some(token))?;
+                client.fetch_soundboard(space_id.as_deref()).await
+            },
+            Message::SoundboardLoaded,
         )
     }
 }

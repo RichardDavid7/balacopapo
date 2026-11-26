@@ -4,7 +4,8 @@ use serde_json::json;
 use std::time::Duration;
 
 use crate::core::models::{
-    AuthUser, ChatMessage, GroupSummary, InstanceInfo, LoginResponse, PresenceStatus,
+    AuthUser, ChatMessage, GroupSummary, InstanceInfo, LiveKitTokenResponse, LoginResponse,
+    PresenceStatus, SoundboardSound,
 };
 
 #[derive(Clone)]
@@ -245,6 +246,102 @@ impl ApiClient {
             ));
         }
         Ok(())
+    }
+
+    pub async fn request_livekit_token(
+        &self,
+        channel_id: &str,
+    ) -> Result<LiveKitTokenResponse, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/livekit/token", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "channelId": channel_id }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao solicitar token de voz: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Servidor negou acesso de voz (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<LiveKitTokenResponse>()
+            .await
+            .map_err(|e| format!("Erro ao interpretar token LiveKit: {e}"))
+    }
+
+    pub async fn fetch_soundboard(
+        &self,
+        space_id: Option<&str>,
+    ) -> Result<Vec<SoundboardSound>, String> {
+        let token = self.require_token()?;
+        let mut url = format!("{}/api/soundboard", self.base_url);
+        if let Some(sid) = space_id {
+            url.push_str(&format!("?spaceId={sid}"));
+        }
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao carregar Soundboard: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao listar Soundboard (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        let val: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("Erro ao ler Soundboard: {e}"))?;
+
+        if let Some(arr) = val.get("sounds") {
+            serde_json::from_value(arr.clone())
+                .map_err(|e| format!("Erro ao interpretar sons: {e}"))
+        } else {
+            serde_json::from_value(val).map_err(|e| format!("Erro ao interpretar sons: {e}"))
+        }
+    }
+
+    pub async fn fetch_audio_bytes(&self, relative_or_abs_url: &str) -> Result<Vec<u8>, String> {
+        let token = self.require_token()?;
+        let url = if relative_or_abs_url.starts_with("http://")
+            || relative_or_abs_url.starts_with("https://")
+        {
+            relative_or_abs_url.to_string()
+        } else {
+            format!(
+                "{}/{}",
+                self.base_url,
+                relative_or_abs_url.trim_start_matches('/')
+            )
+        };
+
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao baixar áudio: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("Falha ao baixar áudio (HTTP {})", resp.status().as_u16()));
+        }
+
+        resp.bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| format!("Erro ao ler bytes de áudio: {e}"))
     }
 
     fn require_token(&self) -> Result<&str, String> {

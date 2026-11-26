@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use crate::core::models::{AuthUser, GroupSummary, PresenceStatus};
 use crate::features::chat::{self, ChatMessageAction, ChatState};
+use crate::features::soundboard::{self, SoundboardAction, SoundboardState};
+use crate::features::voice::{self, VoiceAction, VoiceState};
 use crate::os::updater::UpdateCheckState;
 use crate::ui::aether_drift;
 
@@ -13,6 +15,7 @@ pub struct ShellState {
     pub user: AuthUser,
     pub presence: PresenceStatus,
     pub status_picker_open: bool,
+    pub soundboard_open: bool,
     pub ws_connected: bool,
     pub ws_status_label: String,
     pub groups: Vec<GroupSummary>,
@@ -20,6 +23,8 @@ pub struct ShellState {
     pub selected_group_id: Option<String>,
     pub selected_channel_id: Option<String>,
     pub chat: ChatState,
+    pub voice: VoiceState,
+    pub soundboard: SoundboardState,
     pub loading_groups: bool,
     pub error: Option<String>,
 }
@@ -32,6 +37,7 @@ impl ShellState {
             user,
             presence,
             status_picker_open: false,
+            soundboard_open: false,
             ws_connected: false,
             ws_status_label: "Conectando WS...".to_string(),
             groups: Vec::new(),
@@ -39,6 +45,8 @@ impl ShellState {
             selected_group_id: None,
             selected_channel_id: None,
             chat: ChatState::default(),
+            voice: VoiceState::default(),
+            soundboard: SoundboardState::default(),
             loading_groups: true,
             error: None,
         }
@@ -51,8 +59,11 @@ pub enum ShellMessage {
     SelectChannel(String),
     RefreshGroups,
     ToggleStatusPicker,
+    ToggleSoundboard,
     SetStatus(PresenceStatus),
     Chat(ChatMessageAction),
+    Voice(VoiceAction),
+    Soundboard(SoundboardAction),
     OpenReleasePage(String),
     Logout,
 }
@@ -119,11 +130,9 @@ pub fn view<'a>(
                     .color(aether_drift::TEXT_MUTED),
             );
         } else {
-            // Canais sem categoria primeiro
             for ch in group.channels.iter().filter(|c| c.category_id.is_none()) {
                 channel_list = channel_list.push(channel_button(state, ch));
             }
-            // Canais agrupados por categoria
             let mut categories = group.categories.clone();
             categories.sort_by_key(|c| c.position);
             for cat in &categories {
@@ -146,6 +155,41 @@ pub fn view<'a>(
                 }
             }
         }
+    }
+
+    let mut sidebar_col = column![
+        scrollable(group_list).height(Length::FillPortion(1)),
+        scrollable(channel_list).height(Length::FillPortion(2)),
+    ]
+    .spacing(10);
+
+    // Barra compacta de voz conectada / teste de loopback
+    if state.voice.connected_channel_id.is_some() || state.voice.loopback_active {
+        let label = state
+            .voice
+            .connected_channel_name
+            .as_deref()
+            .map(|n| format!("🔊 {n}"))
+            .unwrap_or_else(|| "🎙 Loopback de Mic ativo".to_string());
+        let voice_bar = container(
+            row![
+                text(label).size(12).color(aether_drift::SUCCESS_GREEN),
+                horizontal_space(),
+                button(text(if state.voice.muted { "Unmute" } else { "Mute" }).size(11))
+                    .on_press(ShellMessage::Voice(VoiceAction::ToggleMute))
+                    .padding([3, 7])
+                    .style(aether_drift::ghost_button_style),
+                button(text("Sair").size(11))
+                    .on_press(ShellMessage::Voice(VoiceAction::LeaveChannel))
+                    .padding([3, 7])
+                    .style(aether_drift::ghost_button_style),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center),
+        )
+        .padding(8)
+        .style(aether_drift::pill_style);
+        sidebar_col = sidebar_col.push(voice_bar);
     }
 
     let mut user_footer = column![row![
@@ -181,25 +225,28 @@ pub fn view<'a>(
         user_footer = user_footer.push(picker);
     }
 
-    let sidebar = container(
-        column![
-            scrollable(group_list).height(Length::FillPortion(1)),
-            scrollable(channel_list).height(Length::FillPortion(2)),
-            container(user_footer)
-                .padding(10)
-                .style(aether_drift::card_style),
-        ]
-        .spacing(12),
-    )
-    .width(Length::Fixed(270.0))
-    .height(Length::Fill)
-    .padding(14)
-    .style(aether_drift::sidebar_style);
+    sidebar_col = sidebar_col.push(
+        container(user_footer)
+            .padding(10)
+            .style(aether_drift::card_style),
+    );
+
+    let sidebar = container(sidebar_col)
+        .width(Length::Fixed(276.0))
+        .height(Length::Fill)
+        .padding(14)
+        .style(aether_drift::sidebar_style);
 
     let ws_color = if state.ws_connected {
         aether_drift::SUCCESS_GREEN
     } else {
         aether_drift::TEXT_MUTED
+    };
+
+    let sb_style = if state.soundboard_open {
+        aether_drift::primary_button_style
+    } else {
+        aether_drift::ghost_button_style
     };
 
     let mut top_bar = row![
@@ -213,12 +260,16 @@ pub fn view<'a>(
             .padding([4, 10])
             .style(aether_drift::pill_style),
         horizontal_space(),
+        button(text("🎵 Soundboard").size(12))
+            .on_press(ShellMessage::ToggleSoundboard)
+            .padding([6, 12])
+            .style(sb_style),
         button(text("Atualizar").size(12))
             .on_press(ShellMessage::RefreshGroups)
             .padding([6, 12])
             .style(aether_drift::ghost_button_style),
     ]
-    .spacing(10)
+    .spacing(8)
     .align_y(Alignment::Center);
 
     if let UpdateCheckState::Available {
@@ -240,32 +291,24 @@ pub fn view<'a>(
             .find(|c| state.selected_channel_id.as_deref() == Some(c.id.as_str()))
     });
 
-    let center_content: Element<'a, ShellMessage> = if let Some(ch) = selected_channel {
+    let center_content: Element<'a, ShellMessage> = if state.soundboard_open {
+        soundboard::view(&state.soundboard).map(ShellMessage::Soundboard)
+    } else if let Some(ch) = selected_channel {
         if ch.kind == "voice" {
-            container(
-                column![
-                    text(format!("🔊 {}", ch.name)).size(18),
-                    text("Canal de voz — motor nativo LiveKit + RNNoise + Opus lock-free entra no Marco 3.")
-                        .size(13)
-                        .color(aether_drift::TEXT_MUTED),
-                ]
-                .spacing(10),
-            )
-            .width(Length::Fill)
-            .padding(22)
-            .style(aether_drift::card_style)
-            .into()
+            scrollable(voice::view(&state.voice, ch).map(ShellMessage::Voice))
+                .height(Length::Fill)
+                .into()
         } else {
             chat::view(&state.chat, ch, &state.user.id).map(ShellMessage::Chat)
         }
     } else {
         container(
             column![
-                text("Selecione um canal de texto para conversar").size(17),
+                text("Selecione um canal de texto ou voz").size(17),
                 text(format!("Instância conectada: {}", state.instance_url))
                     .size(13)
                     .color(aether_drift::TEXT_MUTED),
-                text("Marco 2 ativo: WebSocket 100% event-driven, categorias, seletor rápido de status e chat em tempo real.")
+                text("Marco 3 ativo: Motor de Áudio Nativo Lock-Free (WASAPI/PipeWire + RNNoise + Opus 5 níveis + Soundboard com Editor WAV em GPU).")
                     .size(13)
                     .color(aether_drift::TEXT_MUTED),
             ]
@@ -301,7 +344,8 @@ fn channel_button<'a>(
     } else {
         format!("{prefix}{}", ch.name)
     };
-    let active = state.selected_channel_id.as_deref() == Some(ch.id.as_str());
+    let active =
+        !state.soundboard_open && state.selected_channel_id.as_deref() == Some(ch.id.as_str());
     let style = if active {
         aether_drift::primary_button_style
     } else {
