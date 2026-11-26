@@ -15,7 +15,7 @@ use crate::ui::aether_drift;
 
 pub enum Screen {
     Auth(AuthState),
-    Shell(ShellState),
+    Shell(Box<ShellState>),
 }
 
 pub struct BalacopapoApp {
@@ -38,8 +38,8 @@ pub enum Message {
         prepend: bool,
         result: Result<Vec<ChatMessage>, String>,
     },
-    MessageSent(Result<ChatMessage, String>),
-    MessageDeleted {
+    ChatSent(Result<ChatMessage, String>),
+    ChatDeleted {
         channel_id: String,
         message_id: String,
         result: Result<(), String>,
@@ -161,7 +161,7 @@ impl BalacopapoApp {
                     self.config.instance_url = Some(url.clone());
                     self.config.auth_token = Some(resp.token.clone());
                     let _ = self.config.save();
-                    self.screen = Screen::Shell(ShellState::new(url.clone(), resp.user));
+                    self.screen = Screen::Shell(Box::new(ShellState::new(url.clone(), resp.user)));
                     Self::load_groups_task(url, resp.token)
                 }
                 Err(err) => {
@@ -175,7 +175,7 @@ impl BalacopapoApp {
             Message::SessionRestored(result) => match result {
                 Ok((url, user)) => {
                     let token = self.config.auth_token.clone().unwrap_or_default();
-                    self.screen = Screen::Shell(ShellState::new(url.clone(), user));
+                    self.screen = Screen::Shell(Box::new(ShellState::new(url.clone(), user)));
                     Self::load_groups_task(url, token)
                 }
                 Err(_) => {
@@ -259,7 +259,7 @@ impl BalacopapoApp {
                 }
                 Task::none()
             }
-            Message::MessageSent(result) => {
+            Message::ChatSent(result) => {
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.chat.sending = false;
                     match result {
@@ -275,7 +275,7 @@ impl BalacopapoApp {
                 }
                 Task::none()
             }
-            Message::MessageDeleted {
+            Message::ChatDeleted {
                 channel_id,
                 message_id,
                 result,
@@ -573,7 +573,7 @@ impl BalacopapoApp {
                         let client = ApiClient::new(url, Some(token))?;
                         client.send_message(&channel_id, &content).await
                     },
-                    Message::MessageSent,
+                    Message::ChatSent,
                 )
             }
             ChatMessageAction::LoadOlder => {
@@ -599,7 +599,7 @@ impl BalacopapoApp {
                             Ok(client) => client.delete_message(&msg_id_clone).await,
                             Err(err) => Err(err),
                         };
-                        Message::MessageDeleted {
+                        Message::ChatDeleted {
                             channel_id,
                             message_id: msg_id_clone,
                             result,
