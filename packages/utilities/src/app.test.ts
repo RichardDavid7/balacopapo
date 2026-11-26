@@ -1,7 +1,9 @@
+import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { normalizeSettings, DEFAULT_SETTINGS } from './settings.js';
 import { ffmpegAsset, ytdlpAssetName } from './tools.js';
 import { isLocalHost } from './server.js';
+import { UI_HTML } from './ui.js';
 
 describe('settings', () => {
   it('normalizes url and keeps existing key when empty', () => {
@@ -28,5 +30,11 @@ describe('ui server', () => {
   it('only accepts local hosts', () => {
     expect(isLocalHost('127.0.0.1:47821', 47821)).toBe(true);
     expect(isLocalHost('evil.com:47821', 47821)).toBe(false);
+  });
+
+  it('has valid inline JavaScript in UI_HTML', () => {
+    const match = UI_HTML.match(/<script>([\s\S]*?)<\/script>/);
+    expect(match?.[1]).toBeTruthy();
+    expect(() => new vm.Script(match![1]!)).not.toThrow();
   });
 });

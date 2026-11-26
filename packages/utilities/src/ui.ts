@@ -397,9 +397,12 @@ function renderStatus(s) {
         '<div class="queue-num">' + (i + 1) + '</div>' +
         '<div class="queue-meta"><div class="queue-title">' + esc(t.title) + '</div>' +
         '<div class="queue-sub">' + esc(t.artist || t.source.toUpperCase()) + (t.durationSec ? ' · ' + fmt(t.durationSec) : '') + '</div></div>' +
-        '<button class="sec" style="padding:4px 9px;font-size:12px" onclick="removeTrack(\'' + esc(t.id) + '\')">×</button>' +
+        '<button class="sec" style="padding:4px 9px;font-size:12px" data-remove="' + esc(t.id) + '">×</button>' +
       '</div>'
     ).join('') : '<span class="muted">A fila está vazia.</span>';
+    $('queueList').querySelectorAll('[data-remove]').forEach(btn => {
+      btn.onclick = () => sendControl('queue_remove', btn.getAttribute('data-remove'));
+    });
   }
 
   const lb = $('logsBox');
