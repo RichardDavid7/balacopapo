@@ -90,6 +90,18 @@ export function startUiServer(controller: Controller, home: string | undefined, 
         return send(res, 200, { ok: true });
       }
 
+      const joinMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/join$/);
+      if (joinMatch && joinMatch[1]) {
+        await controller.joinChannel(decodeURIComponent(joinMatch[1]));
+        return send(res, 200, { ok: true });
+      }
+
+      const leaveMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/leave$/);
+      if (leaveMatch && leaveMatch[1]) {
+        await controller.leaveChannel(decodeURIComponent(leaveMatch[1]));
+        return send(res, 200, { ok: true });
+      }
+
       const controlMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/control$/);
       if (controlMatch && controlMatch[1]) {
         const body = await readJson(req);

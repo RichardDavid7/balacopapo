@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { MusicBotCommandType, MusicSourceKind, MusicTrack } from '@backspace/shared';
-import { BalacopapoApi, type BotInfo } from './api.js';
+import { BalacopapoApi, RateLimitError, type BotInfo } from './api.js';
 import { AudioCache } from './cache.js';
 import { LiveKitVoice } from './livekit.js';
 import { ChannelPlayer } from './player.js';
@@ -102,7 +102,7 @@ export class Controller {
       this.state = 'running';
 
       const token = ++this.loopToken;
-      void this.pollLoop(token, api, cfg.pollIntervalMs);
+      void this.pollLoop(token, api);
     } catch (err) {
       this.state = 'error';
       this.error = (err as Error).message;
@@ -169,18 +169,49 @@ export class Controller {
     });
   }
 
-  private async pollLoop(token: number, api: BalacopapoApi, intervalMs: number): Promise<void> {
+  async joinChannel(channelId: string): Promise<void> {
+    const player = this.players.get(channelId);
+    if (!player) throw new Error('Canal não está ativo no bot');
+    await player.join();
+  }
+
+  async leaveChannel(channelId: string): Promise<void> {
+    const player = this.players.get(channelId);
+    if (!player) throw new Error('Canal não está ativo no bot');
+    await player.leave();
+  }
+
+  private async pollLoop(token: number, api: BalacopapoApi): Promise<void> {
     while (token === this.loopToken) {
-      await Promise.all(
-        [...this.players.values()].map(async (player) => {
-          try {
-            for (const cmd of await api.fetchCommands(player.channelId)) await player.handleCommand(cmd);
-          } catch (err) {
-            player.lastError = (err as Error).message;
+      const list = [...this.players.values()];
+      let backoffMs = 0;
+
+      for (const player of list) {
+        if (token !== this.loopToken) return;
+        try {
+          const cmds = await api.fetchCommands(player.channelId);
+          for (const cmd of cmds) await player.handleCommand(cmd);
+          if (player.lastError?.includes('429')) player.lastError = null;
+        } catch (err) {
+          if (err instanceof RateLimitError) {
+            backoffMs = Math.max(backoffMs, (err.retryAfterSec + 1) * 1000);
+            this.log(err.message);
+            break;
           }
-        }),
-      );
-      await new Promise((r) => setTimeout(r, intervalMs));
+          player.lastError = (err as Error).message;
+        }
+      }
+
+      if (backoffMs > 0) {
+        await new Promise((r) => setTimeout(r, backoffMs));
+        continue;
+      }
+
+      // Ritmo seguro para não estourar o limite de 200 req/min do IP (compartilhado com o cliente web)
+      const anyActive = list.some((p) => p.snapshot().connected);
+      const baseMs = anyActive ? 2500 : 4500;
+      const waitMs = Math.max(baseMs, list.length * 1500);
+      await new Promise((r) => setTimeout(r, waitMs));
     }
   }
 }

@@ -24,6 +24,13 @@ export interface BotStateReport {
   queue?: MusicTrack[];
 }
 
+export class RateLimitError extends Error {
+  constructor(readonly retryAfterSec: number, message: string) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
 export class BalacopapoApi {
   constructor(private readonly cfg: UtilitiesConfig) {}
 
@@ -39,6 +46,16 @@ export class BalacopapoApi {
       signal: AbortSignal.timeout(15_000),
     });
     const text = await res.text();
+    if (res.status === 429) {
+      let retryAfter = Number(res.headers.get('retry-after')) || 10;
+      try {
+        const parsed = JSON.parse(text) as { retryAfter?: number };
+        if (typeof parsed.retryAfter === 'number' && parsed.retryAfter > 0) retryAfter = parsed.retryAfter;
+      } catch {
+        /* ignore */
+      }
+      throw new RateLimitError(retryAfter, `Rate limit (429) — aguardando ${retryAfter}s`);
+    }
     if (!res.ok) {
       throw new Error(`${method} ${route} → HTTP ${res.status}${text && !text.startsWith('<') ? `: ${text.slice(0, 120)}` : ''}`);
     }

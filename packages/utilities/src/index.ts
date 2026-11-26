@@ -1,7 +1,7 @@
 import { AudioSource } from '@livekit/rtc-node';
 import { spawn } from 'node:child_process';
 import { Controller } from './controller.js';
-import { appDataDir } from './paths.js';
+import { appDataDir, settingsFile } from './paths.js';
 import { startUiServer } from './server.js';
 import { loadSettings } from './settings.js';
 
@@ -29,6 +29,7 @@ async function main(): Promise<void> {
   console.log(`Balacopapo Utilidades — interface em ${url}`);
 
   const settings = await loadSettings(home);
+  controller.log(`Configurações: ${settingsFile(home)}`);
   if (settings.baseUrl && settings.apiKey) void controller.start(settings);
   if (!process.argv.includes('--no-browser')) openBrowser(url);
 

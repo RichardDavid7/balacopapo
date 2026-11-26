@@ -251,6 +251,17 @@ export class ChannelPlayer {
     }, this.cfg.idleLeaveSec * 1000);
   }
 
+  async join(): Promise<void> {
+    this.lastError = null;
+    if (!this.voice.connected) {
+      const creds = await this.api.getLivekitCredentials(this.channelId);
+      await this.voice.connect(creds.url, creds.token);
+      this.log(`[${this.channelId}] entrou na sala ${creds.room}`);
+    }
+    this.armIdleTimer();
+    await this.report(true);
+  }
+
   async leave(): Promise<void> {
     this.clearIdleTimer();
     if (this.reportTimer) clearInterval(this.reportTimer);

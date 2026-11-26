@@ -119,6 +119,7 @@ pre.logs{background:var(--bg);border:1px solid var(--border);border-radius:8px;p
         <h2 style="margin:0">Player &amp; Fila</h2>
         <div class="row">
           <select id="channelSelect" style="width:220px"></select>
+          <button id="btnVoiceJoin" class="sec" style="white-space:nowrap">Entrar na call</button>
         </div>
       </div>
 
@@ -193,7 +194,7 @@ pre.logs{background:var(--bg);border:1px solid var(--border);border-radius:8px;p
         <label for="baseUrl">URL da instância Balacopapo</label>
         <input type="text" id="baseUrl" placeholder="https://seu-balacopapo.com">
 
-        <label for="apiKey">Chave de API do Espaço (Configurações do Espaço → API &amp; Apps, escopo "music")</label>
+        <label for="apiKey">Chave de API do Espaço (Configurações do Espaço → API &amp; Apps, escopo "music") <span id="keySavedBadge" class="pill ok" style="display:none;margin-left:6px">✓ Chave salva</span></label>
         <input type="password" id="apiKey" placeholder="bp_...">
 
         <div class="grid-2" style="margin-top:4px">
@@ -318,7 +319,8 @@ async function loadSettings() {
   $('baseUrl').value = s.baseUrl || '';
   $('botName').value = s.botName || 'Balacopapo Música';
   $('cacheMaxMb').value = s.cacheMaxMb || 2048;
-  $('apiKey').placeholder = s.hasApiKey ? '(chave salva — deixe vazio para manter)' : 'bp_...';
+  $('apiKey').placeholder = s.hasApiKey ? '•••••••••••••••• (salva — digite só se quiser trocar)' : 'bp_...';
+  $('keySavedBadge').style.display = s.hasApiKey ? 'inline-flex' : 'none';
   selectedChannelIdsConfig = s.channelIds || [];
   if (!s.baseUrl || !s.hasApiKey) switchTab('connect');
 }
@@ -366,8 +368,10 @@ function renderStatus(s) {
   const ch = activeChannelObj();
   const p = ch?.player;
   if (p) {
-    $('voiceBadge').textContent = p.connected ? (p.status === 'paused' ? 'Pausado na call' : 'Tocando na call') : 'Ocioso';
+    $('voiceBadge').textContent = p.connected ? (p.status === 'paused' ? 'Pausado na call' : 'Conectado na call') : 'Ocioso';
     $('voiceBadge').className = 'pill ' + (p.connected ? 'ok' : '');
+    $('btnVoiceJoin').textContent = p.connected ? 'Sair da call' : 'Entrar na call';
+    $('btnVoiceJoin').className = p.connected ? 'danger' : 'sec';
     const src = p.currentTrack?.source;
     $('sourceBadge').style.display = src ? 'inline-flex' : 'none';
     $('sourceBadge').textContent = src ? src.toUpperCase() : '';
@@ -429,6 +433,16 @@ async function sendControl(action, value) {
 window.removeTrack = id => sendControl('queue_remove', id);
 
 $('channelSelect').onchange = e => { selectedChannelId = e.target.value; refresh(); };
+$('btnVoiceJoin').onclick = async () => {
+  const ch = activeChannelObj();
+  if (!ch) return;
+  showBox('playerErr', '');
+  try {
+    const endpoint = ch.player?.connected ? 'leave' : 'join';
+    await api('/api/channels/' + encodeURIComponent(ch.id) + '/' + endpoint, { method: 'POST' });
+    refresh();
+  } catch (e) { showBox('playerErr', e.message); }
+};
 $('btnPlayPause').onclick = () => {
   const p = activeChannelObj()?.player;
   if (!p) return;
@@ -487,10 +501,14 @@ function readForm() {
 $('btnTest').onclick = async () => {
   showBox('connErr', ''); showBox('connOk', '');
   try {
-    const info = await api('/api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(readForm()) });
+    const form = readForm();
+    const info = await api('/api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    $('apiKey').value = '';
+    await loadSettings();
     availableChannels = info.voiceChannels || [];
     renderChannelChecks();
-    showBox('connOk', 'Conexão OK! Espaço "' + info.space.name + '" (' + availableChannels.length + ' canal(is) de voz).');
+    showBox('connOk', 'Conexão OK e salva! Espaço "' + info.space.name + '" (' + availableChannels.length + ' canal(is) de voz).');
   } catch (e) { showBox('connErr', e.message); }
 };
 
@@ -510,8 +528,15 @@ $('btnStopBot').onclick = async () => { await api('/api/stop', { method: 'POST' 
 $('quickToggle').onclick = async () => {
   if (lastStatus?.state === 'running') await api('/api/stop', { method: 'POST' });
   else {
-    try { await api('/api/start', { method: 'POST' }); }
-    catch { switchTab('connect'); }
+    try {
+      const form = readForm();
+      if (form.baseUrl || form.apiKey) {
+        await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+        $('apiKey').value = '';
+      }
+      await api('/api/start', { method: 'POST' });
+      await loadSettings();
+    } catch { switchTab('connect'); }
   }
   refresh();
 };
