@@ -1,4 +1,5 @@
 import http from 'node:http';
+import type { MusicBotCommandType } from '@backspace/shared';
 import type { Controller } from './controller.js';
 import { loadSettings, normalizeSettings, saveSettings } from './settings.js';
 import { UI_HTML } from './ui.js';
@@ -28,21 +29,44 @@ export function startUiServer(controller: Controller, home: string | undefined, 
       if (!isLocalHost(req.headers.host, port)) return send(res, 403, { error: 'host inválido' });
       if (req.method === 'POST') {
         const origin = req.headers.origin;
-        if (origin && !isLocalHost(origin.replace(/^https?:\/\//, ''), port)) return send(res, 403, { error: 'origem inválida' });
+        if (origin && !isLocalHost(origin.replace(/^https?:\/\//, ''), port)) {
+          return send(res, 403, { error: 'origem inválida' });
+        }
       }
-      const url = req.url ?? '/';
+      const url = (req.url ?? '/').split('?')[0] ?? '/';
 
       if (req.method === 'GET' && url === '/') return send(res, 200, UI_HTML, 'text/html');
       if (req.method === 'GET' && url === '/api/status') return send(res, 200, controller.status());
+      if (req.method === 'GET' && url === '/api/cache') return send(res, 200, await controller.cacheStats());
+      if (req.method === 'POST' && url === '/api/cache/clear') {
+        return send(res, 200, { removed: await controller.clearCache() });
+      }
+      if (req.method === 'POST' && url === '/api/logs/clear') {
+        controller.clearLogs();
+        return send(res, 200, { ok: true });
+      }
       if (req.method === 'GET' && url === '/api/settings') {
         const s = await loadSettings(home);
-        return send(res, 200, { baseUrl: s.baseUrl, botName: s.botName, channelIds: s.channelIds, hasApiKey: !!s.apiKey });
+        return send(res, 200, {
+          baseUrl: s.baseUrl,
+          botName: s.botName,
+          channelIds: s.channelIds,
+          cacheMaxMb: s.cacheMaxMb,
+          idleLeaveSec: s.idleLeaveSec,
+          hasApiKey: !!s.apiKey,
+        });
       }
       if (req.method === 'POST' && url === '/api/settings') {
         const current = await loadSettings(home);
         const next = normalizeSettings((await readJson(req)) as never, current);
         await saveSettings(next, home);
         return send(res, 200, { ok: true });
+      }
+      if (req.method === 'POST' && url === '/api/test') {
+        const current = await loadSettings(home);
+        const merged = normalizeSettings((await readJson(req)) as never, current);
+        const info = await controller.test(merged);
+        return send(res, 200, info);
       }
       if (req.method === 'POST' && url === '/api/start') {
         const s = await loadSettings(home);
@@ -54,6 +78,27 @@ export function startUiServer(controller: Controller, home: string | undefined, 
         await controller.stop();
         return send(res, 200, { ok: true });
       }
+
+      const enqueueMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/enqueue$/);
+      if (enqueueMatch && enqueueMatch[1]) {
+        const body = await readJson(req);
+        await controller.enqueue(
+          decodeURIComponent(enqueueMatch[1]),
+          typeof body.url === 'string' ? body.url : '',
+          typeof body.title === 'string' ? body.title : undefined,
+        );
+        return send(res, 200, { ok: true });
+      }
+
+      const controlMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/control$/);
+      if (controlMatch && controlMatch[1]) {
+        const body = await readJson(req);
+        const action = body.action as MusicBotCommandType;
+        const value = typeof body.value === 'number' || typeof body.value === 'string' ? body.value : undefined;
+        await controller.control(decodeURIComponent(controlMatch[1]), action, value);
+        return send(res, 200, { ok: true });
+      }
+
       send(res, 404, { error: 'não encontrado' });
     } catch (err) {
       send(res, 400, { error: (err as Error).message });

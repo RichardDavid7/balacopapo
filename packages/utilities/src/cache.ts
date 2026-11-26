@@ -45,4 +45,28 @@ export class AudioCache {
     }
     return removed;
   }
+
+  async stats(): Promise<{ files: number; bytes: number }> {
+    const entries = await fs.readdir(this.dir).catch(() => [] as string[]);
+    let files = 0;
+    let bytes = 0;
+    for (const name of entries) {
+      const st = await fs.stat(path.join(this.dir, name)).catch(() => null);
+      if (st?.isFile()) {
+        files++;
+        bytes += st.size;
+      }
+    }
+    return { files, bytes };
+  }
+
+  async clear(): Promise<number> {
+    const entries = await fs.readdir(this.dir).catch(() => [] as string[]);
+    let removed = 0;
+    for (const name of entries) {
+      await fs.rm(path.join(this.dir, name), { force: true }).catch(() => undefined);
+      removed++;
+    }
+    return removed;
+  }
 }

@@ -1,0 +1,21 @@
+[package]
+name = "balacopapo-utilidades"
+version = "0.1.0"
+description = "Balacopapo Utilidades — app nativo do bot de música"
+authors = ["RichardDavid7"]
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

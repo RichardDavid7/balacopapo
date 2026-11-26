@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Balacopapo Utilidades",
+  "version": "0.1.0",
+  "identifier": "io.github.richarddavid7.balacopapo.utilities",
+  "build": {
+    "frontendDist": "../splash"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Balacopapo Utilidades",
+        "width": 980,
+        "height": 680,
+        "minWidth": 760,
+        "minHeight": 540,
+        "center": true,
+        "backgroundColor": "#0e0c15"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "../../../clients/Desktop/src-tauri/icons/32x32.png",
+      "../../../clients/Desktop/src-tauri/icons/128x128.png",
+      "../../../clients/Desktop/src-tauri/icons/128x128@2x.png",
+      "../../../clients/Desktop/src-tauri/icons/icon.ico"
+    ]
+  }
+}

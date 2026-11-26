@@ -1,7 +1,8 @@
 name: Utilities Release (Windows & Linux)
 
-# Compila o Balacopapo Utilidades (Windows + Linux) automaticamente em todo push
-# na `main` que altere `packages/utilities/**` (atualizando a pré-release `utilities-edge`).
+# Compila o Balacopapo Utilidades (app nativo Tauri v2 + worker de música)
+# automaticamente em todo push na `main` que altere `packages/utilities/**`
+# (atualizando a pré-release `utilities-edge`).
 on:
   push:
     branches:
@@ -28,7 +29,7 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, target: windows-x64, node-os: win, node-ext: zip }
-          - { os: ubuntu-latest, target: linux-x64, node-os: linux, node-ext: tar.xz }
+          - { os: ubuntu-22.04, target: linux-x64, node-os: linux, node-ext: tar.xz }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -37,13 +38,27 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Instalar dependências Linux do Tauri
+        if: matrix.target == 'linux-x64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: packages/utilities/src-tauri
+
       - run: pnpm install --frozen-lockfile
-      - name: Build, typecheck e testes
+      - name: Build, typecheck e testes (Node)
         run: |
           pnpm --filter @backspace/shared build
           pnpm --filter @backspace/utilities typecheck
           pnpm --filter @backspace/utilities test
           pnpm --filter @backspace/utilities build
+
+      - name: Compilar janela nativa (Tauri v2)
+        run: cargo build --release --manifest-path packages/utilities/src-tauri/Cargo.toml
 
       - name: Montar pacote portátil
         shell: bash
@@ -66,15 +81,10 @@ jobs:
           cp -r node-extract/${NODE_NAME}/* dist/pkg/runtime/
 
           if [ "${{ matrix.target }}" = "windows-x64" ]; then
-            MSYS_NO_PATHCONV=1 "/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe" \
-              -nologo -target:winexe -optimize+ \
-              -win32icon:'clients\Desktop\src-tauri\icons\icon.ico' \
-              -r:System.Windows.Forms.dll -r:System.Drawing.dll \
-              -out:'dist\pkg\Balacopapo-Utilidades.exe' \
-              'packages\utilities\launcher\Launcher.cs'
+            cp packages/utilities/src-tauri/target/release/balacopapo-utilidades.exe dist/pkg/Balacopapo-Utilidades.exe
             dist/pkg/runtime/node.exe dist/pkg/app/dist/index.js --check
           else
-            printf '#!/bin/sh\ncd "$(dirname "$0")/app" || exit 1\nexec "../runtime/bin/node" dist/index.js "$@"\n' > dist/pkg/balacopapo-utilidades
+            cp packages/utilities/src-tauri/target/release/balacopapo-utilidades dist/pkg/balacopapo-utilidades
             chmod +x dist/pkg/balacopapo-utilidades
             dist/pkg/runtime/bin/node dist/pkg/app/dist/index.js --check
           fi
@@ -115,7 +125,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="utilities-edge"
           TITLE="Balacopapo Utilidades (Edge — ${SHORT_SHA})"
-          NOTES="Bot de música portátil (Windows/Linux) — commit \`${SHORT_SHA}\`. Extraia e abra \`Balacopapo-Utilidades.exe\` (Windows, fica na bandeja do sistema) ou \`./balacopapo-utilidades\` (Linux)."
+          NOTES="App desktop nativo (Tauri v2 + bot de música) para Windows e Linux — commit \`${SHORT_SHA}\`. Extraia e abra \`Balacopapo-Utilidades.exe\` (Windows) ou \`./balacopapo-utilidades\` (Linux)."
 
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"

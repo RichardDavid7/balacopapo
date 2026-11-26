@@ -43,12 +43,16 @@ export class ChannelPlayer {
       channelId: this.channelId,
       connected: this.voice.connected,
       status: this.status,
+      currentTrack: this.queue.current,
       title: this.queue.current?.title ?? null,
       artist: this.queue.current?.artist ?? null,
+      thumbnailUrl: this.queue.current?.thumbnailUrl ?? null,
       positionSec: Math.floor(this.positionSec),
       durationSec: this.queue.current?.durationSec ?? null,
       queueLength: this.queue.queue.length,
+      queue: this.queue.queue,
       volume: this.volume,
+      loopMode: this.queue.loopMode,
       lastError: this.lastError,
     };
   }
