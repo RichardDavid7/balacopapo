@@ -17,7 +17,8 @@ import os from 'os';
 import { pathToFileURL } from 'url';
 import { startActivityDetection, stopActivityDetection, getCurrentActivity } from './activityDetector';
 import { KeybindManager } from './keybindManager';
-import { StreamPointerOverlayManager, type StreamPointerOverlayPayload } from './streamPointerOverlay';
+import { OverlayManager } from './overlay/OverlayManager';
+import type { OverlayConfig, OverlayEvent } from './overlay/types';
 import { deriveStartMinimizedFromArgs, parseExecPathFromDesktopFile, shouldReapplyAppImage } from './autoLaunch';
 import {
   loadInstanceUrl,
@@ -87,7 +88,7 @@ app.setName('Backspace');
 
 let mainWindow: BrowserWindow | null = null;
 const keybindManager = new KeybindManager();
-const streamPointerOverlay = new StreamPointerOverlayManager();
+const overlayManager = new OverlayManager();
 let tray: Tray | null = null;
 let isQuitting = false;
 let pendingDeepLink: string | null = null;
@@ -1340,6 +1341,7 @@ if (!gotTheLock) {
             return;
           }
           console.log('[Main:ScreenShare] Using preselected source:', pending.sourceId, 'audio:', pending.shareAudio);
+          overlayManager.setTargetDisplayId(selected.display_id || null);
           callback({ video: selected, ...(pending.shareAudio ? { audio: 'loopback' } : {}) });
           return;
         }
@@ -1363,6 +1365,7 @@ if (!gotTheLock) {
           // captured against the setting it thinks is in force.
           const shareAudio = lastSystemPickerShareAudio ?? false;
           console.log('[Main:ScreenShare] System picker returned one source:', sources[0]!.id, 'audio:', shareAudio);
+          overlayManager.setTargetDisplayId(sources[0]!.display_id || null);
           callback({ video: sources[0]!, ...(shareAudio ? { audio: 'loopback' } : {}) });
           return;
         }
@@ -1403,7 +1406,7 @@ if (!gotTheLock) {
         //     `PulseaudioLoopbackForScreenShare` feature flag we enable above.
         //     Fails on PipeWire-only systems without pulse compat — the
         //     renderer catches that and toasts the user.
-        streamPointerOverlay.setSharedDisplayId(selected.display_id || null);
+        overlayManager.setTargetDisplayId(selected.display_id || null);
         callback({ video: selected, ...(shareAudio ? { audio: 'loopback' } : {}) });
       } catch (err) {
         console.error('[Main:ScreenShare] Handler error:', err);
@@ -1546,14 +1549,25 @@ if (!gotTheLock) {
     }
   });
 
-  ipcMain.on('stream-pointer-overlay', (_event, payload: StreamPointerOverlayPayload) => {
+  ipcMain.on('overlay:dispatch', (_event, payload: OverlayEvent) => {
     if (!payload || typeof payload !== 'object') return;
-    streamPointerOverlay.showPing(payload);
+    overlayManager.dispatch(payload);
+  });
+
+  ipcMain.on('overlay:set-config', (_event, partial: Partial<OverlayConfig>) => {
+    if (!partial || typeof partial !== 'object') return;
+    overlayManager.setConfig(partial);
+  });
+
+  // Legacy alias kept for backwards compatibility with older web clients
+  ipcMain.on('stream-pointer-overlay', (_event, payload: { x: number; y: number; senderName: string; color: string }) => {
+    if (!payload || typeof payload !== 'object') return;
+    overlayManager.dispatch({ kind: 'pointer_ping', ...payload });
   });
 
   app.on('before-quit', () => {
     systemAudio.stop();
-    streamPointerOverlay.destroy();
+    overlayManager.destroy();
     isQuitting = true;
     stopActivityDetection();
     keybindManager.stop();

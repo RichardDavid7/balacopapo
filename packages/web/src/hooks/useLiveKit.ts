@@ -813,7 +813,26 @@ export function useLiveKit() {
       }
       const ptr = parseStreamPointer(payload);
       if (ptr) {
-        const senderName = participant.name || participant.identity;
+        const { userId: senderUserId } = parseIdentity(participant.identity);
+        const spaceState = useSpaceStore.getState();
+        const memberMatch = spaceState.members.find((m) => m.userId === senderUserId);
+        let dmUserMatch: { displayName?: string | null; username: string } | undefined;
+        if (!memberMatch) {
+          for (const dm of spaceState.dmChannels) {
+            const u = dm.members?.find((m) => m.id === senderUserId);
+            if (u) { dmUserMatch = u; break; }
+          }
+        }
+        const livekitName = participant.name && participant.name !== participant.identity ? participant.name : '';
+        const senderName =
+          memberMatch?.nickname
+          || memberMatch?.user.displayName
+          || memberMatch?.user.username
+          || dmUserMatch?.displayName
+          || dmUserMatch?.username
+          || livekitName
+          || senderUserId;
+
         useStreamPointerStore.getState().upsertPointer({
           streamIdentity: ptr.streamIdentity,
           senderIdentity: participant.identity,
@@ -823,20 +842,24 @@ export function useLiveKit() {
           mode: ptr.mode,
           color: ptr.color,
         });
-        // Draw directly on the streamer's real OS monitor via click-through overlay (Desktop app)
+        // Draw directly on the streamer's real OS monitor via the isolated OS overlay (Desktop app)
         const localIdentity = roomRef.current?.localParticipant?.identity;
         if (
           localIdentity
           && ptr.streamIdentity === localIdentity
           && useVoiceStore.getState().streamPointerOverlayEnabled
-          && window.backspace?.showStreamPointerOverlay
         ) {
-          window.backspace.showStreamPointerOverlay({
+          const pingPayload = {
             x: ptr.x,
             y: ptr.y,
             senderName,
             color: ptr.color ?? '#7c3aed',
-          });
+          };
+          if (window.backspace?.dispatchOverlayEvent) {
+            window.backspace.dispatchOverlayEvent({ kind: 'pointer_ping', ...pingPayload });
+          } else if (window.backspace?.showStreamPointerOverlay) {
+            window.backspace.showStreamPointerOverlay(pingPayload);
+          }
         }
         return;
       }

@@ -192,7 +192,13 @@ interface BackspaceElectronAPI {
   onRecoveryStateChanged: (cb: (state: RecoveryState) => void) => () => void;
   recoveryAction: (action: RecoveryAction) => void;
 
-  // Real OS click-through screen overlay for stream pointer pings
+  // Isolated OS click-through overlay (stream pointer pings, speaking badges, toasts)
+  dispatchOverlayEvent?: (event:
+    | { kind: 'pointer_ping'; x: number; y: number; senderName: string; color: string }
+    | { kind: 'speaking_update'; speakers: Array<{ id: string; name: string; avatarColor?: string; muted?: boolean; deafened?: boolean }> }
+    | { kind: 'toast'; title: string; subtitle?: string; tone?: 'info' | 'join' | 'leave' }
+  ) => void;
+  setOverlayConfig?: (config: { enabled?: boolean; displayId?: string | null; corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; opacity?: number }) => void;
   showStreamPointerOverlay?: (payload: { x: number; y: number; senderName: string; color: string }) => void;
 }
 

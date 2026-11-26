@@ -181,8 +181,14 @@ contextBridge.exposeInMainWorld('backspace', {
     ipcRenderer.send('recovery-action', action);
   },
 
-  // Real OS click-through screen overlay for stream pointer pings
+  // Isolated OS click-through overlay (stream pointer pings, future speaking badges & toasts)
+  dispatchOverlayEvent: (event: unknown): void => {
+    ipcRenderer.send('overlay:dispatch', event);
+  },
+  setOverlayConfig: (config: unknown): void => {
+    ipcRenderer.send('overlay:set-config', config);
+  },
   showStreamPointerOverlay: (payload: { x: number; y: number; senderName: string; color: string }): void => {
-    ipcRenderer.send('stream-pointer-overlay', payload);
+    ipcRenderer.send('overlay:dispatch', { kind: 'pointer_ping', ...payload });
   },
 });
