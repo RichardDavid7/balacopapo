@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::core::models::{AuthUser, GroupSummary, PresenceStatus};
 use crate::features::chat::{self, ChatMessageAction, ChatState};
 use crate::features::soundboard::{self, SoundboardAction, SoundboardState};
+use crate::features::stream::{self, StreamAction, StreamState};
 use crate::features::voice::{self, VoiceAction, VoiceState};
 use crate::os::updater::UpdateCheckState;
 use crate::ui::aether_drift;
@@ -16,6 +17,7 @@ pub struct ShellState {
     pub presence: PresenceStatus,
     pub status_picker_open: bool,
     pub soundboard_open: bool,
+    pub stream_open: bool,
     pub ws_connected: bool,
     pub ws_status_label: String,
     pub groups: Vec<GroupSummary>,
@@ -25,6 +27,7 @@ pub struct ShellState {
     pub chat: ChatState,
     pub voice: VoiceState,
     pub soundboard: SoundboardState,
+    pub stream: StreamState,
     pub loading_groups: bool,
     pub error: Option<String>,
 }
@@ -38,6 +41,7 @@ impl ShellState {
             presence,
             status_picker_open: false,
             soundboard_open: false,
+            stream_open: false,
             ws_connected: false,
             ws_status_label: "Conectando WS...".to_string(),
             groups: Vec::new(),
@@ -47,6 +51,7 @@ impl ShellState {
             chat: ChatState::default(),
             voice: VoiceState::default(),
             soundboard: SoundboardState::default(),
+            stream: StreamState::default(),
             loading_groups: true,
             error: None,
         }
@@ -60,10 +65,12 @@ pub enum ShellMessage {
     RefreshGroups,
     ToggleStatusPicker,
     ToggleSoundboard,
+    ToggleStream,
     SetStatus(PresenceStatus),
     Chat(ChatMessageAction),
     Voice(VoiceAction),
     Soundboard(SoundboardAction),
+    Stream(StreamAction),
     OpenReleasePage(String),
     Logout,
 }
@@ -248,6 +255,11 @@ pub fn view<'a>(
     } else {
         aether_drift::ghost_button_style
     };
+    let stream_style = if state.stream_open {
+        aether_drift::primary_button_style
+    } else {
+        aether_drift::ghost_button_style
+    };
 
     let mut top_bar = row![
         text(
@@ -260,6 +272,10 @@ pub fn view<'a>(
             .padding([4, 10])
             .style(aether_drift::pill_style),
         horizontal_space(),
+        button(text("🖥️ Stream").size(12))
+            .on_press(ShellMessage::ToggleStream)
+            .padding([6, 12])
+            .style(stream_style),
         button(text("🎵 Soundboard").size(12))
             .on_press(ShellMessage::ToggleSoundboard)
             .padding([6, 12])
@@ -291,7 +307,11 @@ pub fn view<'a>(
             .find(|c| state.selected_channel_id.as_deref() == Some(c.id.as_str()))
     });
 
-    let center_content: Element<'a, ShellMessage> = if state.soundboard_open {
+    let center_content: Element<'a, ShellMessage> = if state.stream_open {
+        scrollable(stream::view(&state.stream).map(ShellMessage::Stream))
+            .height(Length::Fill)
+            .into()
+    } else if state.soundboard_open {
         soundboard::view(&state.soundboard).map(ShellMessage::Soundboard)
     } else if let Some(ch) = selected_channel {
         if ch.kind == "voice" {
@@ -344,8 +364,9 @@ fn channel_button<'a>(
     } else {
         format!("{prefix}{}", ch.name)
     };
-    let active =
-        !state.soundboard_open && state.selected_channel_id.as_deref() == Some(ch.id.as_str());
+    let active = !state.soundboard_open
+        && !state.stream_open
+        && state.selected_channel_id.as_deref() == Some(ch.id.as_str());
     let style = if active {
         aether_drift::primary_button_style
     } else {

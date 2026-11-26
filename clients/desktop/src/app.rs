@@ -11,6 +11,7 @@ use crate::features::auth::{self, AuthMessage, AuthState};
 use crate::features::chat::ChatMessageAction;
 use crate::features::shell::{self, ShellMessage, ShellState};
 use crate::features::soundboard::SoundboardAction;
+use crate::features::stream::{ActivePointerPing, StreamAction};
 use crate::features::voice::VoiceAction;
 use crate::media::audio_engine::{self, ActiveLoopback, AudioParams};
 use crate::media::wav_dsp::{quadratic_gain, WavClip};
@@ -562,11 +563,13 @@ impl BalacopapoApp {
                 shell.selected_group_id = Some(id);
                 shell.selected_channel_id = None;
                 shell.soundboard_open = false;
+                shell.stream_open = false;
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
                 shell.selected_channel_id = Some(channel_id.clone());
                 shell.soundboard_open = false;
+                shell.stream_open = false;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
@@ -598,12 +601,22 @@ impl BalacopapoApp {
             }
             ShellMessage::ToggleSoundboard => {
                 shell.soundboard_open = !shell.soundboard_open;
+                if shell.soundboard_open {
+                    shell.stream_open = false;
+                }
                 if shell.soundboard_open && shell.soundboard.sounds.is_empty() {
                     shell.soundboard.loading = true;
                     let url = shell.instance_url.clone();
                     let token = self.config.auth_token.clone().unwrap_or_default();
                     let space_id = shell.selected_group_id.clone();
                     return Self::load_soundboard_task(url, token, space_id);
+                }
+                Task::none()
+            }
+            ShellMessage::ToggleStream => {
+                shell.stream_open = !shell.stream_open;
+                if shell.stream_open {
+                    shell.soundboard_open = false;
                 }
                 Task::none()
             }
@@ -624,6 +637,7 @@ impl BalacopapoApp {
             ShellMessage::Chat(action) => self.handle_chat_action(action),
             ShellMessage::Voice(action) => self.handle_voice_action(action),
             ShellMessage::Soundboard(action) => self.handle_soundboard_action(action),
+            ShellMessage::Stream(action) => self.handle_stream_action(action),
             ShellMessage::OpenReleasePage(url) => {
                 let _ = open::that(url);
                 Task::none()
@@ -896,6 +910,84 @@ impl BalacopapoApp {
                 shell
                     .soundboard
                     .load_clip_into_editor(WavClip::demo_chime(), "Clipe Demo".to_string());
+                Task::none()
+            }
+        }
+    }
+
+    fn handle_stream_action(&mut self, action: StreamAction) -> Task<Message> {
+        let Screen::Shell(shell) = &mut self.screen else {
+            return Task::none();
+        };
+
+        match action {
+            StreamAction::ToggleSharing => {
+                shell.stream.sharing_active = !shell.stream.sharing_active;
+                Task::none()
+            }
+            StreamAction::ToggleFullscreenFocus => {
+                shell.stream.fullscreen_focus = !shell.stream.fullscreen_focus;
+                Task::none()
+            }
+            StreamAction::ToggleHideNonVideo => {
+                shell.stream.hide_non_video = !shell.stream.hide_non_video;
+                Task::none()
+            }
+            StreamAction::TogglePointerMode => {
+                shell.stream.pointer_mode = !shell.stream.pointer_mode;
+                Task::none()
+            }
+            StreamAction::SetAudioScope(scope) => {
+                shell.stream.audio_scope = scope;
+                Task::none()
+            }
+            StreamAction::SetPreset(preset) => {
+                shell.stream.preset = preset;
+                Task::none()
+            }
+            StreamAction::AvSyncBufferChanged(ms) => {
+                shell.stream.av_sync_buffer_ms = ms;
+                Task::none()
+            }
+            StreamAction::ZoomAt {
+                cursor_x,
+                cursor_y,
+                width,
+                height,
+                factor,
+            } => {
+                shell
+                    .stream
+                    .viewport
+                    .zoom_at(cursor_x, cursor_y, width, height, factor);
+                Task::none()
+            }
+            StreamAction::PanBy {
+                dx,
+                dy,
+                width,
+                height,
+            } => {
+                shell.stream.viewport.pan_by(dx, dy, width, height);
+                Task::none()
+            }
+            StreamAction::ResetZoom => {
+                shell.stream.viewport.reset();
+                Task::none()
+            }
+            StreamAction::PointerPingAt { nx, ny } => {
+                shell.stream.pointers.push(ActivePointerPing {
+                    sender: shell.user.label().to_string(),
+                    x: nx,
+                    y: ny,
+                });
+                if shell.stream.pointers.len() > 8 {
+                    shell.stream.pointers.remove(0);
+                }
+                Task::none()
+            }
+            StreamAction::ClearPointers => {
+                shell.stream.pointers.clear();
                 Task::none()
             }
         }

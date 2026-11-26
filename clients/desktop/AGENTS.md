@@ -37,6 +37,8 @@ Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia
 | Chat ao vivo (histórico paginado, envio, exclusão, filtro) | `src/features/chat/mod.rs` (+ `MODULE.md`) |
 | Painel de Voz nativo (dispositivos, RNNoise, loopback, Opus, Jitter) | `src/features/voice/mod.rs` (+ `MODULE.md`) |
 | Soundboard & Editor WAV em Canvas GPU | `src/features/soundboard/mod.rs` (+ `MODULE.md`) |
+| Palco de Stream GPU (Zoom/Pan 1x–6x, Apontar, Áudio da Janela) | `src/features/stream/mod.rs` (+ `MODULE.md`) |
+| Protocolo `stream_pointer` & orçamento dinâmico de upload | `src/core/stream_pointer.rs`, `src/media/screen_share.rs` |
 | Motor de áudio lock-free (`cpal` + `rtrb` + `nnnoiseless`) e WAV DSP | `src/media/audio_engine.rs`, `src/media/wav_dsp.rs` |
 | Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |
 | Guardião automático de paridade (`PermissionBits`) | `../../scripts/check-desktop-parity.mjs` |
