@@ -163,7 +163,7 @@ fun SpaceSettingsHostScreen(
             title = {
                 Column {
                     Text(
-                        text = selectedSection?.title ?: "Configurações do Espaço",
+                        text = selectedSection?.title ?: "Configurações do Grupo",
                         color = colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -242,7 +242,7 @@ fun SpaceSettingsHostScreen(
                                     color = colors.accentPrimary.copy(alpha = 0.18f),
                                 ) {
                                     Text(
-                                        text = "Proprietário do Espaço",
+                                        text = "Proprietário do Grupo",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = colors.accentPrimary,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
@@ -336,7 +336,7 @@ fun SpaceSettingsHostScreen(
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = if (isLeaving) "Saindo..." else "Sair do Espaço")
+                        Text(text = if (isLeaving) "Saindo..." else "Sair do Grupo")
                     }
                 }
 
@@ -417,7 +417,7 @@ fun SpaceSettingsHostScreen(
             containerColor = colors.bgElevated,
             titleContentColor = colors.textPrimary,
             textContentColor = colors.textSecondary,
-            title = { Text("Sair do Espaço?") },
+            title = { Text("Sair do Grupo?") },
             text = {
                 Text(
                     "Você perderá acesso aos canais de \"${activeSpace.name}\" até receber um novo convite ou entrar novamente.",
@@ -441,7 +441,7 @@ fun SpaceSettingsHostScreen(
                                 showLeaveConfirm = false
                                 onSpaceLeftOrDeleted()
                             }.onFailure { err ->
-                                leaveError = err.message ?: "Não foi possível sair do Espaço."
+                                leaveError = err.message ?: "Não foi possível sair do Grupo."
                                 showLeaveConfirm = false
                             }
                             isLeaving = false

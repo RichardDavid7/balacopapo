@@ -38,6 +38,7 @@ class AudioPreferencesStorage(context: Context) {
         hideNonVideoParticipants = prefs.getBoolean("hide_non_video", false),
         screenShareResolution = prefs.getInt("screen_share_res", 720),
         screenShareFps = prefs.getInt("screen_share_fps", 30),
+        jitterBufferMs = prefs.getInt("jitter_buffer_ms", 0),
     )
 
     fun save(p: UserAudioPreferences) {
@@ -62,6 +63,7 @@ class AudioPreferencesStorage(context: Context) {
             .putBoolean("hide_non_video", p.hideNonVideoParticipants)
             .putInt("screen_share_res", p.screenShareResolution)
             .putInt("screen_share_fps", p.screenShareFps)
+            .putInt("jitter_buffer_ms", p.jitterBufferMs)
             .apply()
     }
 

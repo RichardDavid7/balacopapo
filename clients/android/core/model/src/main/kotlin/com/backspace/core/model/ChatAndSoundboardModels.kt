@@ -73,6 +73,7 @@ data class Message(
     val reactions: List<MessageReaction> = emptyList(),
     val mentionEveryone: Boolean = false,
     val mentionRoleIds: List<String> = emptyList(),
+    val retainFiles: Boolean = false,
 ) {
     val authorLabel: String get() = user?.label ?: userId
     val safeContent: String get() = content.orEmpty()

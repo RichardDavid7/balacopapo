@@ -74,8 +74,12 @@ import com.backspace.core.designsystem.AetherPrimaryButton
 import com.backspace.core.designsystem.AetherPurpleSlider
 import com.backspace.core.designsystem.AetherSurfaceCard
 import com.backspace.core.designsystem.LocalAetherColors
+import com.backspace.core.model.ActiveIpBan
 import com.backspace.core.model.AdminInviteItem
 import com.backspace.core.model.AdminInviteRedemption
+import com.backspace.core.model.AdminOidcConfigResponse
+import com.backspace.core.model.AdminOidcUserItem
+import com.backspace.core.model.AdminSpaceRetentionItem
 import com.backspace.core.model.AdminTelemetryStatus
 import com.backspace.core.model.AdminUserItem
 import com.backspace.core.model.AdminUsersPageResponse
@@ -85,6 +89,7 @@ import com.backspace.core.model.FederationResetEventItem
 import com.backspace.core.model.InstanceAdminSettings
 import com.backspace.core.model.InstanceStreamingLimits
 import com.backspace.core.model.InstanceUpdateStatusResponse
+import com.backspace.core.model.IpBanFeedInfoResponse
 import com.backspace.core.model.SoundboardSound
 import com.backspace.core.model.StorageCleanupResult
 import com.backspace.core.model.StorageStatsResponse
@@ -333,7 +338,7 @@ fun InstanceGeneralSubScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Controla como Espaços públicos desta instância podem ser encontrados.",
+                text = "Controla como Grupos públicos desta instância podem ser encontrados.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -341,8 +346,8 @@ fun InstanceGeneralSubScreen(
 
             val levels = listOf(
                 Triple(0, "Apenas convite", "Descoberta desativada. Usuários só entram por link de convite."),
-                Triple(1, "Descoberta local", "Espaços públicos aparecem na busca local desta instância."),
-                Triple(2, "Diretório global", "Espaços públicos também são publicados no diretório global."),
+                Triple(1, "Descoberta local", "Grupos públicos aparecem na busca local desta instância."),
+                Triple(2, "Diretório global", "Grupos públicos também são publicados no diretório global."),
             )
             levels.forEach { (level, title, desc) ->
                 val selected = discoveryLevel == level
@@ -397,7 +402,7 @@ fun InstanceGeneralSubScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Espaços listados: ${settings.directoryListedSpaceCount}",
+                text = "Grupos listados: ${settings.directoryListedSpaceCount}",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -420,7 +425,7 @@ fun InstanceGeneralSubScreen(
             Spacer(Modifier.height(12.dp))
             AdminToggleRow(
                 title = "Navegar no diretório global",
-                subtitle = "Permite que usuários desta instância explorem Espaços do diretório global.",
+                subtitle = "Permite que usuários desta instância explorem Grupos do diretório global.",
                 checked = directoryBrowseEnabled,
                 onCheckedChange = { directoryBrowseEnabled = it },
             )
@@ -1522,6 +1527,20 @@ fun InstanceStreamingSubScreen(
     var minBitrate by remember(limits) { mutableFloatStateOf(limits.minBitrateKbps.toFloat().coerceIn(250f, 20000f)) }
     var maxBitrate by remember(limits) { mutableFloatStateOf(limits.maxBitrateKbps.toFloat().coerceIn(500f, 50000f)) }
     var bitrateStepText by remember(limits) { mutableStateOf(limits.bitrateStepKbps.toString()) }
+    var bandwidthBudgetMbpsText by remember(limits) {
+        val initialText = limits.streamBandwidthBudgetKbps
+            ?.takeIf { it > 0 }
+            ?.let { kbps ->
+                val mbps = kbps / 1000.0
+                if (mbps == mbps.toLong().toDouble()) {
+                    mbps.toLong().toString()
+                } else {
+                    String.format(Locale.US, "%.2f", mbps).trimEnd('0').trimEnd('.')
+                }
+            }
+            .orEmpty()
+        mutableStateOf(initialText)
+    }
     var selectedResolutions by remember(limits) {
         mutableStateOf(
             limits.allowedResolutions.map { it.trim().lowercase() }.toSet().ifEmpty {
@@ -1600,6 +1619,21 @@ fun InstanceStreamingSubScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = bandwidthBudgetMbpsText,
+                onValueChange = { raw ->
+                    bandwidthBudgetMbpsText = raw.filter { ch -> ch.isDigit() || ch == '.' || ch == ',' }
+                },
+                label = { Text("Orçamento total de upload (Mbps)") },
+                placeholder = { Text("Vazio ou 0 = sem limite (mín. 1.5 Mbps)") },
+                supportingText = {
+                    Text("Limite total de upload para transmissões simultâneas na instância. Vazio ou 0 desativa o limite.")
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
 
         AetherSurfaceCard {
@@ -1669,6 +1703,25 @@ fun InstanceStreamingSubScreen(
                     val minVal = minBitrate.roundToInt()
                     val maxVal = maxBitrate.roundToInt().coerceAtLeast(minVal)
                     val stepVal = bitrateStepText.toIntOrNull()?.coerceAtLeast(50) ?: limits.bitrateStepKbps
+                    val normalizedBudget = bandwidthBudgetMbpsText.trim().replace(',', '.')
+                    val parsedBudgetKbps: Int? = if (normalizedBudget.isEmpty()) {
+                        null
+                    } else {
+                        val mbps = normalizedBudget.toDoubleOrNull()
+                        if (mbps == null || mbps < 0.0) {
+                            feedback = "Orçamento total de upload inválido." to true
+                            isSaving = false
+                            return@launch
+                        } else if (mbps == 0.0) {
+                            null
+                        } else if (mbps < 1.5) {
+                            feedback = "O orçamento total de upload deve ser de pelo menos 1,5 Mbps (ou 0/vazio para sem limite)." to true
+                            isSaving = false
+                            return@launch
+                        } else {
+                            (mbps * 1000.0).roundToInt()
+                        }
+                    }
                     val orderedRes = resolutionOptions.filter { selectedResolutions.contains(it) }
                     val orderedFps = framerateOptions.filter { selectedFramerates.contains(it) }
                     val computedMaxRes = orderedRes.mapNotNull { it.toIntOrNull() }.maxOrNull() ?: limits.maxResolution
@@ -1683,6 +1736,7 @@ fun InstanceStreamingSubScreen(
                         allowedFramerates = orderedFps,
                         maxResolution = computedMaxRes,
                         maxFramerate = computedMaxFps,
+                        streamBandwidthBudgetKbps = parsedBudgetKbps,
                     )
                     runCatching {
                         restClient.updateStreamingLimits(instanceUrl, token, updated)
@@ -1794,7 +1848,7 @@ fun InstanceAudioOpusSubScreen(
             Spacer(Modifier.height(12.dp))
             AdminToggleRow(
                 title = "Permitir áudio estéreo",
-                subtitle = "Permite transmissão em 2 canais (estéreo) nos Espaços desta instância.",
+                subtitle = "Permite transmissão em 2 canais (estéreo) nos Grupos desta instância.",
                 checked = allowStereoAudio,
                 onCheckedChange = { allowStereoAudio = it },
             )
@@ -1909,7 +1963,7 @@ fun InstanceSoundboardSubScreen(
             Spacer(Modifier.height(10.dp))
             AdminToggleRow(
                 title = "Soundboard habilitado",
-                subtitle = "Ativa ou desativa o soundboard em todos os Espaços da instância.",
+                subtitle = "Ativa ou desativa o soundboard em todos os Grupos da instância.",
                 checked = soundboardEnabled,
                 onCheckedChange = { soundboardEnabled = it },
             )
@@ -2117,6 +2171,13 @@ fun InstanceStorageSubScreen(
     var pendingConfirmAction by remember { mutableStateOf<StorageCleanupAction?>(null) }
     var feedback by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
 
+    var spacesRetention by remember { mutableStateOf<List<AdminSpaceRetentionItem>>(emptyList()) }
+    var isLoadingSpaces by remember { mutableStateOf(true) }
+    var updatingSpaceId by remember { mutableStateOf<String?>(null) }
+    var spaceToDelete by remember { mutableStateOf<AdminSpaceRetentionItem?>(null) }
+    var deleteSpaceConfirmName by remember { mutableStateOf("") }
+    var isDeletingSpace by remember { mutableStateOf(false) }
+
     fun reloadStats() {
         scope.launch {
             isLoadingStats = true
@@ -2127,8 +2188,19 @@ fun InstanceStorageSubScreen(
         }
     }
 
+    fun reloadSpacesRetention() {
+        scope.launch {
+            isLoadingSpaces = true
+            runCatching { restClient.getAdminSpacesRetention(instanceUrl, token) }
+                .onSuccess { spacesRetention = it }
+                .onFailure { feedback = "Erro ao carregar retenção de Grupos: ${it.message ?: "desconhecido"}" to true }
+            isLoadingSpaces = false
+        }
+    }
+
     LaunchedEffect(instanceUrl, token) {
         reloadStats()
+        reloadSpacesRetention()
     }
 
     fun executeCleanup(action: StorageCleanupAction, dryRun: Boolean) {
@@ -2504,6 +2576,122 @@ fun InstanceStorageSubScreen(
                 }
             }
         }
+
+        // Retenção de Arquivos por Grupo
+        AetherSurfaceCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Retenção de Arquivos por Grupo (${spacesRetention.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { reloadSpacesRetention() }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Atualizar", tint = colors.textSecondary)
+                }
+            }
+            Text(
+                text = "Autorize quais Grupos podem reter arquivos contra a limpeza automática de mídia ou exclua Grupos da instância.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(Modifier.height(10.dp))
+
+            if (isLoadingSpaces) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colors.accentPrimary,
+                    trackColor = colors.interactiveMuted,
+                )
+            } else if (spacesRetention.isEmpty()) {
+                Text(
+                    text = "Nenhum Grupo encontrado nesta instância.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    spacesRetention.forEach { space ->
+                        val ownerLabel = space.ownerUsername?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: "—"
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.bgElevated,
+                            border = BorderStroke(1.dp, colors.borderSoft),
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = space.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.textPrimary,
+                                )
+                                Text(
+                                    text = "Dono: $ownerLabel • ${space.memberCount} membros",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                AdminToggleRow(
+                                    title = "Permitir retenção",
+                                    subtitle = if (space.fileRetentionEnabled) {
+                                        "Retenção ativa nas configurações do Grupo"
+                                    } else {
+                                        "Retenção desativada nas configurações do Grupo"
+                                    },
+                                    checked = space.allowFileRetention,
+                                    enabled = updatingSpaceId != space.id && !isDeletingSpace,
+                                    onCheckedChange = { newAllowed ->
+                                        scope.launch {
+                                            updatingSpaceId = space.id
+                                            feedback = null
+                                            runCatching {
+                                                restClient.updateAdminSpaceRetention(
+                                                    instanceUrl = instanceUrl,
+                                                    token = token,
+                                                    spaceId = space.id,
+                                                    allowFileRetention = newAllowed,
+                                                )
+                                            }.onSuccess {
+                                                spacesRetention = spacesRetention.map { item ->
+                                                    if (item.id == space.id) {
+                                                        item.copy(allowFileRetention = newAllowed)
+                                                    } else {
+                                                        item
+                                                    }
+                                                }
+                                                feedback = if (newAllowed) {
+                                                    "Retenção autorizada para \"${space.name}\"." to false
+                                                } else {
+                                                    "Retenção revogada para \"${space.name}\"." to false
+                                                }
+                                            }.onFailure { err ->
+                                                feedback = "Erro ao atualizar retenção: ${err.message ?: "desconhecido"}" to true
+                                            }
+                                            updatingSpaceId = null
+                                        }
+                                    },
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedButton(
+                                    enabled = !isDeletingSpace,
+                                    onClick = {
+                                        deleteSpaceConfirmName = ""
+                                        spaceToDelete = space
+                                    },
+                                ) {
+                                    Text("Excluir Grupo", color = colors.accentPeach)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(16.dp))
     }
 
@@ -2536,6 +2724,73 @@ fun InstanceStorageSubScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingConfirmAction = null }) {
+                    Text("Cancelar", color = colors.textSecondary)
+                }
+            },
+        )
+    }
+
+    val targetDeleteSpace = spaceToDelete
+    if (targetDeleteSpace != null) {
+        val matchesName = deleteSpaceConfirmName.trim() == targetDeleteSpace.name
+        AlertDialog(
+            onDismissRequest = { if (!isDeletingSpace) spaceToDelete = null },
+            containerColor = colors.bgChannel,
+            title = { Text("Excluir Grupo permanentemente", color = colors.accentPeach) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Esta ação removerá o Grupo \"${targetDeleteSpace.name}\", todos os seus canais e mensagens de forma irreversível.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                    Text(
+                        text = "Digite o nome exato do Grupo para confirmar:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textPrimary,
+                    )
+                    OutlinedTextField(
+                        value = deleteSpaceConfirmName,
+                        onValueChange = { deleteSpaceConfirmName = it },
+                        label = { Text(targetDeleteSpace.name) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = matchesName && !isDeletingSpace,
+                    onClick = {
+                        scope.launch {
+                            isDeletingSpace = true
+                            feedback = null
+                            runCatching {
+                                restClient.deleteAdminSpace(instanceUrl, token, targetDeleteSpace.id)
+                            }.onSuccess {
+                                spaceToDelete = null
+                                deleteSpaceConfirmName = ""
+                                feedback = "Grupo \"${targetDeleteSpace.name}\" excluído." to false
+                                reloadSpacesRetention()
+                                reloadStats()
+                            }.onFailure { err ->
+                                feedback = "Erro ao excluir Grupo: ${err.message ?: "desconhecido"}" to true
+                            }
+                            isDeletingSpace = false
+                        }
+                    },
+                ) {
+                    Text(
+                        text = if (isDeletingSpace) "Excluindo..." else "Excluir Grupo",
+                        color = if (matchesName && !isDeletingSpace) colors.accentPeach else colors.textTertiary,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDeletingSpace,
+                    onClick = { spaceToDelete = null },
+                ) {
                     Text("Cancelar", color = colors.textSecondary)
                 }
             },
@@ -3230,5 +3485,906 @@ fun InstanceTelemetrySubScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. OIDC (SSO)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun InstanceOidcSubScreen(
+    instanceUrl: String,
+    token: String,
+    restClient: BackspaceRestClient,
+) {
+    val colors = LocalAetherColors.current
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+
+    var config by remember { mutableStateOf<AdminOidcConfigResponse?>(null) }
+    var users by remember { mutableStateOf<List<AdminOidcUserItem>>(emptyList()) }
+    var searchQuery by remember { mutableStateOf("") }
+    var appliedQuery by remember { mutableStateOf("") }
+    var isLoadingConfig by remember { mutableStateOf(true) }
+    var isLoadingUsers by remember { mutableStateOf(true) }
+    var isBusy by remember { mutableStateOf(false) }
+    var feedback by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+    var reloadKey by remember { mutableIntStateOf(0) }
+
+    // Dialog: Link temporário de vínculo (15 min)
+    var linkTokenDialog by remember { mutableStateOf<Triple<String, String, Long>?>(null) } // username, linkUrl, expiresAt
+
+    // Dialog: Vínculo manual
+    var manualLinkUser by remember { mutableStateOf<AdminOidcUserItem?>(null) }
+    var manualSubject by remember { mutableStateOf("") }
+    var manualEmail by remember { mutableStateOf("") }
+
+    // Dialog: Confirmar desvinculação
+    var unlinkTargetUser by remember { mutableStateOf<AdminOidcUserItem?>(null) }
+
+    LaunchedEffect(instanceUrl, token, reloadKey) {
+        isLoadingConfig = true
+        runCatching { restClient.getAdminOidcConfig(instanceUrl, token) }
+            .onSuccess { config = it }
+            .onFailure { feedback = "Erro ao carregar configuração OIDC: ${it.message ?: "desconhecido"}" to true }
+        isLoadingConfig = false
+    }
+
+    LaunchedEffect(instanceUrl, token, appliedQuery, reloadKey) {
+        isLoadingUsers = true
+        runCatching {
+            restClient.getAdminOidcUsers(
+                instanceUrl = instanceUrl,
+                token = token,
+                q = appliedQuery.takeIf { it.isNotBlank() },
+            )
+        }.onSuccess { users = it }
+            .onFailure { feedback = "Erro ao carregar usuários OIDC: ${it.message ?: "desconhecido"}" to true }
+        isLoadingUsers = false
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AdminStatusBanner(
+            message = feedback?.first,
+            isError = feedback?.second == true,
+        )
+
+        // Status OIDC
+        AetherSurfaceCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Configuração OIDC (SSO)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                val cfgHeader = config
+                if (cfgHeader != null) {
+                    AdminBadge(
+                        text = if (cfgHeader.enabled) "Habilitado" else "Desabilitado",
+                        color = if (cfgHeader.enabled) colors.accentMint else colors.textSecondary,
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
+            if (isLoadingConfig) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colors.accentPrimary,
+                    trackColor = colors.interactiveMuted,
+                )
+            } else {
+                val cfg = config
+                if (cfg != null) {
+                    Text(
+                        text = "Provedor: ${cfg.displayName.ifBlank { "SSO" }}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Issuer URL: ${cfg.issuerUrl.ifBlank { "Não configurado" }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                    if (cfg.passwordLoginDisabled) {
+                        Spacer(Modifier.height(4.dp))
+                        AdminBadge(text = "Login por senha desabilitado", color = colors.accentAmber)
+                    }
+                    if (cfg.callbackUrl.isNotBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            text = "Callback URL",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textTertiary,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = colors.bgInput,
+                            border = BorderStroke(1.dp, colors.borderSoft),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = cfg.callbackUrl,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = colors.accentSky,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(
+                                    onClick = {
+                                        clipboard.setText(AnnotatedString(cfg.callbackUrl))
+                                        feedback = "Callback URL copiada." to false
+                                    },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ContentCopy,
+                                        contentDescription = "Copiar Callback URL",
+                                        tint = colors.accentPrimary,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Não foi possível obter o status OIDC da instância.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+        }
+
+        // Busca e lista de usuários OIDC
+        AetherSurfaceCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Vínculo de Usuários (${users.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { reloadKey++ }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Atualizar", tint = colors.textSecondary)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Buscar usuário") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { appliedQuery = searchQuery.trim() }) {
+                    Icon(Icons.Filled.Search, contentDescription = "Buscar", tint = colors.accentPrimary)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            if (isLoadingUsers) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colors.accentPrimary,
+                    trackColor = colors.interactiveMuted,
+                )
+            } else if (users.isEmpty()) {
+                Text(
+                    text = "Nenhum usuário encontrado.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    users.forEach { user ->
+                        val oidcLink = user.oidcLink
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.bgElevated,
+                            border = BorderStroke(1.dp, colors.borderSoft),
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    AetherAvatar(
+                                        imageUrl = user.avatarUrl(instanceUrl),
+                                        fallbackLabel = user.label,
+                                        size = 40.dp,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = user.label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = colors.textPrimary,
+                                        )
+                                        Text(
+                                            text = "@${user.username}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textSecondary,
+                                        )
+                                    }
+                                    AdminBadge(
+                                        text = if (oidcLink != null) "Vinculado" else "Não vinculado",
+                                        color = if (oidcLink != null) colors.accentMint else colors.textSecondary,
+                                    )
+                                }
+
+                                if (oidcLink != null) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "Subject: ${oidcLink.subject}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = colors.textSecondary,
+                                    )
+                                    val linkEmail = oidcLink.email
+                                    if (!linkEmail.isNullOrBlank()) {
+                                        Text(
+                                            text = "Email: $linkEmail",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textSecondary,
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(8.dp))
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    OutlinedButton(
+                                        enabled = !isBusy,
+                                        onClick = {
+                                            scope.launch {
+                                                isBusy = true
+                                                feedback = null
+                                                runCatching {
+                                                    restClient.createAdminOidcLinkToken(instanceUrl, token, user.id)
+                                                }.onSuccess { resp ->
+                                                    linkTokenDialog = Triple(user.username, resp.linkUrl, resp.expiresAt)
+                                                }.onFailure { err ->
+                                                    feedback = "Erro ao gerar link de vínculo: ${err.message ?: "desconhecido"}" to true
+                                                }
+                                                isBusy = false
+                                            }
+                                        },
+                                    ) {
+                                        Text("Gerar link de vínculo (15 min)")
+                                    }
+
+                                    OutlinedButton(
+                                        enabled = !isBusy,
+                                        onClick = {
+                                            manualSubject = oidcLink?.subject.orEmpty()
+                                            manualEmail = oidcLink?.email.orEmpty()
+                                            manualLinkUser = user
+                                        },
+                                    ) {
+                                        Text("Vincular manual")
+                                    }
+
+                                    if (oidcLink != null) {
+                                        OutlinedButton(
+                                            enabled = !isBusy,
+                                            onClick = { unlinkTargetUser = user },
+                                        ) {
+                                            Text("Desvincular", color = colors.accentPeach)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+
+    val linkInfo = linkTokenDialog
+    if (linkInfo != null) {
+        val (targetUsername, linkUrl, expiresAt) = linkInfo
+        AlertDialog(
+            onDismissRequest = { linkTokenDialog = null },
+            containerColor = colors.bgChannel,
+            title = { Text("Link de vínculo — @$targetUsername", color = colors.textPrimary) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Envie este link para o usuário concluir o vínculo OIDC (válido por 15 minutos, expira em ${formatTimestamp(expiresAt)}):",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = colors.bgInput,
+                        border = BorderStroke(1.dp, colors.borderSoft),
+                    ) {
+                        Text(
+                            text = linkUrl,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.accentSky,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(linkUrl))
+                        feedback = "Link de vínculo copiado." to false
+                        linkTokenDialog = null
+                    },
+                ) {
+                    Text("Copiar", color = colors.accentPrimary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { linkTokenDialog = null }) {
+                    Text("Fechar", color = colors.textSecondary)
+                }
+            },
+        )
+    }
+
+    val targetManualUser = manualLinkUser
+    if (targetManualUser != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isBusy) manualLinkUser = null },
+            containerColor = colors.bgChannel,
+            title = { Text("Vincular OIDC — @${targetManualUser.username}", color = colors.textPrimary) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = manualSubject,
+                        onValueChange = { manualSubject = it },
+                        label = { Text("Subject (sub)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = manualEmail,
+                        onValueChange = { manualEmail = it },
+                        label = { Text("E-mail (opcional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBusy && manualSubject.isNotBlank(),
+                    onClick = {
+                        val subjectVal = manualSubject.trim()
+                        val emailVal = manualEmail.trim().takeIf { it.isNotEmpty() }
+                        scope.launch {
+                            isBusy = true
+                            feedback = null
+                            runCatching {
+                                restClient.createAdminOidcLink(
+                                    instanceUrl = instanceUrl,
+                                    token = token,
+                                    userId = targetManualUser.id,
+                                    subject = subjectVal,
+                                    email = emailVal,
+                                )
+                            }.onSuccess {
+                                manualLinkUser = null
+                                feedback = "Vínculo OIDC salvo para @${targetManualUser.username}." to false
+                                reloadKey++
+                            }.onFailure { err ->
+                                feedback = "Erro ao vincular: ${err.message ?: "desconhecido"}" to true
+                            }
+                            isBusy = false
+                        }
+                    },
+                ) {
+                    Text("Salvar vínculo", color = colors.accentPrimary)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = { manualLinkUser = null },
+                ) {
+                    Text("Cancelar", color = colors.textSecondary)
+                }
+            },
+        )
+    }
+
+    val targetUnlinkUser = unlinkTargetUser
+    if (targetUnlinkUser != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isBusy) unlinkTargetUser = null },
+            containerColor = colors.bgChannel,
+            title = { Text("Desvincular OIDC", color = colors.textPrimary) },
+            text = {
+                Text(
+                    text = "Deseja remover o vínculo OIDC da conta @${targetUnlinkUser.username}?",
+                    color = colors.textSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            feedback = null
+                            runCatching {
+                                restClient.deleteAdminOidcLink(instanceUrl, token, targetUnlinkUser.id)
+                            }.onSuccess {
+                                unlinkTargetUser = null
+                                feedback = "Vínculo OIDC removido de @${targetUnlinkUser.username}." to false
+                                reloadKey++
+                            }.onFailure { err ->
+                                feedback = "Erro ao desvincular: ${err.message ?: "desconhecido"}" to true
+                            }
+                            isBusy = false
+                        }
+                    },
+                ) {
+                    Text("Desvincular", color = colors.accentPeach)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = { unlinkTargetUser = null },
+                ) {
+                    Text("Cancelar", color = colors.textSecondary)
+                }
+            },
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. Ban por IP
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun InstanceIpBansSubScreen(
+    instanceUrl: String,
+    token: String,
+    restClient: BackspaceRestClient,
+) {
+    val colors = LocalAetherColors.current
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+
+    var bans by remember { mutableStateOf<List<ActiveIpBan>>(emptyList()) }
+    var feedInfo by remember { mutableStateOf<IpBanFeedInfoResponse?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var isBusy by remember { mutableStateOf(false) }
+    var feedback by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+    var reloadKey by remember { mutableIntStateOf(0) }
+
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newIpInput by remember { mutableStateOf("") }
+    var newReasonInput by remember { mutableStateOf("") }
+    var newDurationDaysInput by remember { mutableStateOf("") }
+
+    var banToDelete by remember { mutableStateOf<ActiveIpBan?>(null) }
+
+    LaunchedEffect(instanceUrl, token, reloadKey) {
+        isLoading = true
+        runCatching { restClient.getAdminIpBans(instanceUrl, token) }
+            .onSuccess { bans = it }
+            .onFailure { feedback = "Erro ao carregar IPs banidos: ${it.message ?: "desconhecido"}" to true }
+        runCatching { restClient.getAdminIpBanFeedInfo(instanceUrl, token) }
+            .onSuccess { feedInfo = it }
+        isLoading = false
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AdminStatusBanner(
+            message = feedback?.first,
+            isError = feedback?.second == true,
+        )
+
+        AetherPrimaryButton(
+            text = "+ Banir IP",
+            enabled = !isBusy,
+            onClick = {
+                newIpInput = ""
+                newReasonInput = ""
+                newDurationDaysInput = ""
+                showCreateDialog = true
+            },
+        )
+
+        // Lista de IPs Banidos
+        AetherSurfaceCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "IPs Banidos (${bans.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { reloadKey++ }) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Atualizar", tint = colors.textSecondary)
+                }
+            }
+
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colors.accentPrimary,
+                    trackColor = colors.interactiveMuted,
+                )
+            } else if (bans.isEmpty()) {
+                Text(
+                    text = "Nenhum IP banido no momento.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            } else {
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    bans.forEach { ban ->
+                        val banExpiresAt = ban.expiresAt
+                        val banDurationDays = ban.durationDays
+                        val expiryLabel = when {
+                            banExpiresAt != null -> "Expira em ${formatTimestamp(banExpiresAt)}"
+                            banDurationDays != null && banDurationDays > 0 -> "$banDurationDays dias"
+                            else -> "Permanente"
+                        }
+                        val expiryColor = if (banExpiresAt == null && (banDurationDays == null || banDurationDays <= 0)) {
+                            colors.accentPeach
+                        } else {
+                            colors.accentAmber
+                        }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.bgElevated,
+                            border = BorderStroke(1.dp, colors.borderSoft),
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = ban.ip,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.textPrimary,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    AdminBadge(text = expiryLabel, color = expiryColor)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "Motivo: ${ban.reason?.takeIf { it.isNotBlank() } ?: "Não informado"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                )
+                                Text(
+                                    text = "Criado em ${formatTimestamp(ban.createdAt)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textTertiary,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedButton(
+                                    enabled = !isBusy,
+                                    onClick = { banToDelete = ban },
+                                ) {
+                                    Text("Remover Ban", color = colors.accentPeach)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Card Integração OPNsense / Nginx
+        AetherSurfaceCard {
+            val feed = feedInfo
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Integração OPNsense / Nginx",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                if (feed != null) {
+                    AdminBadge(
+                        text = if (feed.configured) "Configurado" else "Não configurado",
+                        color = if (feed.configured) colors.accentMint else colors.textSecondary,
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Feeds dinâmicos para bloquear IPs banidos diretamente no firewall (OPNsense) ou proxy reverso (Nginx).",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+
+            if (feed != null) {
+                val baseUrl = instanceUrl.trimEnd('/')
+                val opnsenseUrl = if (feed.opnsensePath.isNotBlank()) "$baseUrl${feed.opnsensePath}" else ""
+                val nginxUrl = if (feed.nginxPath.isNotBlank()) "$baseUrl${feed.nginxPath}" else ""
+
+                if (opnsenseUrl.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "Feed OPNsense",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textTertiary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = colors.bgInput,
+                        border = BorderStroke(1.dp, colors.borderSoft),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = opnsenseUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = colors.accentSky,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(opnsenseUrl))
+                                    feedback = "URL do feed OPNsense copiada." to false
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.ContentCopy,
+                                    contentDescription = "Copiar URL OPNsense",
+                                    tint = colors.accentPrimary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (nginxUrl.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "Feed Nginx",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textTertiary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = colors.bgInput,
+                        border = BorderStroke(1.dp, colors.borderSoft),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = nginxUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = colors.accentSky,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(nginxUrl))
+                                    feedback = "URL do feed Nginx copiada." to false
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.ContentCopy,
+                                    contentDescription = "Copiar URL Nginx",
+                                    tint = colors.accentPrimary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (!feed.configured && opnsenseUrl.isBlank() && nginxUrl.isBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Configure o token de feed no servidor para habilitar as URLs OPNsense e Nginx.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.accentAmber,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isBusy) showCreateDialog = false },
+            containerColor = colors.bgChannel,
+            title = { Text("Banir IP / CIDR", color = colors.textPrimary) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = newIpInput,
+                        onValueChange = { newIpInput = it },
+                        label = { Text("Endereço IP ou CIDR") },
+                        placeholder = { Text("Ex: 203.0.113.10 ou 203.0.113.0/24") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = newReasonInput,
+                        onValueChange = { newReasonInput = it },
+                        label = { Text("Motivo (opcional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = newDurationDaysInput,
+                        onValueChange = { newDurationDaysInput = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Duração em dias (0 ou vazio = permanente)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBusy && newIpInput.isNotBlank(),
+                    onClick = {
+                        val ipVal = newIpInput.trim()
+                        val reasonVal = newReasonInput.trim().takeIf { it.isNotEmpty() }
+                        val durationVal = newDurationDaysInput.toIntOrNull()?.takeIf { it > 0 }
+                        scope.launch {
+                            isBusy = true
+                            feedback = null
+                            runCatching {
+                                restClient.createAdminIpBan(
+                                    instanceUrl = instanceUrl,
+                                    token = token,
+                                    ip = ipVal,
+                                    reason = reasonVal,
+                                    durationDays = durationVal,
+                                )
+                            }.onSuccess {
+                                showCreateDialog = false
+                                feedback = "IP $ipVal banido com sucesso." to false
+                                reloadKey++
+                            }.onFailure { err ->
+                                feedback = "Erro ao banir IP: ${err.message ?: "desconhecido"}" to true
+                            }
+                            isBusy = false
+                        }
+                    },
+                ) {
+                    Text("Banir", color = colors.accentPeach)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = { showCreateDialog = false },
+                ) {
+                    Text("Cancelar", color = colors.textSecondary)
+                }
+            },
+        )
+    }
+
+    val confirmRemoveBan = banToDelete
+    if (confirmRemoveBan != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isBusy) banToDelete = null },
+            containerColor = colors.bgChannel,
+            title = { Text("Remover ban de IP", color = colors.textPrimary) },
+            text = {
+                Text(
+                    text = "Deseja remover o ban do endereço ${confirmRemoveBan.ip}?",
+                    color = colors.textSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = {
+                        scope.launch {
+                            isBusy = true
+                            feedback = null
+                            runCatching {
+                                restClient.deleteAdminIpBan(instanceUrl, token, confirmRemoveBan.id)
+                            }.onSuccess {
+                                banToDelete = null
+                                feedback = "Ban removido para ${confirmRemoveBan.ip}." to false
+                                reloadKey++
+                            }.onFailure { err ->
+                                feedback = "Erro ao remover ban: ${err.message ?: "desconhecido"}" to true
+                            }
+                            isBusy = false
+                        }
+                    },
+                ) {
+                    Text("Remover Ban", color = colors.accentPeach)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = { banToDelete = null },
+                ) {
+                    Text("Cancelar", color = colors.textSecondary)
+                }
+            },
+        )
     }
 }

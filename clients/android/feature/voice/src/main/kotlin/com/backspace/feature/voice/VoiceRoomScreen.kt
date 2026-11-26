@@ -7,13 +7,17 @@ import android.content.pm.ActivityInfo
 import android.media.projection.MediaProjectionManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +26,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -70,10 +76,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,12 +94,14 @@ import com.backspace.core.designsystem.AetherSurfaceCard
 import com.backspace.core.designsystem.AetherTheme
 import com.backspace.core.model.AudioMode
 import com.backspace.core.model.AudioOutputRoute
+import com.backspace.core.model.StreamPointerEvent
 import com.backspace.core.model.TransmissionMode
 import com.backspace.core.voice.BackspaceVoiceEngine
 import com.backspace.core.voice.VoiceConnectionStatus
 import com.backspace.core.voice.VoiceParticipantUi
 import com.backspace.core.voice.VoiceVideoTile
 import io.livekit.android.renderer.TextureViewRenderer
+import kotlin.math.roundToInt
 import livekit.org.webrtc.RendererCommon
 
 @Composable
@@ -120,6 +133,9 @@ fun VoiceRoomScreen(
     val policy = state.effectiveAudio.policy
     var fullscreenTileId by remember { mutableStateOf<String?>(null) }
     var isLandscapeForced by remember { mutableStateOf(false) }
+    var pointerModeEnabled by remember(fullscreenTileId) { mutableStateOf(false) }
+    var dragAimOffset by remember(fullscreenTileId) { mutableStateOf<Offset?>(null) }
+    var fullscreenVideoSize by remember(fullscreenTileId) { mutableStateOf(IntSize.Zero) }
     var selectedParticipant by remember { mutableStateOf<VoiceParticipantUi?>(null) }
     var showAudioDialog by remember { mutableStateOf(false) }
     var showChatOverlay by remember { mutableStateOf(false) }
@@ -175,6 +191,11 @@ fun VoiceRoomScreen(
     }
 
     if (fullscreenTile != null) {
+        val density = LocalDensity.current
+        val fingerOffsetPx = with(density) { 64.dp.toPx() }
+        val halfReticlePx = with(density) { 18.dp.toPx() }.roundToInt()
+        val activeFullscreenPointers = state.streamPointers.filter { it.streamIdentity == fullscreenTile.id }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -182,17 +203,152 @@ fun VoiceRoomScreen(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            LiveKitVideoBox(
-                tile = fullscreenTile,
-                voiceEngine = voiceEngine,
-                modifier = Modifier.fillMaxSize(),
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { fullscreenVideoSize = it },
+            ) {
+                LiveKitVideoBox(
+                    tile = fullscreenTile,
+                    voiceEngine = voiceEngine,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                StreamPointersOverlay(
+                    pointers = activeFullscreenPointers,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (pointerModeEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(fullscreenTile.id, pointerModeEnabled) {
+                                var lastSentMs = 0L
+                                detectDragGestures(
+                                    onDragStart = { startOffset ->
+                                        val w = fullscreenVideoSize.width.toFloat()
+                                        val h = fullscreenVideoSize.height.toFloat()
+                                        if (w > 0f && h > 0f) {
+                                            val aimed = Offset(
+                                                x = startOffset.x.coerceIn(0f, w),
+                                                y = (startOffset.y - fingerOffsetPx).coerceIn(0f, h),
+                                            )
+                                            dragAimOffset = aimed
+                                            lastSentMs = System.currentTimeMillis()
+                                            voiceEngine.sendStreamPointer(
+                                                streamIdentity = fullscreenTile.id,
+                                                x = (aimed.x / w).toDouble(),
+                                                y = (aimed.y / h).toDouble(),
+                                                mode = "drag",
+                                            )
+                                        }
+                                    },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        val w = fullscreenVideoSize.width.toFloat()
+                                        val h = fullscreenVideoSize.height.toFloat()
+                                        if (w > 0f && h > 0f) {
+                                            val pos = change.position
+                                            val aimed = Offset(
+                                                x = pos.x.coerceIn(0f, w),
+                                                y = (pos.y - fingerOffsetPx).coerceIn(0f, h),
+                                            )
+                                            dragAimOffset = aimed
+                                            val now = System.currentTimeMillis()
+                                            if (now - lastSentMs >= 80L) {
+                                                lastSentMs = now
+                                                voiceEngine.sendStreamPointer(
+                                                    streamIdentity = fullscreenTile.id,
+                                                    x = (aimed.x / w).toDouble(),
+                                                    y = (aimed.y / h).toDouble(),
+                                                    mode = "drag",
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        val finalAim = dragAimOffset
+                                        val w = fullscreenVideoSize.width.toFloat()
+                                        val h = fullscreenVideoSize.height.toFloat()
+                                        if (finalAim != null && w > 0f && h > 0f) {
+                                            voiceEngine.sendStreamPointer(
+                                                streamIdentity = fullscreenTile.id,
+                                                x = (finalAim.x / w).toDouble(),
+                                                y = (finalAim.y / h).toDouble(),
+                                                mode = "ping",
+                                            )
+                                        }
+                                        dragAimOffset = null
+                                    },
+                                    onDragCancel = {
+                                        dragAimOffset = null
+                                    },
+                                )
+                            },
+                    ) {
+                        val currentAim = dragAimOffset
+                        if (currentAim != null) {
+                            Box(
+                                modifier = Modifier
+                                    .offset {
+                                        IntOffset(
+                                            x = currentAim.x.roundToInt() - halfReticlePx,
+                                            y = currentAim.y.roundToInt() - halfReticlePx,
+                                        )
+                                    }
+                                    .size(36.dp)
+                                    .border(2.dp, colors.accentPrimary, CircleShape)
+                                    .background(colors.accentPrimary.copy(alpha = 0.22f), CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Color.White, CircleShape),
+                                )
+                            }
+                        } else {
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 18.dp),
+                            ) {
+                                Text(
+                                    text = "Arraste para apontar (mira acima do dedo)",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                Surface(
+                    onClick = {
+                        pointerModeEnabled = !pointerModeEnabled
+                        if (!pointerModeEnabled) {
+                            dragAimOffset = null
+                        }
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (pointerModeEnabled) colors.accentPrimary else Color.Black.copy(alpha = 0.6f),
+                ) {
+                    Text(
+                        text = if (pointerModeEnabled) "🎯 Apontando" else "🎯 Apontar",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
+                }
                 IconButton(
                     onClick = {
                         isLandscapeForced = !isLandscapeForced
@@ -210,6 +366,8 @@ fun VoiceRoomScreen(
                 }
                 IconButton(
                     onClick = {
+                        pointerModeEnabled = false
+                        dragAimOffset = null
                         fullscreenTileId = null
                         if (isLandscapeForced) {
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -612,14 +770,16 @@ fun VoiceRoomScreen(
             if (state.videoTiles.isNotEmpty()) {
                 val sortedTiles = state.videoTiles.sortedByDescending { it.isScreenShare }
                 if (sortedTiles.size == 1) {
+                    val singleTile = sortedTiles.first()
                     VideoTileCard(
-                        tile = sortedTiles.first(),
+                        tile = singleTile,
                         voiceEngine = voiceEngine,
                         screenShareBadge = screenShareBadge,
+                        pointers = state.streamPointers.filter { it.streamIdentity == singleTile.id },
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f),
-                        onClick = { fullscreenTileId = sortedTiles.first().id },
+                        onClick = { fullscreenTileId = singleTile.id },
                     )
                 } else {
                     sortedTiles.chunked(2).forEach { rowTiles ->
@@ -632,6 +792,7 @@ fun VoiceRoomScreen(
                                     tile = tile,
                                     voiceEngine = voiceEngine,
                                     screenShareBadge = screenShareBadge,
+                                    pointers = state.streamPointers.filter { it.streamIdentity == tile.id },
                                     modifier = Modifier
                                         .weight(1f)
                                         .aspectRatio(16f / 10f),
@@ -722,6 +883,7 @@ private fun VideoTileCard(
     tile: VoiceVideoTile,
     voiceEngine: BackspaceVoiceEngine,
     screenShareBadge: String,
+    pointers: List<StreamPointerEvent> = emptyList(),
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -734,6 +896,10 @@ private fun VideoTileCard(
         LiveKitVideoBox(
             tile = tile,
             voiceEngine = voiceEngine,
+            modifier = Modifier.fillMaxSize(),
+        )
+        StreamPointersOverlay(
+            pointers = pointers,
             modifier = Modifier.fillMaxSize(),
         )
         Surface(
@@ -752,6 +918,63 @@ private fun VideoTileCard(
             )
         }
     }
+}
+
+@Composable
+private fun StreamPointersOverlay(
+    pointers: List<StreamPointerEvent>,
+    modifier: Modifier = Modifier,
+) {
+    if (pointers.isEmpty()) return
+    BoxWithConstraints(modifier = modifier) {
+        val boxW = maxWidth
+        val boxH = maxHeight
+        pointers.forEach { pointer ->
+            val pointerColor = parseHexColor(pointer.color)
+            val xDp = (boxW * pointer.x.toFloat().coerceIn(0f, 1f) - 12.dp).coerceAtLeast(0.dp)
+            val yDp = (boxH * pointer.y.toFloat().coerceIn(0f, 1f) - 12.dp).coerceAtLeast(0.dp)
+            Row(
+                modifier = Modifier.offset(x = xDp, y = yDp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .border(2.5.dp, pointerColor, CircleShape)
+                        .background(pointerColor.copy(alpha = 0.25f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(pointerColor, CircleShape),
+                    )
+                }
+                if (pointer.senderName.isNotBlank()) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, pointerColor.copy(alpha = 0.75f)),
+                    ) {
+                        Text(
+                            text = pointer.senderName,
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun parseHexColor(hex: String, fallback: Color = Color(0xFFA78BFA)): Color {
+    return runCatching {
+        Color(android.graphics.Color.parseColor(hex.trim()))
+    }.getOrDefault(fallback)
 }
 
 @Composable

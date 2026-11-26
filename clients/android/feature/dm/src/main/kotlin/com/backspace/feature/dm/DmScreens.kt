@@ -108,7 +108,7 @@ fun DmListScreen(
         AlertDialog(
             onDismissRequest = { showCreateGroupDialog = false },
             containerColor = colors.bgChannel,
-            title = { Text("Criar Grupo DM", color = colors.textPrimary) },
+            title = { Text("Criar Grupo Direto", color = colors.textPrimary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (friends.isEmpty()) {

@@ -13,6 +13,7 @@ import com.backspace.core.model.SoundboardPlayPayload
 import com.backspace.core.model.SoundboardSound
 import com.backspace.core.model.SoundboardUrlValidator
 import com.backspace.core.model.Space
+import com.backspace.core.model.StreamPointerEvent
 import com.backspace.core.model.TransmissionMode
 import com.backspace.core.model.UserAudioPreferences
 import com.backspace.core.model.VoiceTelemetry
@@ -50,8 +51,13 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.round
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 enum class VoiceConnectionStatus {
@@ -106,6 +112,7 @@ data class VoiceSessionState(
     val telemetry: VoiceTelemetry = VoiceTelemetry(),
     val soundboardVolume: Float = 0.8f,
     val lastSoundboardEvent: String? = null,
+    val streamPointers: List<StreamPointerEvent> = emptyList(),
     val errorMessage: String? = null,
 )
 
@@ -146,6 +153,19 @@ class BackspaceVoiceEngine(
     private var idleSuspendJob: Job? = null
     private var telemetryJob: Job? = null
     private var pttReleaseJob: Job? = null
+    private var pointerSweepJob: Job? = null
+    private val streamPointerMap = LinkedHashMap<String, StreamPointerEvent>()
+
+    private val pointerPalette = listOf(
+        "#a78bfa",
+        "#34d399",
+        "#38bdf8",
+        "#fbbf24",
+        "#fb7185",
+        "#f472b6",
+        "#2dd4bf",
+        "#fb923c",
+    )
 
     private var currentInstanceUrl: String? = null
     private var currentJwt: String? = null
@@ -341,6 +361,7 @@ class BackspaceVoiceEngine(
                 isScreenSharing = false,
                 participants = emptyList(),
                 videoTiles = emptyList(),
+                streamPointers = emptyList(),
                 telemetry = VoiceTelemetry(),
                 errorMessage = null,
             )
@@ -581,6 +602,54 @@ class BackspaceVoiceEngine(
     fun moderateDisconnect(targetUserId: String) {
         val spaceId = _state.value.spaceId ?: return
         wsClient.sendVoiceDisconnect(spaceId, targetUserId)
+    }
+
+    fun sendStreamPointer(streamIdentity: String, x: Double, y: Double, mode: String) {
+        val lkRoom = room ?: return
+        val clampedX = round(x.coerceIn(0.0, 1.0) * 10_000.0) / 10_000.0
+        val clampedY = round(y.coerceIn(0.0, 1.0) * 10_000.0) / 10_000.0
+
+        val localIdentity = lkRoom.localParticipant.identity?.value.orEmpty()
+        val myUser = wsClient.snapshot.value.currentUser
+        val senderIdentity = localIdentity.ifBlank { myUser?.id ?: "me" }
+        val senderName = localIdentity.split(":").getOrNull(1)?.takeIf { it.isNotBlank() }
+            ?: myUser?.label
+            ?: "Você"
+        val color = pointerColorForIdentity(senderIdentity)
+
+        upsertStreamPointer(
+            streamIdentity = streamIdentity,
+            senderIdentity = senderIdentity,
+            senderName = senderName,
+            x = clampedX,
+            y = clampedY,
+            mode = mode,
+            color = color,
+        )
+
+        val payloadBytes = buildJsonObject {
+            put("type", "stream_pointer")
+            put("streamIdentity", streamIdentity)
+            put("x", clampedX)
+            put("y", clampedY)
+            put("mode", mode)
+            put("color", color)
+        }.toString().toByteArray(Charsets.UTF_8)
+
+        val reliability = if (mode == "drag") {
+            DataPublishReliability.LOSSY
+        } else {
+            DataPublishReliability.RELIABLE
+        }
+
+        scope.launch {
+            runCatching {
+                lkRoom.localParticipant.publishData(
+                    data = payloadBytes,
+                    reliability = reliability,
+                )
+            }
+        }
     }
 
     fun playSoundboardSound(sound: SoundboardSound) {
@@ -1012,6 +1081,10 @@ class BackspaceVoiceEngine(
 
     private fun handleDataReceived(event: RoomEvent.DataReceived) {
         val raw = runCatching { event.data.toString(Charsets.UTF_8) }.getOrNull() ?: return
+        if (raw.contains("\"stream_pointer\"")) {
+            handleStreamPointerData(raw, event)
+            return
+        }
         if (!raw.contains("\"soundboard_play\"")) return
         if (_state.value.isDeafened) return
         if (event.participant?.attributes?.get("sb") == "0") return
@@ -1029,6 +1102,107 @@ class BackspaceVoiceEngine(
         _state.update { it.copy(lastSoundboardEvent = "${payload.emoji} ${payload.name}") }
     }
 
+    private fun handleStreamPointerData(raw: String, event: RoomEvent.DataReceived) {
+        val obj = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return
+        if (obj["type"]?.jsonPrimitive?.contentOrNull != "stream_pointer") return
+
+        val streamIdentity = obj["streamIdentity"]?.jsonPrimitive?.contentOrNull
+            ?.takeIf { it.isNotBlank() } ?: return
+        val x = obj["x"]?.jsonPrimitive?.doubleOrNull?.coerceIn(0.0, 1.0) ?: return
+        val y = obj["y"]?.jsonPrimitive?.doubleOrNull?.coerceIn(0.0, 1.0) ?: return
+        val mode = obj["mode"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: "ping"
+
+        val participant = event.participant
+        val rawIdentity = participant?.identity?.value.orEmpty()
+        val senderIdentity = rawIdentity.ifBlank { participant?.sid?.value ?: "unknown" }
+        val senderName = rawIdentity.split(":").getOrNull(1)?.takeIf { it.isNotBlank() }
+            ?: participant?.name?.takeIf { it.isNotBlank() }
+            ?: senderIdentity
+        val color = obj["color"]?.jsonPrimitive?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?: pointerColorForIdentity(senderIdentity)
+
+        upsertStreamPointer(
+            streamIdentity = streamIdentity,
+            senderIdentity = senderIdentity,
+            senderName = senderName,
+            x = x,
+            y = y,
+            mode = mode,
+            color = color,
+        )
+    }
+
+    private fun upsertStreamPointer(
+        streamIdentity: String,
+        senderIdentity: String,
+        senderName: String,
+        x: Double,
+        y: Double,
+        mode: String,
+        color: String,
+    ) {
+        val ttlMs = when (mode) {
+            "drag" -> 1400L
+            "clear" -> 350L
+            else -> 2600L
+        }
+        val key = "$streamIdentity:$senderIdentity"
+        val pointer = StreamPointerEvent(
+            streamIdentity = streamIdentity,
+            senderIdentity = senderIdentity,
+            senderName = senderName,
+            x = x,
+            y = y,
+            mode = mode,
+            color = color,
+            expiresAtMs = System.currentTimeMillis() + ttlMs,
+        )
+        val snapshot = synchronized(streamPointerMap) {
+            streamPointerMap[key] = pointer
+            streamPointerMap.values.toList()
+        }
+        _state.update { it.copy(streamPointers = snapshot) }
+        ensurePointerSweepRunning()
+    }
+
+    private fun ensurePointerSweepRunning() {
+        if (pointerSweepJob?.isActive == true) return
+        pointerSweepJob = scope.launch {
+            while (isActive) {
+                delay(250L)
+                val now = System.currentTimeMillis()
+                var changed = false
+                val remaining = synchronized(streamPointerMap) {
+                    val iter = streamPointerMap.entries.iterator()
+                    while (iter.hasNext()) {
+                        if (iter.next().value.expiresAtMs <= now) {
+                            iter.remove()
+                            changed = true
+                        }
+                    }
+                    streamPointerMap.values.toList()
+                }
+                if (changed) {
+                    _state.update { it.copy(streamPointers = remaining) }
+                }
+                if (remaining.isEmpty()) {
+                    break
+                }
+            }
+            pointerSweepJob = null
+        }
+    }
+
+    private fun pointerColorForIdentity(identity: String): String {
+        var hash = 0
+        for (ch in identity) {
+            hash = (hash * 31) + ch.code
+        }
+        val idx = (hash and 0x7fffffff) % pointerPalette.size
+        return pointerPalette[idx]
+    }
+
     private fun detachRoomImmediately(): Room? {
         soundboardPlayer.stopAll()
         pttReleaseJob?.cancel()
@@ -1036,6 +1210,11 @@ class BackspaceVoiceEngine(
         policyObserverJob?.cancel()
         idleSuspendJob?.cancel()
         telemetryJob?.cancel()
+        pointerSweepJob?.cancel()
+        pointerSweepJob = null
+        synchronized(streamPointerMap) {
+            streamPointerMap.clear()
+        }
         val old = room
         room = null
         return old

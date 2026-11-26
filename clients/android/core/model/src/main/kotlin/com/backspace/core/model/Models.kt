@@ -3,12 +3,20 @@ package com.backspace.core.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class InstanceOidcInfo(
+    val enabled: Boolean = false,
+    val displayName: String = "SSO",
+    val passwordLoginDisabled: Boolean = false,
+)
+
+@Serializable
 data class InstanceInfo(
     val name: String = "Backspace",
     val version: String = "",
     val registrationOpen: Boolean = false,
     val instanceId: String = "",
     val commit: String? = null,
+    val oidc: InstanceOidcInfo? = null,
 )
 
 object UploadUrlResolver {
@@ -65,6 +73,7 @@ data class InstanceStreamingLimits(
     val discoveryEnabled: Boolean = true,
     val directoryEnabled: Boolean = false,
     val directoryConfigured: Boolean = false,
+    val streamBandwidthBudgetKbps: Int? = null,
 )
 
 @Serializable
@@ -115,6 +124,8 @@ data class Space(
     val maxAudioBitrateKbps: Int? = null,
     val allowMusicMode: Boolean? = null,
     val allowStereoAudio: Boolean? = null,
+    val allowFileRetention: Boolean = false,
+    val fileRetentionEnabled: Boolean = false,
 ) {
     fun iconUrl(instanceUrl: String): String? = UploadUrlResolver.resolve(instanceUrl, icon)
     fun bannerUrl(instanceUrl: String): String? = UploadUrlResolver.resolve(instanceUrl, banner)
@@ -153,6 +164,7 @@ data class Channel(
     val maxAudioBitrateKbps: Int? = null,
     val allowMusicMode: Boolean? = null,
     val allowStereoAudio: Boolean? = null,
+    val retainFiles: Boolean = false,
 ) {
     val isVoice: Boolean get() = type == "voice"
 }
@@ -261,6 +273,7 @@ data class UserAudioPreferences(
     val hideNonVideoParticipants: Boolean = false,
     val screenShareResolution: Int = 720, // 720 ou 1080
     val screenShareFps: Int = 30, // 15, 30 ou 60
+    val jitterBufferMs: Int = 0, // 0 = Auto, 40, 80, 120
 )
 
 data class IncomingCallEvent(

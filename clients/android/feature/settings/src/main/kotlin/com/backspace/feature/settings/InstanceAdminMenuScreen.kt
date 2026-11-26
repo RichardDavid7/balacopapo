@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Hub
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -118,6 +120,16 @@ enum class InstanceAdminSection(
         title = "Telemetria",
         subtitle = "Ping diário opt-in e prévia do payload",
         icon = Icons.Filled.Analytics,
+    ),
+    OIDC(
+        title = "OIDC (SSO)",
+        subtitle = "Login integrado e vínculo de usuários",
+        icon = Icons.Filled.VpnKey,
+    ),
+    IP_BANS(
+        title = "Ban por IP",
+        subtitle = "IPs banidos, expiração e feeds OPNsense/Nginx",
+        icon = Icons.Filled.Block,
     ),
 }
 
@@ -304,6 +316,18 @@ fun InstanceAdminHostScreen(
                     )
 
                     InstanceAdminSection.TELEMETRY -> InstanceTelemetrySubScreen(
+                        instanceUrl = instanceUrl,
+                        token = token,
+                        restClient = restClient,
+                    )
+
+                    InstanceAdminSection.OIDC -> InstanceOidcSubScreen(
+                        instanceUrl = instanceUrl,
+                        token = token,
+                        restClient = restClient,
+                    )
+
+                    InstanceAdminSection.IP_BANS -> InstanceIpBansSubScreen(
                         instanceUrl = instanceUrl,
                         token = token,
                         restClient = restClient,

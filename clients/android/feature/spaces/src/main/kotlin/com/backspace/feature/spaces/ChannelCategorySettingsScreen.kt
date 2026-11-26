@@ -120,6 +120,9 @@ fun ChannelSettingsHostScreen(
     var selectedCategoryId by remember(channel.id, channel.categoryId) {
         mutableStateOf(channel.categoryId)
     }
+    var retainFiles by remember(channel.id, channel.retainFiles) {
+        mutableStateOf(channel.retainFiles)
+    }
 
     // Configurações Opus para canais de voz
     var customizeOpus by remember(channel.id) {
@@ -421,6 +424,41 @@ fun ChannelSettingsHostScreen(
                     }
                 }
 
+                // Retenção de arquivos no canal (somente canais não-voz)
+                if (channel.type != "voice") {
+                    AetherSurfaceCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Retenção de arquivos neste canal",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = colors.textPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = if (space.allowFileRetention) {
+                                        "Mantém arquivos e mídias enviados neste canal protegidos contra limpeza automática."
+                                    } else {
+                                        "Indisponível: a instância ainda não autorizou retenção de arquivos para este Grupo."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (space.allowFileRetention) colors.textSecondary else colors.textTertiary,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Switch(
+                                checked = if (space.allowFileRetention) retainFiles else false,
+                                enabled = space.allowFileRetention && !isSaving,
+                                onCheckedChange = { retainFiles = it },
+                            )
+                        }
+                    }
+                }
+
                 // Configurações Opus do canal de voz
                 if (channel.type == "voice") {
                     OpusOverrideCard(
@@ -464,6 +502,7 @@ fun ChannelSettingsHostScreen(
                                     maxAudioBitrateKbps = if (channel.type == "voice" && customizeOpus) maxBitrateKbps else null,
                                     allowMusicMode = if (channel.type == "voice" && customizeOpus) allowMusicMode else null,
                                     allowStereoAudio = if (channel.type == "voice" && customizeOpus) allowStereoAudio else null,
+                                    retainFiles = if (channel.type != "voice" && space.allowFileRetention) retainFiles else null,
                                 )
                             }.onSuccess {
                                 statusMessage = "Canal atualizado com sucesso."
@@ -1325,7 +1364,7 @@ fun ReorderSpaceStructureDialog(
         containerColor = colors.bgElevated,
         title = {
             Text(
-                text = "Reordenar Espaço",
+                text = "Reordenar Grupo",
                 color = colors.textPrimary,
             )
         },
@@ -1507,7 +1546,7 @@ fun ReorderSpaceStructureDialog(
                             onSaved()
                             onDismiss()
                         }.onFailure { err ->
-                            errorMessage = err.message ?: "Falha ao salvar ordem do Espaço."
+                            errorMessage = err.message ?: "Falha ao salvar ordem do Grupo."
                             isSaving = false
                         }
                     }
@@ -1618,9 +1657,9 @@ private fun OpusOverrideCard(
                 )
                 Text(
                     text = if (customizeOpus) {
-                        "Valores personalizados sobrescrevem o padrão do Espaço."
+                        "Valores personalizados sobrescrevem o padrão do Grupo."
                     } else {
-                        "Herdando política de áudio do Espaço."
+                        "Herdando política de áudio do Grupo."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary,

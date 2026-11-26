@@ -243,10 +243,10 @@ fun VoiceVideoSettingsSubScreen(
             )
         }
 
-        // ── Card 3: Qualidade Opus ──
+        // ── Card 3: Qualidade Opus / Rede ──
         AetherSurfaceCard {
             Text(
-                text = "Qualidade Opus",
+                text = "Qualidade Opus / Rede",
                 style = MaterialTheme.typography.titleMedium,
                 color = colors.textPrimary,
             )
@@ -348,6 +348,33 @@ fun VoiceVideoSettingsSubScreen(
                             voiceEngine.updateUserAudioPreferences { it.copy(opusFrameSizeMs = ms) }
                         },
                         label = { Text("${ms}ms") },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "Buffer contra jitter (maior = mais estabilidade em redes instáveis):",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(Modifier.height(6.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    0 to "Automático",
+                    40 to "40 ms",
+                    80 to "80 ms",
+                    120 to "120 ms",
+                ).forEach { (ms, label) ->
+                    FilterChip(
+                        selected = prefs.jitterBufferMs == ms,
+                        onClick = {
+                            voiceEngine.updateUserAudioPreferences { it.copy(jitterBufferMs = ms) }
+                        },
+                        label = { Text(label) },
                     )
                 }
             }

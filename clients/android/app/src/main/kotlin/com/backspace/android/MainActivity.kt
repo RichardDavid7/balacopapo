@@ -69,19 +69,32 @@ import com.backspace.feature.voice.VoiceRoomScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val deepLinkUriState = mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        deepLinkUriState.value = intent?.data
         val container = (application as BackspaceApplication).container
 
         setContent {
             BackspaceAetherTheme {
-                BackspaceRootApp(container = container)
+                BackspaceRootApp(
+                    container = container,
+                    deepLinkUri = deepLinkUriState.value,
+                    onConsumeDeepLink = { deepLinkUriState.value = null },
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        deepLinkUriState.value = intent.data
     }
 
     override fun onUserLeaveHint() {
@@ -125,12 +138,17 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun BackspaceRootApp(container: AppContainer) {
+private fun BackspaceRootApp(
+    container: AppContainer,
+    deepLinkUri: Uri? = null,
+    onConsumeDeepLink: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val navController = rememberNavController()
     var session by remember { mutableStateOf(container.sessionStorage.load()) }
-    var homeTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Mensagens (home), 1 = Espaços, 2 = Configurações
+    var homeTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Mensagens (home), 1 = Grupos, 2 = Configurações
+    var pendingOidcTicket by remember { mutableStateOf<String?>(null) }
 
     val permissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -154,6 +172,56 @@ private fun BackspaceRootApp(container: AppContainer) {
         val active = session
         if (active != null) {
             container.wsClient.connect(active.instanceUrl, active.token)
+        }
+    }
+
+    LaunchedEffect(deepLinkUri, session) {
+        val uri = deepLinkUri ?: return@LaunchedEffect
+        if (uri.scheme != "balacopapo") {
+            onConsumeDeepLink()
+            return@LaunchedEffect
+        }
+        when (uri.host) {
+            "join" -> {
+                val code = uri.pathSegments.firstOrNull()?.trim().orEmpty()
+                val active = session
+                onConsumeDeepLink()
+                if (code.isBlank()) return@LaunchedEffect
+                if (active != null) {
+                    runCatching {
+                        container.restClient.joinSpaceByInvite(active.instanceUrl, active.token, code)
+                    }.onSuccess { joinedSpace ->
+                        homeTab = 1
+                        Toast.makeText(
+                            context,
+                            "Você entrou no grupo ${joinedSpace.name}",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }.onFailure { err ->
+                        Toast.makeText(
+                            context,
+                            err.message ?: "Não foi possível entrar no grupo",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Faça login para aceitar o convite do grupo.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+            "auth" -> {
+                val ticket = uri.getQueryParameter("oidc_ticket")?.trim()
+                if (!ticket.isNullOrBlank()) {
+                    pendingOidcTicket = ticket
+                }
+                onConsumeDeepLink()
+            }
+            else -> {
+                onConsumeDeepLink()
+            }
         }
     }
 
@@ -228,6 +296,8 @@ private fun BackspaceRootApp(container: AppContainer) {
                 usernameLabel = stringResource(R.string.auth_username),
                 passwordLabel = stringResource(R.string.auth_password),
                 connectButtonText = stringResource(R.string.auth_connect),
+                pendingOidcTicket = pendingOidcTicket,
+                onOidcTicketConsumed = { pendingOidcTicket = null },
                 onAuthenticated = { url, token ->
                     session = StoredSession(url, token)
                     homeTab = 0

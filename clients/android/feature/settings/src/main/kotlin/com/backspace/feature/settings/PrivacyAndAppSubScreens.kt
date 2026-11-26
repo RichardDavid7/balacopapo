@@ -127,7 +127,7 @@ fun PrivacySettingsSubScreen(
 
             PrivacyToggleRow(
                 title = "Mostrar Status de Atividade",
-                description = "Exibe seu status atual e atividade para membros dos Espaços em comum.",
+                description = "Exibe seu status atual e atividade para membros dos Grupos em comum.",
                 checked = showActivity,
                 enabled = !isSaving,
                 onCheckedChange = { checked ->
@@ -170,7 +170,7 @@ fun NotificationsSettingsSubScreen() {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Os alertas do Backspace são gerenciados pelos canais de notificação nativos do sistema:",
+                text = "Os alertas do Balacopapo são gerenciados pelos canais de notificação nativos do sistema:",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -182,7 +182,7 @@ fun NotificationsSettingsSubScreen() {
             )
             Spacer(Modifier.height(8.dp))
             NotificationChannelInfoRow(
-                title = "Menções em Espaços",
+                title = "Menções em Grupos",
                 description = "Respostas diretas e menções ao seu usuário em canais de texto.",
             )
             Spacer(Modifier.height(8.dp))
@@ -274,7 +274,7 @@ fun ConnectionsSettingsSubScreen(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "O Backspace conecta Espaços e usuários entre instâncias federadas confiáveis mantendo sua identidade principal na instância home.",
+                text = "O Balacopapo conecta Grupos e usuários entre instâncias federadas confiáveis mantendo sua identidade principal na instância home.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -295,7 +295,7 @@ fun AppAboutSettingsSubScreen(
     updater: GitHubReleaseUpdater,
     onLogout: () -> Unit,
     repoSlug: String = "",
-    sourceCodeUrl: String = "https://github.com/TheZwiss/backspace",
+    sourceCodeUrl: String = "https://github.com/RichardDavid7/balacopapo",
 ) {
     val colors = LocalAetherColors.current
     val context = LocalContext.current
@@ -317,7 +317,7 @@ fun AppAboutSettingsSubScreen(
         // ── Sobre o Aplicativo ──
         AetherSurfaceCard {
             Text(
-                text = "Sobre o Backspace",
+                text = "Sobre o Balacopapo",
                 style = MaterialTheme.typography.titleMedium,
                 color = colors.textPrimary,
             )
@@ -412,7 +412,7 @@ fun AppAboutSettingsSubScreen(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "O Backspace é software livre distribuído sob a licença GNU AGPL-3.0 (Seção 13). Você pode inspecionar, modificar e compilar o código-fonte completo.",
+                text = "O Balacopapo é software livre distribuído sob a licença GNU AGPL-3.0 (Seção 13). Você pode inspecionar, modificar e compilar o código-fonte completo.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )

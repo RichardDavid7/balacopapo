@@ -77,7 +77,7 @@ private enum class SettingsCategory(
     CONNECTIONS("Conexões", "Instância atual e conexões federadas", Icons.Default.Link),
     NOTIFICATIONS("Notificações", "Alertas de DMs, menções e chamadas", Icons.Default.Notifications),
     APP_ABOUT("Aplicativo e Atualizações", "Versão, atualizações e código-fonte", Icons.Default.Info),
-    INSTANCE("Instância", "Administração completa da instância (10 painéis)", Icons.Default.AdminPanelSettings),
+    INSTANCE("Instância", "Administração completa da instância (12 painéis)", Icons.Default.AdminPanelSettings),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -325,7 +325,7 @@ fun SettingsScreen(
         }
 
         Text(
-            text = "Backspace Android v$appVersion · $instanceUrl",
+            text = "Balacopapo Android v$appVersion · $instanceUrl",
             style = MaterialTheme.typography.bodySmall,
             color = colors.textTertiary,
             modifier = Modifier.align(Alignment.CenterHorizontally),

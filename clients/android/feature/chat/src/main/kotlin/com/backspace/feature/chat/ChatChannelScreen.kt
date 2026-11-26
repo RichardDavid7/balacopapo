@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
@@ -101,6 +102,7 @@ import com.backspace.core.designsystem.AetherTheme
 import com.backspace.core.model.GifItem
 import com.backspace.core.model.Message
 import com.backspace.core.model.PendingAttachmentPayload
+import com.backspace.core.model.PermissionBits
 import com.backspace.core.model.Role
 import com.backspace.core.model.StickerItem
 import com.backspace.core.model.StickerTokenParser
@@ -165,10 +167,21 @@ fun ChatChannelScreen(
     }
     val myUserId = snapshot.currentUser?.id
 
-    // Mapeia cores dos cargos e membros do Espaço deste canal (para cores + autocomplete @)
+    // Mapeia cores dos cargos e membros do Grupo deste canal (para cores + autocomplete @)
     val currentSpace = remember(snapshot.spaces, channelId) {
         snapshot.spaces.firstOrNull { s -> s.channels.any { it.id == channelId } }
     }
+    val isSpaceAdmin = currentSpace != null && (
+        PermissionBits.hasPermission(currentSpace.myPermissions, PermissionBits.ADMINISTRATOR) ||
+            currentSpace.ownerId == myUserId
+        )
+    val canToggleMessageRetention = !isDm &&
+        currentSpace != null &&
+        currentSpace.allowFileRetention &&
+        (
+            isSpaceAdmin ||
+                PermissionBits.hasPermission(currentSpace.myPermissions, PermissionBits.MANAGE_MESSAGES)
+            )
     val roleColorByUserId = remember(currentSpace) {
         currentSpace?.members.orEmpty().mapNotNull { member ->
             val hex = member.highestRoleColorHex ?: return@mapNotNull null
@@ -728,6 +741,42 @@ fun ChatChannelScreen(
                         }
                     }
 
+                    if (canToggleMessageRetention) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val targetId = targetMsg.id
+                                    val nextRetain = !targetMsg.retainFiles
+                                    selectedMessageForActions = null
+                                    scope.launch {
+                                        runCatching {
+                                            val updated = restClient.setMessageRetainFiles(
+                                                instanceUrl = instanceUrl,
+                                                token = jwtToken,
+                                                messageId = targetId,
+                                                retainFiles = nextRetain,
+                                            )
+                                            wsClient.updateLocalMessage(channelId, updated)
+                                        }.onFailure { err -> errorText = err.message }
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = colors.accentMint)
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = if (targetMsg.retainFiles) {
+                                    "Remover proteção de arquivos"
+                                } else {
+                                    "Proteger arquivos (Retenção)"
+                                },
+                                color = colors.textPrimary,
+                            )
+                        }
+                    }
+
                     if (targetMsg.userId == myUserId) {
                         Row(
                             modifier = Modifier
@@ -982,11 +1031,23 @@ fun ChatChannelScreen(
                                     color = authorColor,
                                 )
                             }
-                            Text(
-                                text = formattedTime,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textTertiary,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                if (msg.retainFiles) {
+                                    Text(
+                                        text = "🔒 Retido",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.accentMint,
+                                    )
+                                }
+                                Text(
+                                    text = formattedTime,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textTertiary,
+                                )
+                            }
                         }
 
                         val stickerImgUrl = StickerTokenParser.extractImageUrl(msg.safeContent)
@@ -1012,7 +1073,7 @@ fun ChatChannelScreen(
                                 edited = msg.editedAt != null,
                             )
 
-                            // Cartão de Convite de Espaço clicável quando a mensagem contém /invite/<código>
+                            // Cartão de Convite de Grupo clicável quando a mensagem contém /invite/<código>
                             val inviteMatch = Regex("""https?://[^\s]+/invite/([a-zA-Z0-9_-]+)""").find(msg.safeContent)
                             if (inviteMatch != null) {
                                 val inviteCode = inviteMatch.groupValues[1]
@@ -1028,7 +1089,7 @@ fun ChatChannelScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text("Convite de Espaço", style = MaterialTheme.typography.labelLarge, color = colors.accentPrimary)
+                                            Text("Convite de Grupo", style = MaterialTheme.typography.labelLarge, color = colors.accentPrimary)
                                             Text(inviteCode, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
                                         }
                                         TextButton(
@@ -1322,7 +1383,7 @@ fun ChatChannelScreen(
             }
         }
 
-        // Autocomplete de @menções quando o usuário digita @ no Espaço
+        // Autocomplete de @menções quando o usuário digita @ no Grupo
         val mentionToken = remember(draft, isDm) {
             if (isDm) null else Regex("""(?:^|\s)@([a-zA-Z0-9_.-]*)$""").find(draft)?.groupValues?.get(1)
         }

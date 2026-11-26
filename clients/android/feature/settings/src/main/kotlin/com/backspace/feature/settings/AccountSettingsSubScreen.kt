@@ -89,6 +89,8 @@ private val AccentColorPresets = listOf(
     "#38BDF8",
 )
 
+private val UsernameRegex = Regex("^[a-z0-9_]{3,32}$")
+
 private fun parseHexColorOrNull(hex: String?): Color? {
     val cleaned = hex?.trim().orEmpty()
     if (cleaned.isEmpty()) return null
@@ -113,6 +115,8 @@ fun AccountSettingsSubScreen(
     val scope = rememberCoroutineScope()
 
     val username = currentUser?.username.orEmpty()
+    val isFederatedManaged = currentUser?.homeInstance != null && currentUser.federationHomeOrphaned == false
+    var usernameInput by remember(currentUser?.username) { mutableStateOf(currentUser?.username.orEmpty()) }
     var displayName by remember(currentUser?.displayName) { mutableStateOf(currentUser?.displayName.orEmpty()) }
     var customStatus by remember(currentUser?.customStatus) { mutableStateOf(currentUser?.customStatus.orEmpty()) }
     var bio by remember(currentUser?.bio) { mutableStateOf(currentUser?.bio.orEmpty().take(190)) }
@@ -505,6 +509,46 @@ fun AccountSettingsSubScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
+            val normalizedUsername = usernameInput.trim().lowercase()
+            val usernameError = if (isFederatedManaged || normalizedUsername == username) {
+                null
+            } else if (normalizedUsername.length !in 3..32) {
+                "O nome de usuário deve ter entre 3 e 32 caracteres."
+            } else if (!UsernameRegex.matches(normalizedUsername)) {
+                "Use apenas letras minúsculas (a-z), números (0-9) e sublinhado (_)."
+            } else {
+                null
+            }
+            OutlinedTextField(
+                value = usernameInput,
+                onValueChange = { if (it.length <= 32) usernameInput = it },
+                label = { Text("Nome de usuário (@username)") },
+                prefix = { Text("@") },
+                enabled = !isFederatedManaged && !isSavingProfile,
+                isError = usernameError != null,
+                singleLine = true,
+                supportingText = {
+                    when {
+                        isFederatedManaged -> Text(
+                            text = "Gerenciado pela instância de origem",
+                            color = colors.textSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        usernameError != null -> Text(
+                            text = usernameError,
+                            color = colors.accentPeach,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        else -> Text(
+                            text = "3 a 32 caracteres: a-z, 0-9 e _",
+                            color = colors.textSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = customStatus,
                 onValueChange = { customStatus = it },
@@ -578,6 +622,15 @@ fun AccountSettingsSubScreen(
                             isSavingProfile = false
                             return@launch
                         }
+                        val normalizedUsernameToSave = usernameInput.trim().lowercase()
+                        val usernameChanged = !isFederatedManaged && normalizedUsernameToSave != username
+                        if (usernameChanged) {
+                            if (normalizedUsernameToSave.length !in 3..32 || !UsernameRegex.matches(normalizedUsernameToSave)) {
+                                profileFeedback = "Nome de usuário inválido. Use 3 a 32 caracteres (a-z, 0-9 e _)." to false
+                                isSavingProfile = false
+                                return@launch
+                            }
+                        }
                         runCatching {
                             restClient.updateProfile(
                                 instanceUrl = instanceUrl,
@@ -588,8 +641,10 @@ fun AccountSettingsSubScreen(
                                 customStatus = customStatus.trim(),
                                 avatarColor = selectedAvatarColor.ifBlank { null },
                                 accentColor = trimmedAccent,
+                                username = if (usernameChanged) normalizedUsernameToSave else null,
                             )
                         }.onSuccess { updated ->
+                            usernameInput = updated.username
                             onProfileSaved(updated)
                             profileFeedback = "Perfil salvo com sucesso!" to true
                         }.onFailure { err ->

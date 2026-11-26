@@ -272,3 +272,138 @@ data class AdminTelemetryStatus(
     val id: String? = null,
     val askDue: Boolean = false,
 )
+
+// ── OIDC Auth ──
+
+@Serializable
+data class OidcHandoffStartResponse(
+    val handoffId: String = "",
+    val pollToken: String = "",
+    val expiresInMs: Long = 300_000L,
+)
+
+@Serializable
+data class OidcHandoffPollResponse(
+    val status: String = "",
+    val ticket: String? = null,
+    val redirect: String? = null,
+    val error: String? = null,
+)
+
+// ── Admin OIDC ──
+
+@Serializable
+data class AdminOidcConfigResponse(
+    val enabled: Boolean = false,
+    val configured: Boolean = false,
+    val issuerUrl: String = "",
+    val clientId: String = "",
+    val hasClientSecret: Boolean = false,
+    val displayName: String = "SSO",
+    val scopes: String = "",
+    val autoRegister: Boolean = false,
+    val syncAvatar: Boolean = false,
+    val groupsClaim: String = "",
+    val adminGroups: List<String> = emptyList(),
+    val passwordLoginDisabled: Boolean = false,
+    val callbackUrl: String = "",
+)
+
+@Serializable
+data class AdminOidcLinkInfo(
+    val issuer: String = "",
+    val subject: String = "",
+    val email: String? = null,
+    val preferredUsername: String? = null,
+    val linkedAt: Long = 0L,
+    val lastLoginAt: Long? = null,
+)
+
+@Serializable
+data class AdminOidcUserItem(
+    val id: String = "",
+    val username: String = "",
+    val displayName: String? = null,
+    val avatar: String? = null,
+    val avatarColor: String? = null,
+    val isAdmin: Boolean = false,
+    val createdAt: Long = 0L,
+    val oidcLink: AdminOidcLinkInfo? = null,
+) {
+    val label: String get() = displayName?.takeIf { it.isNotBlank() } ?: username
+    fun avatarUrl(instanceUrl: String): String? = UploadUrlResolver.resolve(instanceUrl, avatar)
+}
+
+@Serializable
+data class AdminOidcUsersResponse(
+    val users: List<AdminOidcUserItem> = emptyList(),
+)
+
+@Serializable
+data class AdminOidcLinkTokenResponse(
+    val linkUrl: String = "",
+    val expiresAt: Long = 0L,
+)
+
+// ── Admin Ban IP ──
+
+@Serializable
+data class ActiveIpBan(
+    val id: String = "",
+    val ip: String = "",
+    val reason: String? = null,
+    val bannedBy: String? = null,
+    val sourceUserId: String? = null,
+    val durationDays: Int? = null,
+    val expiresAt: Long? = null,
+    val createdAt: Long = 0L,
+)
+
+@Serializable
+data class AdminIpBansResponse(
+    val bans: List<ActiveIpBan> = emptyList(),
+)
+
+@Serializable
+data class AdminIpBanWrapperResponse(
+    val ban: ActiveIpBan? = null,
+)
+
+@Serializable
+data class IpBanFeedInfoResponse(
+    val configured: Boolean = false,
+    val opnsensePath: String = "",
+    val nginxPath: String = "",
+)
+
+// ── Admin Retenção de Arquivos ──
+
+@Serializable
+data class AdminSpaceRetentionItem(
+    val id: String = "",
+    val name: String = "",
+    val allowFileRetention: Boolean = false,
+    val fileRetentionEnabled: Boolean = false,
+    val memberCount: Int = 0,
+    val ownerUsername: String? = null,
+    val createdAt: Long = 0L,
+)
+
+@Serializable
+data class AdminSpaceRetentionListResponse(
+    val spaces: List<AdminSpaceRetentionItem> = emptyList(),
+)
+
+// ── Stream Pointer (LiveKit DataChannel) ──
+
+@Serializable
+data class StreamPointerEvent(
+    val streamIdentity: String,
+    val senderIdentity: String,
+    val senderName: String,
+    val x: Double,
+    val y: Double,
+    val mode: String,
+    val color: String,
+    val expiresAtMs: Long,
+)

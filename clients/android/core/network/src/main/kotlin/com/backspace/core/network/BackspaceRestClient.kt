@@ -1,11 +1,20 @@
 package com.backspace.core.network
 
 import android.util.Base64
+import com.backspace.core.model.ActiveIpBan
 import com.backspace.core.model.AdminInviteItem
 import com.backspace.core.model.AdminInviteRedemption
 import com.backspace.core.model.AdminInviteRedemptionsResponse
 import com.backspace.core.model.AdminInviteWrapperResponse
 import com.backspace.core.model.AdminInvitesListResponse
+import com.backspace.core.model.AdminIpBanWrapperResponse
+import com.backspace.core.model.AdminIpBansResponse
+import com.backspace.core.model.AdminOidcConfigResponse
+import com.backspace.core.model.AdminOidcLinkTokenResponse
+import com.backspace.core.model.AdminOidcUserItem
+import com.backspace.core.model.AdminOidcUsersResponse
+import com.backspace.core.model.AdminSpaceRetentionItem
+import com.backspace.core.model.AdminSpaceRetentionListResponse
 import com.backspace.core.model.AdminTelemetryStatus
 import com.backspace.core.model.AdminUserItem
 import com.backspace.core.model.AdminUsersPageResponse
@@ -36,10 +45,13 @@ import com.backspace.core.model.InstanceInfo
 import com.backspace.core.model.InstanceStreamingLimits
 import com.backspace.core.model.InstanceUpdateStatusResponse
 import com.backspace.core.model.InviteCodeExtractor
+import com.backspace.core.model.IpBanFeedInfoResponse
 import com.backspace.core.model.LiveKitTokenResponse
 import com.backspace.core.model.MemberWithUser
 import com.backspace.core.model.Message
 import com.backspace.core.model.MessageAttachment
+import com.backspace.core.model.OidcHandoffPollResponse
+import com.backspace.core.model.OidcHandoffStartResponse
 import com.backspace.core.model.OverridesResponse
 import com.backspace.core.model.PermissionOverrideItem
 import com.backspace.core.model.PutOverrideResponse
@@ -107,6 +119,8 @@ data class UpdateChannelNameRequest(val name: String)
 
 @Serializable
 data class LoginResponse(val token: String, val user: User)
+
+typealias AuthResponse = LoginResponse
 
 @Serializable
 data class LiveKitTokenRequest(
@@ -396,6 +410,12 @@ class BackspaceRestClient(
             put("soundboardEnabled", JsonPrimitive(limits.soundboardEnabled))
             put("maxSoundboardSoundsPerScope", JsonPrimitive(limits.maxSoundboardSoundsPerScope))
             put("maxConcurrentSoundboardSounds", JsonPrimitive(limits.maxConcurrentSoundboardSounds))
+            val budgetKbps = limits.streamBandwidthBudgetKbps
+            if (budgetKbps == null || budgetKbps <= 0) {
+                put("streamBandwidthBudgetKbps", JsonNull)
+            } else {
+                put("streamBandwidthBudgetKbps", JsonPrimitive(budgetKbps))
+            }
             if (limits.allowedResolutions.isNotEmpty()) {
                 put(
                     "allowedResolutions",
@@ -905,10 +925,12 @@ class BackspaceRestClient(
         bannerColor: String? = null,
         discoverable: Boolean? = null,
         showActivity: Boolean? = null,
+        username: String? = null,
     ): User {
         val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
         val effectiveAccent = accentColor ?: bannerColor
         val payload = buildJsonObject {
+            if (username != null) put("username", JsonPrimitive(username))
             if (displayName != null) put("displayName", JsonPrimitive(displayName))
             if (bio != null) put("bio", JsonPrimitive(bio))
             if (avatar != null) put("avatar", JsonPrimitive(avatar))
@@ -941,6 +963,7 @@ class BackspaceRestClient(
         bannerColor: String? = null,
         discoverable: Boolean? = null,
         showActivity: Boolean? = null,
+        username: String? = null,
     ): User = updateMyStatus(
         instanceUrl = instanceUrl,
         token = token,
@@ -955,6 +978,7 @@ class BackspaceRestClient(
         bannerColor = bannerColor,
         discoverable = discoverable,
         showActivity = showActivity,
+        username = username,
     )
 
     // ── Conta (@me) ──
@@ -1507,6 +1531,7 @@ class BackspaceRestClient(
         maxAudioBitrateKbps: Int? = null,
         allowMusicMode: Boolean? = null,
         allowStereoAudio: Boolean? = null,
+        fileRetentionEnabled: Boolean? = null,
     ): Space {
         val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
         val payload = buildJsonObject {
@@ -1520,6 +1545,7 @@ class BackspaceRestClient(
             if (maxAudioBitrateKbps != null) put("maxAudioBitrateKbps", JsonPrimitive(maxAudioBitrateKbps))
             if (allowMusicMode != null) put("allowMusicMode", JsonPrimitive(allowMusicMode))
             if (allowStereoAudio != null) put("allowStereoAudio", JsonPrimitive(allowStereoAudio))
+            if (fileRetentionEnabled != null) put("fileRetentionEnabled", JsonPrimitive(fileRetentionEnabled))
         }.toString()
         return executePatch(
             url = "$base/api/spaces/$spaceId",
@@ -1713,6 +1739,7 @@ class BackspaceRestClient(
         maxAudioBitrateKbps: Int? = null,
         allowMusicMode: Boolean? = null,
         allowStereoAudio: Boolean? = null,
+        retainFiles: Boolean? = null,
     ): Channel {
         val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
         val payload = buildJsonObject {
@@ -1729,6 +1756,7 @@ class BackspaceRestClient(
             if (maxAudioBitrateKbps != null) put("maxAudioBitrateKbps", JsonPrimitive(maxAudioBitrateKbps))
             if (allowMusicMode != null) put("allowMusicMode", JsonPrimitive(allowMusicMode))
             if (allowStereoAudio != null) put("allowStereoAudio", JsonPrimitive(allowStereoAudio))
+            if (retainFiles != null) put("retainFiles", JsonPrimitive(retainFiles))
         }.toString()
         return executePatch(
             url = "$base/api/channels/$channelId",
@@ -2025,6 +2053,237 @@ class BackspaceRestClient(
     ): UserMutualsResponse {
         val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
         return executeGet("$base/api/users/$userId/mutuals", token = token)
+    }
+
+    // ── OIDC Auth ──
+
+    suspend fun startOidcHandoff(instanceUrl: String): OidcHandoffStartResponse {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        return executePost(
+            url = "$base/api/auth/oidc/handoff",
+            body = "{}",
+            token = null,
+        )
+    }
+
+    suspend fun pollOidcHandoff(
+        instanceUrl: String,
+        handoffId: String,
+        pollToken: String,
+    ): OidcHandoffPollResponse {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val encodedId = URLEncoder.encode(handoffId, "UTF-8")
+        val encodedToken = URLEncoder.encode(pollToken, "UTF-8")
+        return try {
+            executeGet("$base/api/auth/oidc/handoff/$encodedId?token=$encodedToken", token = null)
+        } catch (err: BackspaceApiException) {
+            if (err.statusCode == 404) {
+                OidcHandoffPollResponse(status = "expired")
+            } else {
+                throw err
+            }
+        }
+    }
+
+    suspend fun exchangeOidcTicket(
+        instanceUrl: String,
+        ticket: String,
+    ): AuthResponse {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val payload = buildJsonObject {
+            put("ticket", JsonPrimitive(ticket))
+        }.toString()
+        return executePost(
+            url = "$base/api/auth/oidc/exchange",
+            body = payload,
+            token = null,
+        )
+    }
+
+    // ── Admin OIDC ──
+
+    suspend fun getAdminOidcConfig(
+        instanceUrl: String,
+        token: String,
+    ): AdminOidcConfigResponse {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        return executeGet("$base/api/admin/oidc/config", token = token)
+    }
+
+    suspend fun getAdminOidcUsers(
+        instanceUrl: String,
+        token: String,
+        q: String? = null,
+    ): List<AdminOidcUserItem> {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val query = if (!q.isNullOrBlank()) "?q=${URLEncoder.encode(q.trim(), "UTF-8")}" else ""
+        return executeGet<AdminOidcUsersResponse>("$base/api/admin/oidc/users$query", token = token).users
+    }
+
+    suspend fun createAdminOidcLink(
+        instanceUrl: String,
+        token: String,
+        userId: String,
+        subject: String,
+        email: String? = null,
+        preferredUsername: String? = null,
+    ) {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val payload = buildJsonObject {
+            put("userId", JsonPrimitive(userId))
+            put("subject", JsonPrimitive(subject.trim()))
+            if (!email.isNullOrBlank()) put("email", JsonPrimitive(email.trim()))
+            if (!preferredUsername.isNullOrBlank()) put("preferredUsername", JsonPrimitive(preferredUsername.trim()))
+        }.toString()
+        executePostVoid(
+            url = "$base/api/admin/oidc/links",
+            body = payload,
+            token = token,
+        )
+    }
+
+    suspend fun createAdminOidcLinkToken(
+        instanceUrl: String,
+        token: String,
+        userId: String,
+    ): AdminOidcLinkTokenResponse {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val payload = buildJsonObject {
+            put("userId", JsonPrimitive(userId))
+        }.toString()
+        return executePost(
+            url = "$base/api/admin/oidc/link-token",
+            body = payload,
+            token = token,
+        )
+    }
+
+    suspend fun deleteAdminOidcLink(
+        instanceUrl: String,
+        token: String,
+        userId: String,
+    ) {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        executeDeleteVoid("$base/api/admin/oidc/links/$userId", token = token)
+    }
+
+    // ── Admin Ban IP ──
+
+    suspend fun getAdminIpBans(
+        instanceUrl: String,
+        token: String,
+    ): List<ActiveIpBan> {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        return executeGet<AdminIpBansResponse>("$base/api/admin/ip-bans", token = token).bans
+    }
+
+    suspend fun createAdminIpBan(
+        instanceUrl: String,
+        token: String,
+        ip: String,
+        reason: String? = null,
+        durationDays: Int? = null,
+    ): ActiveIpBan {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val payload = buildJsonObject {
+            put("ip", JsonPrimitive(ip.trim()))
+            val trimmedReason = reason?.trim()?.ifBlank { null }
+            if (trimmedReason != null) {
+                put("reason", JsonPrimitive(trimmedReason))
+            } else {
+                put("reason", JsonNull)
+            }
+            if (durationDays != null && durationDays > 0) {
+                put("durationDays", JsonPrimitive(durationDays))
+            } else {
+                put("durationDays", JsonNull)
+            }
+        }.toString()
+        val resp = executePost<AdminIpBanWrapperResponse>(
+            url = "$base/api/admin/ip-bans",
+            body = payload,
+            token = token,
+        )
+        return resp.ban ?: ActiveIpBan(
+            ip = ip.trim(),
+            reason = reason?.trim()?.ifBlank { null },
+            durationDays = durationDays,
+        )
+    }
+
+    suspend fun deleteAdminIpBan(
+        instanceUrl: String,
+        token: String,
+        id: String,
+    ) {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        executeDeleteVoid("$base/api/admin/ip-bans/$id", token = token)
+    }
+
+    suspend fun getAdminIpBanFeedInfo(
+        instanceUrl: String,
+        token: String,
+    ): IpBanFeedInfoResponse {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        return executeGet("$base/api/admin/ip-bans/feed-info", token = token)
+    }
+
+    // ── Admin Retenção de Arquivos & Grupos ──
+
+    suspend fun getAdminSpacesRetention(
+        instanceUrl: String,
+        token: String,
+    ): List<AdminSpaceRetentionItem> {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        return executeGet<AdminSpaceRetentionListResponse>(
+            "$base/api/admin/spaces/retention",
+            token = token,
+        ).spaces
+    }
+
+    suspend fun updateAdminSpaceRetention(
+        instanceUrl: String,
+        token: String,
+        spaceId: String,
+        allowFileRetention: Boolean,
+    ) {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val payload = buildJsonObject {
+            put("allowFileRetention", JsonPrimitive(allowFileRetention))
+        }.toString()
+        executePatchVoid(
+            url = "$base/api/admin/spaces/$spaceId/retention",
+            body = payload,
+            token = token,
+        )
+    }
+
+    suspend fun deleteAdminSpace(
+        instanceUrl: String,
+        token: String,
+        spaceId: String,
+    ) {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        executeDeleteVoid("$base/api/admin/spaces/$spaceId", token = token)
+    }
+
+    // ── Retenção de Arquivos em Mensagem ──
+
+    suspend fun setMessageRetainFiles(
+        instanceUrl: String,
+        token: String,
+        messageId: String,
+        retainFiles: Boolean,
+    ): Message {
+        val base = SecureSessionStorage.normalizeInstanceUrl(instanceUrl)
+        val payload = buildJsonObject {
+            put("retainFiles", JsonPrimitive(retainFiles))
+        }.toString()
+        return executePatch(
+            url = "$base/api/messages/$messageId/retain",
+            body = payload,
+            token = token,
+        )
     }
 
     private fun decodeOverridesResponse(raw: String): OverridesResponse {

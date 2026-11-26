@@ -150,6 +150,10 @@ internal fun SpaceOverviewSubScreen(
     val isOwner = space.ownerId == currentUserId
 
     var name by remember(space.id, space.name) { mutableStateOf(space.name) }
+    var fileRetentionEnabled by remember(space.id, space.fileRetentionEnabled) {
+        mutableStateOf(space.fileRetentionEnabled)
+    }
+    var isTogglingRetention by remember { mutableStateOf(false) }
     var iconPreviewUrl by remember(space.id, space.icon) { mutableStateOf(space.iconUrl(instanceUrl)) }
     var bannerPreviewUrl by remember(space.id, space.banner) { mutableStateOf(space.bannerUrl(instanceUrl)) }
     var isSaving by remember { mutableStateOf(false) }
@@ -162,7 +166,7 @@ internal fun SpaceOverviewSubScreen(
     var pendingTransferTarget by remember { mutableStateOf<MemberWithUser?>(null) }
     var isTransferring by remember { mutableStateOf(false) }
 
-    // Excluir Espaço (2 passos)
+    // Excluir Grupo (2 passos)
     var deleteStep by remember { mutableIntStateOf(0) } // 0 = fechado, 1 = aviso, 2 = digitar nome
     var deleteConfirmInput by remember { mutableStateOf("") }
     var isDeleting by remember { mutableStateOf(false) }
@@ -202,7 +206,7 @@ internal fun SpaceOverviewSubScreen(
             }.onSuccess { updated ->
                 iconPreviewUrl = updated.iconUrl(instanceUrl)
                 onSpaceUpdated()
-                feedback = "Ícone do Espaço atualizado!" to true
+                feedback = "Ícone do Grupo atualizado!" to true
             }.onFailure { err ->
                 feedback = (err.message ?: "Erro ao enviar ícone.") to false
             }
@@ -229,7 +233,7 @@ internal fun SpaceOverviewSubScreen(
             }.onSuccess { updated ->
                 bannerPreviewUrl = updated.bannerUrl(instanceUrl)
                 onSpaceUpdated()
-                feedback = "Banner do Espaço atualizado!" to true
+                feedback = "Banner do Grupo atualizado!" to true
             }.onFailure { err ->
                 feedback = (err.message ?: "Erro ao enviar banner.") to false
             }
@@ -269,7 +273,7 @@ internal fun SpaceOverviewSubScreen(
                 if (!bannerPreviewUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = bannerPreviewUrl,
-                        contentDescription = "Banner do Espaço",
+                        contentDescription = "Banner do Grupo",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -387,7 +391,7 @@ internal fun SpaceOverviewSubScreen(
 
         AetherSurfaceCard {
             Text(
-                text = "Nome do Espaço",
+                text = "Nome do Grupo",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
@@ -417,7 +421,7 @@ internal fun SpaceOverviewSubScreen(
                             )
                         }.onSuccess {
                             onSpaceUpdated()
-                            feedback = "Nome do Espaço atualizado!" to true
+                            feedback = "Nome do Grupo atualizado!" to true
                         }.onFailure { err ->
                             feedback = (err.message ?: "Erro ao salvar alterações.") to false
                         }
@@ -425,6 +429,67 @@ internal fun SpaceOverviewSubScreen(
                     }
                 },
             )
+        }
+
+        AetherSurfaceCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Retenção de Arquivos no Chat",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (space.allowFileRetention) {
+                            "Protege arquivos e anexos enviados nos canais deste Grupo contra remoção automática."
+                        } else {
+                            "A instância ainda não autorizou retenção de arquivos para este Grupo."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (space.allowFileRetention) colors.textSecondary else colors.textTertiary,
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(
+                    checked = if (space.allowFileRetention) fileRetentionEnabled else false,
+                    enabled = space.allowFileRetention && !isTogglingRetention && !isSaving && !isUploading,
+                    onCheckedChange = { nextVal ->
+                        val previousVal = fileRetentionEnabled
+                        fileRetentionEnabled = nextVal
+                        scope.launch {
+                            isTogglingRetention = true
+                            feedback = null
+                            runCatching {
+                                restClient.updateSpaceFull(
+                                    instanceUrl = instanceUrl,
+                                    token = token,
+                                    spaceId = space.id,
+                                    name = space.name,
+                                    fileRetentionEnabled = nextVal,
+                                )
+                            }.onSuccess { updated ->
+                                fileRetentionEnabled = updated.fileRetentionEnabled
+                                onSpaceUpdated()
+                                feedback = if (nextVal) {
+                                    "Retenção de arquivos ativada para o Grupo!" to true
+                                } else {
+                                    "Retenção de arquivos desativada para o Grupo." to true
+                                }
+                            }.onFailure { err ->
+                                fileRetentionEnabled = previousVal
+                                feedback = (err.message ?: "Erro ao atualizar retenção de arquivos.") to false
+                            }
+                            isTogglingRetention = false
+                        }
+                    },
+                )
+            }
         }
 
         if (isOwner) {
@@ -445,7 +510,7 @@ internal fun SpaceOverviewSubScreen(
                         color = colors.accentPeach,
                     )
                     Text(
-                        text = "Ações irreversíveis de propriedade e exclusão deste Espaço.",
+                        text = "Ações irreversíveis de propriedade e exclusão deste Grupo.",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
@@ -471,7 +536,7 @@ internal fun SpaceOverviewSubScreen(
                         border = BorderStroke(1.dp, colors.accentPeach.copy(alpha = 0.7f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accentPeach),
                     ) {
-                        Text("Excluir Espaço")
+                        Text("Excluir Grupo")
                     }
                 }
             }
@@ -632,14 +697,14 @@ internal fun SpaceOverviewSubScreen(
         )
     }
 
-    // Diálogo: Excluir Espaço (Passo 1)
+    // Diálogo: Excluir Grupo (Passo 1)
     if (deleteStep == 1) {
         AlertDialog(
             onDismissRequest = { deleteStep = 0 },
             containerColor = colors.bgElevated,
             titleContentColor = colors.accentPeach,
             textContentColor = colors.textSecondary,
-            title = { Text("Excluir Espaço?") },
+            title = { Text("Excluir Grupo?") },
             text = {
                 Text(
                     "Esta ação excluirá permanentemente todos os canais, mensagens, cargos e configurações de \"${space.name}\". Deseja continuar?",
@@ -658,7 +723,7 @@ internal fun SpaceOverviewSubScreen(
         )
     }
 
-    // Diálogo: Excluir Espaço (Passo 2)
+    // Diálogo: Excluir Grupo (Passo 2)
     if (deleteStep == 2) {
         val matchesName = deleteConfirmInput.trim() == space.name.trim()
         AlertDialog(
@@ -697,7 +762,7 @@ internal fun SpaceOverviewSubScreen(
                                 onSpaceDeleted()
                             }.onFailure { err ->
                                 deleteStep = 0
-                                feedback = (err.message ?: "Erro ao excluir Espaço.") to false
+                                feedback = (err.message ?: "Erro ao excluir Grupo.") to false
                             }
                             isDeleting = false
                         }
@@ -783,7 +848,7 @@ internal fun SpaceDiscoverySubScreen(
 
         AetherSurfaceCard {
             Text(
-                text = "Visibilidade do Espaço",
+                text = "Visibilidade do Grupo",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
@@ -825,7 +890,7 @@ internal fun SpaceDiscoverySubScreen(
                         color = colors.textPrimary,
                     )
                     Text(
-                        text = "Exibir este Espaço na listagem pública do diretório.",
+                        text = "Exibir este Grupo na listagem pública do diretório.",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
@@ -1281,7 +1346,7 @@ internal fun SpaceMembersSubScreen(
                 ) {
                     // Apelido
                     Text(
-                        text = "Apelido no Espaço",
+                        text = "Apelido no Grupo",
                         style = MaterialTheme.typography.labelLarge,
                         color = colors.textPrimary,
                     )
@@ -1459,7 +1524,7 @@ internal fun SpaceMembersSubScreen(
                 titleContentColor = colors.textPrimary,
                 textContentColor = colors.textSecondary,
                 title = { Text("Expulsar ${member.label}?") },
-                text = { Text("O membro será removido do Espaço e precisará de um novo convite para retornar.") },
+                text = { Text("O membro será removido do Grupo e precisará de um novo convite para retornar.") },
                 confirmButton = {
                     TextButton(
                         enabled = !isMutating,
@@ -1473,7 +1538,7 @@ internal fun SpaceMembersSubScreen(
                                     showKickConfirm = false
                                     selectedMember = null
                                     onSpaceUpdated()
-                                    feedback = "${member.label} foi expulso do Espaço." to true
+                                    feedback = "${member.label} foi expulso do Grupo." to true
                                 }.onFailure { err ->
                                     showKickConfirm = false
                                     feedback = (err.message ?: "Erro ao expulsar membro.") to false
@@ -1505,7 +1570,7 @@ internal fun SpaceMembersSubScreen(
                 title = { Text("Banir ${member.label}?") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("O membro será removido e impedido de entrar novamente neste Espaço.")
+                        Text("O membro será removido e impedido de entrar novamente neste Grupo.")
                         OutlinedTextField(
                             value = banReason,
                             onValueChange = { banReason = it },
@@ -1534,7 +1599,7 @@ internal fun SpaceMembersSubScreen(
                                     showBanDialog = false
                                     selectedMember = null
                                     onSpaceUpdated()
-                                    feedback = "${member.label} foi banido do Espaço." to true
+                                    feedback = "${member.label} foi banido do Grupo." to true
                                 }.onFailure { err ->
                                     showBanDialog = false
                                     feedback = (err.message ?: "Erro ao banir membro.") to false
@@ -2145,13 +2210,13 @@ internal fun SpaceAudioOpusSubScreen(
 
         AetherSurfaceCard {
             Text(
-                text = "Política de Áudio Opus do Espaço",
+                text = "Política de Áudio Opus do Grupo",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
             )
             Text(
-                text = "Define os padrões e limites aplicados aos canais de voz deste Espaço.",
+                text = "Define os padrões e limites aplicados aos canais de voz deste Grupo.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -2332,7 +2397,7 @@ internal fun SpaceSoundboardSubScreen(
 
         AetherSurfaceCard {
             Text(
-                text = "Soundboard do Espaço",
+                text = "Soundboard do Grupo",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
@@ -2363,7 +2428,7 @@ internal fun SpaceSoundboardSubScreen(
                             color = colors.textPrimary,
                         )
                         Text(
-                            text = "Permite reproduzir sons nos canais de voz deste Espaço.",
+                            text = "Permite reproduzir sons nos canais de voz deste Grupo.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
@@ -2389,7 +2454,7 @@ internal fun SpaceSoundboardSubScreen(
                             color = colors.textPrimary,
                         )
                         Text(
-                            text = "Disponibiliza a biblioteca global de sons além dos sons do Espaço.",
+                            text = "Disponibiliza a biblioteca global de sons além dos sons do Grupo.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
@@ -2539,7 +2604,7 @@ internal fun SpaceBansSubScreen(
                 }
             } else if (bans.isEmpty()) {
                 Text(
-                    text = "Nenhum membro banido neste Espaço.",
+                    text = "Nenhum membro banido neste Grupo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary,
                 )
@@ -2600,7 +2665,7 @@ internal fun SpaceBansSubScreen(
             titleContentColor = colors.textPrimary,
             textContentColor = colors.textSecondary,
             title = { Text("Desbanir ${ban.label}?") },
-            text = { Text("O usuário poderá entrar novamente no Espaço mediante convite ou descoberta.") },
+            text = { Text("O usuário poderá entrar novamente no Grupo mediante convite ou descoberta.") },
             confirmButton = {
                 TextButton(
                     enabled = !isUnbanning,

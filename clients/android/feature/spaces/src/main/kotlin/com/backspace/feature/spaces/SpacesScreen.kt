@@ -273,7 +273,7 @@ fun SpacesScreen(
             title = { Text("Expulsar membro?", color = colors.textPrimary) },
             text = {
                 Text(
-                    text = "Tem certeza que deseja expulsar ${member.label} deste Espaço?",
+                    text = "Tem certeza que deseja expulsar ${member.label} deste Grupo?",
                     color = colors.textSecondary,
                 )
             },
@@ -310,7 +310,7 @@ fun SpacesScreen(
             title = { Text("Banir membro?", color = colors.textPrimary) },
             text = {
                 Text(
-                    text = "Tem certeza que deseja banir ${member.label} deste Espaço? O usuário não poderá entrar novamente até ser desbanido.",
+                    text = "Tem certeza que deseja banir ${member.label} deste Grupo? O usuário não poderá entrar novamente até ser desbanido.",
                     color = colors.textSecondary,
                 )
             },
@@ -495,7 +495,7 @@ fun SpacesScreen(
             return
         }
 
-        // Lista horizontal de Espaços com ícone oficial + bolinha de menções
+        // Lista horizontal de Grupos com ícone oficial + bolinha de menções
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(snapshot.spaces, key = { it.id }) { space ->
                 val spaceMentions = snapshot.mentionsForSpace(space)
@@ -815,10 +815,10 @@ private fun UserProfileDialog(
                 }
                 if (canModerate) {
                     OutlinedButton(onClick = onKick, modifier = Modifier.fillMaxWidth()) {
-                        Text("Expulsar do Espaço", color = colors.accentAmber)
+                        Text("Expulsar do Grupo", color = colors.accentAmber)
                     }
                     OutlinedButton(onClick = onBan, modifier = Modifier.fillMaxWidth()) {
-                        Text("Banir do Espaço", color = colors.accentPeach)
+                        Text("Banir do Grupo", color = colors.accentPeach)
                     }
                 }
             }
@@ -878,7 +878,7 @@ private fun AddOrExploreSpaceDialog(
                         OutlinedTextField(
                             value = newSpaceName,
                             onValueChange = { newSpaceName = it },
-                            label = { Text("Nome do Espaço") },
+                            label = { Text("Nome do Grupo") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -889,7 +889,7 @@ private fun AddOrExploreSpaceDialog(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         AetherPrimaryButton(
-                            text = "Criar Espaço",
+                            text = "Criar Grupo",
                             enabled = newSpaceName.isNotBlank(),
                             onClick = {
                                 scope.launch {
@@ -914,7 +914,7 @@ private fun AddOrExploreSpaceDialog(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         AetherPrimaryButton(
-                            text = "Entrar no Espaço",
+                            text = "Entrar no Grupo",
                             enabled = inviteInput.isNotBlank(),
                             onClick = {
                                 scope.launch {
@@ -934,7 +934,7 @@ private fun AddOrExploreSpaceDialog(
                         OutlinedTextField(
                             value = exploreQuery,
                             onValueChange = { exploreQuery = it },
-                            placeholder = { Text("Buscar Espaços...") },
+                            placeholder = { Text("Buscar Grupos...") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
