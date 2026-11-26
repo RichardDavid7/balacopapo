@@ -47,9 +47,23 @@ export function useP2PMeshSync(): void {
   const currentVoiceChannelId = useVoiceStore((s) => s.currentVoiceChannelId);
   const activeDmCall = useVoiceStore((s) => s.activeDmCall);
   const participants = useVoiceStore((s) => s.participants);
+  const isLiveKitConnected = useVoiceStore((s) => s.isLiveKitConnected);
   const p2pEnabled = useP2PStore((s) => s.enabled);
 
   useP2PGlobalBridge();
+
+  // Keep local microphone track attached to active voice-room P2P sessions
+  const localMicTrack = participants.find((p) => p.isLocal)?.audioTrack ?? null;
+  useEffect(() => {
+    P2PMeshManager.getInstance().setLocalAudioTrack(p2pEnabled ? localMicTrack : null);
+  }, [localMicTrack, p2pEnabled]);
+
+  // Double failover: notify P2PMeshManager when LiveKit unexpectedly drops while in a call
+  useEffect(() => {
+    const inCall = Boolean(currentVoiceChannelId || activeDmCall);
+    if (!inCall) return;
+    P2PMeshManager.getInstance().setServerOnline(isLiveKitConnected);
+  }, [currentVoiceChannelId, activeDmCall, isLiveKitConnected]);
 
   useEffect(() => {
     const manager = P2PMeshManager.getInstance();
@@ -106,12 +120,14 @@ export function P2PStatusButton() {
   const { t } = useTranslation(['voice', 'common']);
   const enabled = useP2PStore((s) => s.enabled);
   const peersMap = useP2PStore((s) => s.peers);
+  const survivalMode = useP2PStore((s) => s.survivalMode);
   const setMeshModalOpen = useP2PStore((s) => s.setMeshModalOpen);
 
   useP2PMeshSync();
 
   const peers = Object.values(peersMap);
   const connectedPeers = peers.filter((p) => p.state === 'connected');
+  const directAudioPeers = connectedPeers.filter((p) => p.audioRoute === 'p2p');
   const bestRtt = connectedPeers.reduce<number | null>(
     (min, p) => (p.rttMs !== null && (min === null || p.rttMs < min) ? p.rttMs : min),
     null,
@@ -125,18 +141,22 @@ export function P2PStatusButton() {
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
         !enabled
           ? 'bg-white/[0.04] text-txt-tertiary hover:text-txt-secondary'
-          : connectedPeers.length > 0
-            ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
-            : 'bg-white/[0.06] text-txt-secondary hover:bg-white/[0.10]'
+          : survivalMode
+            ? 'bg-accent-amber/20 text-accent-amber hover:bg-accent-amber/30'
+            : directAudioPeers.length > 0 || connectedPeers.length > 0
+              ? 'bg-accent-mint/15 text-accent-mint hover:bg-accent-mint/25'
+              : 'bg-white/[0.06] text-txt-secondary hover:bg-white/[0.10]'
       }`}
     >
       <span
         className={`w-1.5 h-1.5 rounded-full ${
           !enabled
             ? 'bg-txt-tertiary/50'
-            : connectedPeers.length > 0
-              ? 'bg-accent-mint'
-              : 'bg-accent-amber'
+            : survivalMode
+              ? 'bg-accent-amber animate-pulse'
+              : connectedPeers.length > 0
+                ? 'bg-accent-mint'
+                : 'bg-accent-amber'
         }`}
       />
       {/* i18n-check: allow-literal "P2P" is the protocol acronym */}
@@ -356,6 +376,7 @@ export function P2PMeshModal() {
   const setOpen = useP2PStore((s) => s.setMeshModalOpen);
   const enabled = useP2PStore((s) => s.enabled);
   const setEnabled = useP2PStore((s) => s.setEnabled);
+  const survivalMode = useP2PStore((s) => s.survivalMode);
   const peersMap = useP2PStore((s) => s.peers);
   const instanceRttMs = useP2PStore((s) => s.instanceRttMs);
   const members = useSpaceStore((s) => s.members);
@@ -483,33 +504,62 @@ export function P2PMeshModal() {
         </div>
 
         <div className="space-y-2">
+          {survivalMode && (
+            <div className="rounded-lg bg-accent-amber/15 border border-accent-amber/30 px-3 py-2 text-xs text-accent-amber">
+              {t('voice:p2p.survivalBanner')}
+            </div>
+          )}
           <div className="text-[11px] font-semibold text-txt-tertiary uppercase tracking-wider">
             {t('voice:p2p.peersHeading')}
           </div>
           {peers.length === 0 ? (
             <div className="text-xs text-txt-tertiary py-2">{t('voice:p2p.noPeers')}</div>
           ) : (
-            peers.map((peer) => (
-              <div
-                key={peer.userId}
-                className="flex items-center justify-between gap-2 rounded-md bg-white/[0.03] border border-white/[0.05] px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-txt-primary truncate">{resolvePeerName(peer.userId)}</div>
-                  <div className="text-[11px] text-txt-tertiary flex items-center gap-2 tabular-nums">
-                    <span>{peer.state}</span>
-                    <span>·</span>
-                    <span>{routeLabel(peer.route)}</span>
-                    {peer.rttMs !== null && (
-                      <>
-                        <span>·</span>
-                        <span>{t('common:units.ms', { value: peer.rttMs })}</span>
-                      </>
-                    )}
+            peers.map((peer) => {
+              const savedMs = peer.rttMs !== null && peer.serverPathRttMs !== null
+                ? Math.round(peer.serverPathRttMs - peer.rttMs)
+                : null;
+              return (
+                <div
+                  key={peer.userId}
+                  className="flex items-center justify-between gap-2 rounded-md bg-white/[0.03] border border-white/[0.05] px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-txt-primary truncate">{resolvePeerName(peer.userId)}</div>
+                    <div className="text-[11px] text-txt-tertiary flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
+                      <span>{peer.state}</span>
+                      <span>·</span>
+                      <span>{routeLabel(peer.route)}</span>
+                      {peer.rttMs !== null && (
+                        <>
+                          <span>·</span>
+                          <span>{t('common:units.ms', { value: peer.rttMs })}</span>
+                        </>
+                      )}
+                      {peer.serverPathRttMs !== null && (
+                        <>
+                          <span>·</span>
+                          <span>{t('voice:p2p.serverPathRtt', { ms: peer.serverPathRttMs })}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 tabular-nums ${
+                      peer.audioRoute === 'p2p'
+                        ? 'bg-accent-mint/15 text-accent-mint'
+                        : 'bg-white/[0.06] text-txt-tertiary'
+                    }`}
+                  >
+                    {peer.audioRoute === 'p2p'
+                      ? (savedMs !== null && savedMs > 0
+                        ? t('voice:p2p.audioDirectSaved', { ms: savedMs })
+                        : t('voice:p2p.audioDirect'))
+                      : t('voice:p2p.audioServer')}
+                  </span>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

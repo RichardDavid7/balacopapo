@@ -421,6 +421,11 @@
     "accept": "Annehmen",
     "reject": "Ablehnen",
     "waitingAcceptance": "Warte auf Annahme des Empfängers...",
-    "rejectedNotice": "Übertragung abgelehnt."
+    "rejectedNotice": "Übertragung abgelehnt.",
+    "survivalBanner": "P2P-Überlebensmodus aktiv: Serververbindung unterbrochen, direkte Sprachverbindung bleibt bestehen.",
+    "serverPathRtt": "Über Server: ~{{ms}} ms",
+    "audioDirect": "Direktes P2P-Audio",
+    "audioDirectSaved": "P2P-Audio (-{{ms}} ms)",
+    "audioServer": "Über Server"
   }
 }

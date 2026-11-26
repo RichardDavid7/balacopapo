@@ -421,6 +421,11 @@
     "accept": "Accept",
     "reject": "Decline",
     "waitingAcceptance": "Waiting for recipient to accept...",
-    "rejectedNotice": "Transfer declined."
+    "rejectedNotice": "Transfer declined.",
+    "survivalBanner": "P2P Survival Mode active: server connection dropped, keeping direct voice audio alive between connected peers.",
+    "serverPathRtt": "Server path: ~{{ms}} ms",
+    "audioDirect": "Direct P2P audio",
+    "audioDirectSaved": "P2P audio (-{{ms}} ms)",
+    "audioServer": "Via server"
   }
 }

@@ -419,6 +419,11 @@
     "accept": "接受",
     "reject": "拒绝",
     "waitingAcceptance": "等待对方接受...",
-    "rejectedNotice": "传输已被拒绝。"
+    "rejectedNotice": "传输已被拒绝。",
+    "survivalBanner": "P2P 生存模式已启用：服务器连接中断，已保持直连节点间的语音通话。",
+    "serverPathRtt": "经服务器：约 {{ms}} ms",
+    "audioDirect": "P2P 直连音频",
+    "audioDirectSaved": "P2P 音频 (-{{ms}} ms)",
+    "audioServer": "经服务器"
   }
 }

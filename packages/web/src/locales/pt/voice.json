@@ -423,6 +423,11 @@
     "accept": "Aceitar",
     "reject": "Recusar",
     "waitingAcceptance": "Aguardando o destinatário aceitar...",
-    "rejectedNotice": "Transferência recusada."
+    "rejectedNotice": "Transferência recusada.",
+    "survivalBanner": "Modo Sobrevivência P2P ativo: o servidor ficou indisponível, mantendo o áudio direto entre os pares conectados.",
+    "serverPathRtt": "Via servidor: ~{{ms}} ms",
+    "audioDirect": "Áudio P2P direto",
+    "audioDirectSaved": "Áudio P2P (-{{ms}} ms)",
+    "audioServer": "Via servidor"
   }
 }

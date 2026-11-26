@@ -1,5 +1,6 @@
 import type { P2PSignalKind } from '@backspace/shared';
-import { useP2PStore, type P2PPeerState, type P2PRouteKind } from '../stores/p2pStore';
+import { useP2PStore, type P2PAudioRoute, type P2PPeerState, type P2PRouteKind } from '../stores/p2pStore';
+import { evaluateP2PAudioRoute } from './p2pAudioRouting';
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -59,6 +60,11 @@ interface PeerSession {
   incomingFiles: Map<string, IncomingFileBuffer>;
   activeIncomingFileId: string | null;
   rttMs: number | null;
+  peerInstanceRttMs: number | null;
+  serverPathRttMs: number | null;
+  audioRoute: P2PAudioRoute;
+  audioSender: RTCRtpSender | null;
+  remoteAudioTrack: MediaStreamTrack | null;
   route: P2PRouteKind;
   fileChannelWaiters: Array<() => void>;
   pendingIceCandidates: RTCIceCandidateInit[];
@@ -80,6 +86,8 @@ export class P2PMeshManager {
   private myUserId: string | null = null;
   private currentRoomKey: string | null = null;
   private sendSignal: SignalSender | null = null;
+  private localAudioTrack: MediaStreamTrack | null = null;
+  private serverOnline = true;
   private pingSeq = 0;
   private transferSeq = 0;
 
@@ -98,6 +106,60 @@ export class P2PMeshManager {
 
   registerSignalSender(sender: SignalSender): void {
     this.sendSignal = sender;
+  }
+
+  /**
+   * Attaches or replaces the local microphone track on all voice-room P2P sessions
+   * so direct P2P voice audio can flow immediately when RTT math favors P2P or
+   * during server-outage survival mode.
+   */
+  setLocalAudioTrack(track: MediaStreamTrack | null): void {
+    const prev = this.localAudioTrack;
+    this.localAudioTrack = track;
+    if (prev === track) return;
+
+    for (const session of this.sessions.values()) {
+      if (session.roomKey.startsWith('dm:') && session.roomKey !== this.currentRoomKey) continue;
+      this.syncLocalAudioOnSession(session);
+    }
+  }
+
+  /**
+   * Updates whether the LiveKit/instance server is currently reachable.
+   * When the server drops unexpectedly while >= 1 P2P peer is connected,
+   * enters Survival Mode (double failover) so peers keep talking uninterrupted.
+   */
+  setServerOnline(online: boolean): void {
+    if (this.serverOnline === online) return;
+    this.serverOnline = online;
+
+    const hasSurvivingPeer = Array.from(this.sessions.values()).some(
+      (s) => s.roomKey === this.currentRoomKey && s.pc.connectionState === 'connected' && Boolean(s.remoteAudioTrack),
+    );
+    useP2PStore.getState().setSurvivalMode(!online && hasSurvivingPeer);
+
+    for (const session of this.sessions.values()) {
+      this.publishPeerState(session, this.computeHealthState(session));
+    }
+  }
+
+  private syncLocalAudioOnSession(session: PeerSession): void {
+    const track = this.localAudioTrack;
+    try {
+      if (session.audioSender) {
+        void session.audioSender.replaceTrack(track).catch(() => {});
+        return;
+      }
+      if (track && session.pc.signalingState !== 'closed') {
+        const stream = new MediaStream([track]);
+        session.audioSender = session.pc.addTrack(track, stream);
+        if (!session.polite && session.pc.signalingState === 'stable') {
+          void this.createAndSendOffer(session);
+        }
+      }
+    } catch {
+      // Ignore transient sender error while peer is closing
+    }
   }
 
   /**
@@ -124,9 +186,13 @@ export class P2PMeshManager {
 
     const desired = new Set(remoteUserIds.filter((id) => id && id !== myUserId));
 
-    for (const [peerId, session] of this.sessions) {
-      if (session.roomKey === roomKey && !desired.has(peerId)) {
-        this.closePeer(peerId, true);
+    // In Survival Mode (server/LiveKit temporarily offline), preserve already-connected
+    // direct P2P peers so users keep talking even if LiveKit emptied its participant list.
+    if (this.serverOnline) {
+      for (const [peerId, session] of this.sessions) {
+        if (session.roomKey === roomKey && !desired.has(peerId)) {
+          this.closePeer(peerId, true);
+        }
       }
     }
 
@@ -145,7 +211,10 @@ export class P2PMeshManager {
       }
     }
     this.currentRoomKey = null;
-    useP2PStore.getState().setActiveRoomKey(null);
+    this.serverOnline = true;
+    const store = useP2PStore.getState();
+    store.setActiveRoomKey(null);
+    store.setSurvivalMode(false);
   }
 
   async handleIncomingSignal(signal: IncomingP2PSignal): Promise<void> {
@@ -380,6 +449,11 @@ export class P2PMeshManager {
       incomingFiles: new Map(),
       activeIncomingFileId: null,
       rttMs: null,
+      peerInstanceRttMs: null,
+      serverPathRttMs: null,
+      audioRoute: 'livekit',
+      audioSender: null,
+      remoteAudioTrack: null,
       route: 'unknown',
       fileChannelWaiters: [],
       pendingIceCandidates: [],
@@ -387,6 +461,29 @@ export class P2PMeshManager {
 
     this.sessions.set(peerUserId, session);
     this.publishPeerState(session, 'connecting');
+
+    pc.ontrack = (e) => {
+      if (e.track.kind !== 'audio') return;
+      session.remoteAudioTrack = e.track;
+      useP2PStore.getState().setRemoteAudioTrack(peerUserId, e.track);
+      e.track.onended = () => {
+        if (session.remoteAudioTrack === e.track) {
+          session.remoteAudioTrack = null;
+          useP2PStore.getState().setRemoteAudioTrack(peerUserId, null);
+          this.publishPeerState(session, this.computeHealthState(session));
+        }
+      };
+      this.publishPeerState(session, this.computeHealthState(session));
+    };
+
+    // Attach local voice audio track for active voice-room sessions (not DM-only file sessions)
+    if (this.localAudioTrack && roomKey === this.currentRoomKey) {
+      try {
+        session.audioSender = pc.addTrack(this.localAudioTrack, new MediaStream([this.localAudioTrack]));
+      } catch {
+        // Ignore if track ended before attach
+      }
+    }
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -472,11 +569,19 @@ export class P2PMeshManager {
     dc.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
       try {
-        const msg = JSON.parse(e.data) as { t: string; seq?: number };
+        const msg = JSON.parse(e.data) as { t: string; seq?: number; srvRtt?: number | null };
+        if (typeof msg.srvRtt === 'number' && Number.isFinite(msg.srvRtt) && msg.srvRtt >= 0) {
+          session.peerInstanceRttMs = Math.round(msg.srvRtt);
+        }
         if (msg.t === 'ping' && typeof msg.seq === 'number') {
           if (dc.readyState === 'open') {
-            dc.send(JSON.stringify({ t: 'pong', seq: msg.seq }));
+            dc.send(JSON.stringify({
+              t: 'pong',
+              seq: msg.seq,
+              srvRtt: useP2PStore.getState().instanceRttMs,
+            }));
           }
+          this.publishPeerState(session, this.computeHealthState(session));
         } else if (msg.t === 'pong' && typeof msg.seq === 'number') {
           const sentAt = session.pendingPings.get(msg.seq);
           if (sentAt !== undefined) {
@@ -581,7 +686,11 @@ export class P2PMeshManager {
         if (oldest !== undefined) session.pendingPings.delete(oldest);
       }
       try {
-        dc.send(JSON.stringify({ t: 'ping', seq }));
+        dc.send(JSON.stringify({
+          t: 'ping',
+          seq,
+          srvRtt: useP2PStore.getState().instanceRttMs,
+        }));
       } catch {
         // Ignore transient send error
       }
@@ -646,15 +755,41 @@ export class P2PMeshManager {
   }
 
   private publishPeerState(session: PeerSession, state: P2PPeerState): void {
-    useP2PStore.getState().upsertPeer({
+    const store = useP2PStore.getState();
+    const decision = evaluateP2PAudioRoute({
+      p2pRttMs: session.rttMs,
+      myInstanceRttMs: store.instanceRttMs,
+      peerInstanceRttMs: session.peerInstanceRttMs,
+      peerState: state,
+      hasRemoteAudioTrack: Boolean(session.remoteAudioTrack && session.remoteAudioTrack.readyState === 'live'),
+      serverOnline: this.serverOnline,
+      currentlyUsingP2P: session.audioRoute === 'p2p',
+    });
+    session.audioRoute = decision.route;
+    session.serverPathRttMs = decision.serverPathRttMs;
+
+    store.upsertPeer({
       userId: session.userId,
       roomKey: session.roomKey,
       state,
       rttMs: session.rttMs,
+      peerInstanceRttMs: session.peerInstanceRttMs,
+      serverPathRttMs: decision.serverPathRttMs,
       route: session.route,
+      audioRoute: decision.route,
+      hasRemoteAudio: Boolean(session.remoteAudioTrack && session.remoteAudioTrack.readyState === 'live'),
       dataChannelReady: session.fileChannel?.readyState === 'open',
       lastUpdatedAt: Date.now(),
     });
+
+    if (!this.serverOnline) {
+      const anySurviving = Array.from(this.sessions.values()).some(
+        (s) => s.roomKey === this.currentRoomKey && s.audioRoute === 'p2p',
+      );
+      if (store.survivalMode !== anySurviving) {
+        store.setSurvivalMode(anySurviving);
+      }
+    }
   }
 
   private closePeer(peerUserId: string, notifyRemote: boolean): void {

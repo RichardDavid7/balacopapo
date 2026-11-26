@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 export type P2PPeerState = 'connecting' | 'connected' | 'degraded' | 'failed' | 'closed';
 export type P2PRouteKind = 'lan' | 'nat' | 'relay' | 'unknown';
+export type P2PAudioRoute = 'p2p' | 'livekit';
 export type P2PTransferStatus =
   | 'pending_acceptance'
   | 'transferring'
@@ -15,7 +16,11 @@ export interface P2PPeerInfo {
   roomKey: string;
   state: P2PPeerState;
   rttMs: number | null;
+  peerInstanceRttMs: number | null;
+  serverPathRttMs: number | null;
   route: P2PRouteKind;
+  audioRoute: P2PAudioRoute;
+  hasRemoteAudio: boolean;
   dataChannelReady: boolean;
   lastUpdatedAt: number;
 }
@@ -39,13 +44,17 @@ interface P2PState {
   setEnabled: (enabled: boolean) => void;
   activeRoomKey: string | null;
   instanceRttMs: number | null;
+  survivalMode: boolean;
   peers: Record<string, P2PPeerInfo>;
+  remoteAudioTracks: Record<string, MediaStreamTrack>;
   transfers: P2PFileTransfer[];
   meshModalOpen: boolean;
 
   setMeshModalOpen: (open: boolean) => void;
   setActiveRoomKey: (roomKey: string | null) => void;
   setInstanceRttMs: (rttMs: number | null) => void;
+  setSurvivalMode: (survivalMode: boolean) => void;
+  setRemoteAudioTrack: (userId: string, track: MediaStreamTrack | null) => void;
   upsertPeer: (peer: P2PPeerInfo) => void;
   removePeer: (userId: string) => void;
   clearPeers: () => void;
@@ -65,13 +74,23 @@ export const useP2PStore = create<P2PState>()(
       setEnabled: (enabled) => set({ enabled }),
       activeRoomKey: null,
       instanceRttMs: null,
+      survivalMode: false,
       peers: {},
+      remoteAudioTracks: {},
       transfers: [],
       meshModalOpen: false,
 
       setMeshModalOpen: (meshModalOpen) => set({ meshModalOpen }),
       setActiveRoomKey: (activeRoomKey) => set({ activeRoomKey }),
       setInstanceRttMs: (instanceRttMs) => set({ instanceRttMs }),
+      setSurvivalMode: (survivalMode) => set({ survivalMode }),
+      setRemoteAudioTrack: (userId, track) =>
+        set((s) => {
+          const next = { ...s.remoteAudioTracks };
+          if (track) next[userId] = track;
+          else delete next[userId];
+          return { remoteAudioTracks: next };
+        }),
       upsertPeer: (peer) =>
         set((s) => ({
           peers: { ...s.peers, [peer.userId]: peer },
@@ -80,9 +99,11 @@ export const useP2PStore = create<P2PState>()(
         set((s) => {
           const next = { ...s.peers };
           delete next[userId];
-          return { peers: next };
+          const nextTracks = { ...s.remoteAudioTracks };
+          delete nextTracks[userId];
+          return { peers: next, remoteAudioTracks: nextTracks };
         }),
-      clearPeers: () => set({ peers: {}, activeRoomKey: null }),
+      clearPeers: () => set({ peers: {}, remoteAudioTracks: {}, activeRoomKey: null, survivalMode: false }),
       upsertTransfer: (transfer) =>
         set((s) => ({
           transfers: [transfer, ...s.transfers.filter((t) => t.id !== transfer.id)].slice(0, 30),

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { useP2PStore } from '../../stores/p2pStore';
 import { useSpaceStore, getChannelOrigin, getMyUserIdForOrigin } from '../../stores/spaceStore';
 import { useAudioTrackPlayer } from '../../hooks/useAudioTrackPlayer';
 import type { ParticipantInfo } from '../../hooks/useLiveKit';
@@ -79,6 +80,9 @@ export function GlobalAudioRenderer() {
   const streamAttenuationEnabled = useVoiceStore((s) => s.streamAttenuationEnabled);
   const streamAttenuationStrength = useVoiceStore((s) => s.streamAttenuationStrength);
   const speakingParticipantIds = useVoiceStore((s) => s.speakingParticipantIds);
+  const p2pPeers = useP2PStore((s) => s.peers);
+  const p2pRemoteAudioTracks = useP2PStore((s) => s.remoteAudioTracks);
+  const p2pSurvivalMode = useP2PStore((s) => s.survivalMode);
 
   // Compute effective deafened: user intent || server enforcement
   const spaceId = useSpaceStore((s) => currentVoiceChannelId ? s.channelToSpaceMap.get(currentVoiceChannelId) : null);
@@ -91,6 +95,15 @@ export function GlobalAudioRenderer() {
 
   // Only render audio for remote participants
   const remoteParticipants = participants.filter((p) => !p.isLocal);
+  const livekitUserIds = new Set(remoteParticipants.map((p) => p.userId));
+
+  // Double failover (Survival Mode): if the server/LiveKit dropped and cleared
+  // `participants`, keep playing audio from any surviving direct P2P peers.
+  const survivalOnlyPeerIds = p2pSurvivalMode
+    ? Object.keys(p2pRemoteAudioTracks).filter(
+        (uid) => !livekitUserIds.has(uid) && p2pPeers[uid]?.audioRoute === 'p2p',
+      )
+    : [];
 
   return (
     <>
@@ -100,12 +113,18 @@ export function GlobalAudioRenderer() {
         const streamVol = streamVolumes.get(p.userId) ?? 100;
         const isStreamMuted = streamMutes.get(p.userId) ?? false;
 
+        // Hybrid P2P routing: when direct P2P beats combined server RTT (or server is offline),
+        // play the direct P2P track instead of the LiveKit track (zero double-playback/echo).
+        const p2pTrack = p2pRemoteAudioTracks[p.userId] ?? null;
+        const useDirectP2P = p2pPeers[p.userId]?.audioRoute === 'p2p' && Boolean(p2pTrack);
+        const activeMicTrack = useDirectP2P ? p2pTrack : p.audioTrack;
+
         return (
           <React.Fragment key={p.identity}>
-            {/* Mic audio */}
-            {p.audioTrack && (
+            {/* Mic audio (hybrid P2P direct or LiveKit failover) */}
+            {activeMicTrack && (
               <AudioTrackElement
-                track={p.audioTrack}
+                track={activeMicTrack}
                 globalVolume={outputVolume}
                 perSourceVolume={micVolume}
                 isDeafened={isDeafened}
@@ -132,6 +151,28 @@ export function GlobalAudioRenderer() {
               />
             )}
           </React.Fragment>
+        );
+      })}
+
+      {/* Server-outage P2P Survival Mode: keep direct P2P audio alive even if LiveKit emptied */}
+      {survivalOnlyPeerIds.map((userId) => {
+        const track = p2pRemoteAudioTracks[userId] ?? null;
+        if (!track) return null;
+        const micVolume = participantVolumes.get(userId) ?? 100;
+        const isMicMuted = participantMutes.get(userId) ?? false;
+        return (
+          <AudioTrackElement
+            key={`p2p-survival:${userId}`}
+            track={track}
+            globalVolume={outputVolume}
+            perSourceVolume={micVolume}
+            isDeafened={isDeafened}
+            isMuted={isMicMuted}
+            attenuate={false}
+            someoneIsSpeaking={false}
+            attenuationEnabled={false}
+            attenuationStrength={0}
+          />
         );
       })}
     </>

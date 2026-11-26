@@ -47,15 +47,14 @@ Itens já identificados durante os testes e uso real:
 - [x] **Melhorar consistência geral** — após reconexão LiveKit (`ConnectionState.Connected`), re-sincroniza automaticamente `broadcastVoiceStatus()`, `AudioManager.recoverFromWake()` (`AudioContext` + `setSinkId`) e `jitterBufferMs` em todos os receivers de áudio.
 - [x] **Teste de microfone (loopback local)** — botão nas configurações de voz (`AudioInputSection` + `AudioManager.startMicLoopback`) para ouvir a própria voz já passando por RNNoise, ganho e AEC.
 
-### Fase 2 — Malha P2P Híbrida (com Failover na Instância)
-- [x] **2A · P2P para arquivos + Indicador P2P** — sinalização WebSocket autenticada (`p2p_signal`), motor `P2PMeshManager` (WebRTC DataChannel com chunks de 64 KB + backpressure), **consentimento obrigatório do destinatário (Aceitar / Recusar antes de transferir qualquer byte)** e envio direto na **Conversa Direta (DM)** com bandeja flutuante `P2PTransferTray`.
+### Fase 2 — Malha P2P Híbrida (com Failover na Instância) *(Concluída)*
+- [x] **2A · P2P para arquivos + Indicador P2P** — sinalização WebSocket autenticada (`p2p_signal`), motor `P2PMeshManager` (WebRTC DataChannel com chunks de 16 KB + backpressure), **consentimento obrigatório do destinatário (Aceitar / Recusar antes de transferir qualquer byte)** e envio direto na **Conversa Direta (DM)** com bandeja flutuante `P2PTransferTray`.
 - [x] **2B · Mapa da malha P2P com latência** — modal `P2PMeshModal` com grafo visual SVG mostrando o RTT direto (ping/pong a cada 3s) entre você e cada participante, tipo de rota (`LAN`/`NAT`/`Relay`) e latência até a instância.
-- [ ] **2C · P2P híbrido para chamadas (voz/vídeo):**
+- [x] **2C · P2P híbrido para chamadas de voz (com failover duplo):**
   1. Conecta normalmente via instância (sinalização + SFU).
-  2. Tenta upgrade automático para P2P (`RTCPeerConnection` direto) entre participantes com P2P ativado.
-  3. Prioriza o tráfego P2P quando saudável (menor latência, zero banda no servidor).
-  4. **Sobrevivência:** se a instância cair, as conexões P2P já abertas continuam funcionando entre os participantes.
-  5. **Failover:** se a rota P2P degradar (perda de pacote/ping alto/queda), volta automaticamente para o LiveKit da instância.
+  2. Anexa a track de áudio do microfone no `RTCPeerConnection` direto (`P2PMeshManager.ts`) e troca o RTT até o servidor via DataChannel (`srvRtt`) para calcular o caminho completo `meuRttServidor + rttServidorDoPar`.
+  3. Prioriza o áudio P2P direto (`GlobalAudioRenderer.tsx`) com histerese (`-10 ms` para entrar, `+15 ms` para voltar), eliminando áudio duplicado.
+  4. **Failover duplo (Sobrevivência):** se o servidor/LiveKit cair, ativa o **Modo Sobrevivência P2P** mantendo as conexões diretas já estabelecidas falando sem interrupção; se a rota P2P degradar enquanto o servidor está online, volta automaticamente para o LiveKit.
 
 ### Fase 3 — Administração, Retenção de Arquivos e Segurança *(Concluída)*
 - [x] **OIDC (SSO)** — login integrado com provedores OpenID Connect (Authentik, Keycloak, Pocket ID, Authelia, etc.) configurado via variáveis de ambiente Docker (fora do banco), migração `0040_oidc_links.sql` (`(issuer, sub) -> users.id`), sync de foto de perfil (`OIDC_SYNC_AVATAR`), grupos de administradores (`OIDC_ADMIN_GROUPS`), painel **OIDC** nas Configurações da Instância para vincular usuários existentes (manualmente por `sub` ou via link de vínculo de 1 clique), e callback web/deep link (`balacopapo://auth/callback`).
