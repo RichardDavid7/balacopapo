@@ -688,6 +688,147 @@ impl ApiClient {
         Ok(())
     }
 
+    pub async fn update_profile(
+        &self,
+        display_name: &str,
+        bio: &str,
+    ) -> Result<AuthUser, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/users/@me", self.base_url);
+        let resp = self
+            .http
+            .patch(&url)
+            .bearer_auth(token)
+            .json(&json!({
+                "displayName": display_name,
+                "bio": bio,
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao atualizar perfil: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao atualizar perfil (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<AuthUser>()
+            .await
+            .map_err(|e| format!("Erro ao ler perfil atualizado: {e}"))
+    }
+
+    pub async fn create_group(&self, name: &str) -> Result<GroupSummary, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/spaces", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "name": name }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao criar grupo: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao criar grupo (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<GroupSummary>()
+            .await
+            .map_err(|e| format!("Erro ao ler grupo criado: {e}"))
+    }
+
+    pub async fn create_channel(
+        &self,
+        space_id: &str,
+        name: &str,
+        kind: &str,
+    ) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/spaces/{space_id}/channels", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "name": name, "type": kind }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao criar canal: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao criar canal (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+        Ok(())
+    }
+
+    pub async fn create_space_api_key(
+        &self,
+        space_id: &str,
+        name: &str,
+    ) -> Result<(SpaceApiKeySummary, String), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/spaces/{space_id}/api-keys", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "name": name }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao criar chave de API: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao criar chave de API (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        let val: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("Erro ao ler resposta da chave: {e}"))?;
+        let key_val = val
+            .get("apiKey")
+            .ok_or_else(|| "Resposta sem campo apiKey".to_string())?;
+        let summary: SpaceApiKeySummary = serde_json::from_value(key_val.clone())
+            .map_err(|e| format!("Erro ao interpretar chave criada: {e}"))?;
+        let secret = val
+            .get("secret")
+            .and_then(|s| s.as_str())
+            .unwrap_or_default()
+            .to_string();
+        Ok((summary, secret))
+    }
+
+    pub async fn revoke_space_api_key(&self, space_id: &str, key_id: &str) -> Result<(), String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/spaces/{space_id}/api-keys/{key_id}", self.base_url);
+        let resp = self
+            .http
+            .delete(&url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao revogar chave: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao revogar chave (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+        Ok(())
+    }
+
     pub async fn fetch_space_api_keys(
         &self,
         space_id: &str,

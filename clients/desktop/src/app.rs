@@ -78,6 +78,17 @@ pub enum Message {
     MusicCommandDone(Result<(), String>),
     VoteSkipSaved(Result<u32, String>),
     ApiKeysLoaded(Result<Vec<SpaceApiKeySummary>, String>),
+    ProfileSaved(Result<AuthUser, String>),
+    GroupCreated(Result<GroupSummary, String>),
+    ChannelCreated {
+        space_id: String,
+        result: Result<(), String>,
+    },
+    ApiKeyCreated(Result<(SpaceApiKeySummary, String), String>),
+    ApiKeyRevoked {
+        key_id: String,
+        result: Result<(), String>,
+    },
     ImageLoaded {
         key: String,
         bytes: Option<Vec<u8>>,
@@ -577,6 +588,112 @@ impl BalacopapoApp {
                         Ok(keys) => {
                             shell.settings.api_keys_error = None;
                             shell.settings.api_keys = keys;
+                        }
+                        Err(err) => {
+                            shell.settings.api_keys_error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::ProfileSaved(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.settings.profile_saving = false;
+                    match result {
+                        Ok(user) => {
+                            shell.settings.profile_display_name =
+                                user.display_name.clone().unwrap_or_default();
+                            shell.settings.profile_bio = user.bio.clone().unwrap_or_default();
+                            shell.user = user;
+                            shell.settings.profile_error = None;
+                            shell.settings.profile_note =
+                                Some("Perfil atualizado com sucesso.".to_string());
+                        }
+                        Err(err) => {
+                            shell.settings.profile_note = None;
+                            shell.settings.profile_error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::GroupCreated(result) => {
+                let mut fetch_detail: Option<(String, String, String)> = None;
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(group) => {
+                            let id = group.id.clone();
+                            let name = group.name.clone();
+                            shell.groups.push(group);
+                            shell.selected_group_id = Some(id.clone());
+                            shell.selected_channel_id = None;
+                            shell.settings.new_group_name.clear();
+                            shell.settings.group_create_note =
+                                Some(format!("Grupo '{name}' criado!"));
+                            fetch_detail = Some((
+                                shell.instance_url.clone(),
+                                self.config.auth_token.clone().unwrap_or_default(),
+                                id,
+                            ));
+                        }
+                        Err(err) => {
+                            shell.settings.profile_error = Some(err);
+                        }
+                    }
+                }
+                if let Some((url, token, space_id)) = fetch_detail {
+                    Self::load_group_detail_task(url, token, space_id)
+                } else {
+                    Task::none()
+                }
+            }
+            Message::ChannelCreated { space_id, result } => {
+                let mut reload: Option<(String, String, String)> = None;
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(()) => {
+                            shell.settings.new_channel_name.clear();
+                            shell.settings.channel_create_note =
+                                Some("Canal criado com sucesso.".to_string());
+                            reload = Some((
+                                shell.instance_url.clone(),
+                                self.config.auth_token.clone().unwrap_or_default(),
+                                space_id,
+                            ));
+                        }
+                        Err(err) => {
+                            shell.settings.api_keys_error = Some(err);
+                        }
+                    }
+                }
+                if let Some((url, token, sid)) = reload {
+                    Self::load_group_detail_task(url, token, sid)
+                } else {
+                    Task::none()
+                }
+            }
+            Message::ApiKeyCreated(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok((summary, secret)) => {
+                            shell.settings.api_keys_error = None;
+                            shell.settings.new_api_key_name.clear();
+                            shell.settings.created_api_key_secret = Some(secret);
+                            shell.settings.api_keys.insert(0, summary);
+                        }
+                        Err(err) => {
+                            shell.settings.api_keys_error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::ApiKeyRevoked { key_id, result } => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(()) => {
+                            shell.settings.api_keys_error = None;
+                            shell.settings.api_keys.retain(|k| k.id != key_id);
                         }
                         Err(err) => {
                             shell.settings.api_keys_error = Some(err);
@@ -1775,6 +1892,131 @@ impl BalacopapoApp {
             SettingsAction::SelectTab(tab) => {
                 shell.settings.active_tab = tab;
                 Task::none()
+            }
+            SettingsAction::ProfileDisplayNameChanged(v) => {
+                shell.settings.profile_display_name = v;
+                shell.settings.profile_note = None;
+                shell.settings.profile_error = None;
+                Task::none()
+            }
+            SettingsAction::ProfileBioChanged(v) => {
+                shell.settings.profile_bio = v;
+                shell.settings.profile_note = None;
+                shell.settings.profile_error = None;
+                Task::none()
+            }
+            SettingsAction::SaveProfile => {
+                shell.settings.profile_saving = true;
+                let display_name = shell.settings.profile_display_name.clone();
+                let bio = shell.settings.profile_bio.clone();
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.update_profile(&display_name, &bio).await
+                    },
+                    Message::ProfileSaved,
+                )
+            }
+            SettingsAction::NewGroupNameChanged(v) => {
+                shell.settings.new_group_name = v;
+                shell.settings.group_create_note = None;
+                Task::none()
+            }
+            SettingsAction::CreateGroup => {
+                let name = shell.settings.new_group_name.trim().to_string();
+                if name.is_empty() {
+                    return Task::none();
+                }
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.create_group(&name).await
+                    },
+                    Message::GroupCreated,
+                )
+            }
+            SettingsAction::NewChannelNameChanged(v) => {
+                shell.settings.new_channel_name = v;
+                shell.settings.channel_create_note = None;
+                Task::none()
+            }
+            SettingsAction::ToggleNewChannelVoice => {
+                shell.settings.new_channel_is_voice = !shell.settings.new_channel_is_voice;
+                Task::none()
+            }
+            SettingsAction::CreateChannel => {
+                let Some(space_id) = shell.selected_group_id.clone() else {
+                    return Task::none();
+                };
+                let name = shell.settings.new_channel_name.trim().to_string();
+                if name.is_empty() {
+                    return Task::none();
+                }
+                let kind = if shell.settings.new_channel_is_voice {
+                    "voice"
+                } else {
+                    "text"
+                };
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let result = match ApiClient::new(url, Some(token)) {
+                            Ok(client) => client.create_channel(&space_id, &name, kind).await,
+                            Err(err) => Err(err),
+                        };
+                        Message::ChannelCreated { space_id, result }
+                    },
+                    std::convert::identity,
+                )
+            }
+            SettingsAction::NewApiKeyNameChanged(v) => {
+                shell.settings.new_api_key_name = v;
+                shell.settings.api_keys_error = None;
+                Task::none()
+            }
+            SettingsAction::CreateApiKey => {
+                let Some(space_id) = shell.selected_group_id.clone() else {
+                    return Task::none();
+                };
+                let name = shell.settings.new_api_key_name.trim().to_string();
+                if name.is_empty() {
+                    return Task::none();
+                }
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.create_space_api_key(&space_id, &name).await
+                    },
+                    Message::ApiKeyCreated,
+                )
+            }
+            SettingsAction::RevokeApiKey(key_id) => {
+                let Some(space_id) = shell.selected_group_id.clone() else {
+                    return Task::none();
+                };
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                let kid = key_id.clone();
+                Task::perform(
+                    async move {
+                        let result = match ApiClient::new(url, Some(token)) {
+                            Ok(client) => client.revoke_space_api_key(&space_id, &kid).await,
+                            Err(err) => Err(err),
+                        };
+                        Message::ApiKeyRevoked {
+                            key_id: kid,
+                            result,
+                        }
+                    },
+                    std::convert::identity,
+                )
             }
             SettingsAction::VoteSkipInputChanged(v) => {
                 shell.settings.vote_skip_input = v;

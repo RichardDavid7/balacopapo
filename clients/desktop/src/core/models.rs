@@ -87,6 +87,8 @@ pub struct AuthUser {
     pub username: String,
     #[serde(default)]
     pub display_name: Option<String>,
+    #[serde(default)]
+    pub bio: Option<String>,
     #[serde(default, alias = "avatar")]
     pub avatar_url: Option<String>,
     #[serde(default)]
