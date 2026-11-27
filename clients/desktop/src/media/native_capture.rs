@@ -14,7 +14,9 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+#[cfg(target_os = "windows")]
+use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 use crate::media::isolated_audio;
@@ -577,17 +579,18 @@ impl NativeScreenShareController {
 
         let cap_metrics = Arc::clone(&metrics);
         let cap_params = params.clone();
+        let cap_source_id = cfg.source_id.clone();
         let capture_worker = std::thread::Builder::new()
             .name("bp-native-capture".to_string())
-            .spawn(move || run_ffmpeg_capture_loop(&cap_params, &cap_metrics))
+            .spawn(move || run_mjpeg_capture_loop(&cap_source_id, &cap_params, &cap_metrics))
             .map_err(|e| format!("Falha ao iniciar thread de captura de vídeo: {e}"))?;
 
         let srv_metrics = Arc::clone(&metrics);
         let srv_token = token;
         let server_worker = std::thread::Builder::new()
             .name("bp-bitstream-loopback".to_string())
-            .spawn(move || run_loopback_server(listener, &srv_token, &srv_metrics))
-            .map_err(|e| format!("Falha ao iniciar servidor loopback de bitstream: {e}"))?;
+            .spawn(move || run_mjpeg_loopback_server(listener, &srv_token, &srv_metrics))
+            .map_err(|e| format!("Falha ao iniciar servidor loopback de vídeo: {e}"))?;
 
         if let Ok(mut guard) = self.active.lock() {
             *guard = Some(ActiveScreenShare {
@@ -657,27 +660,245 @@ impl Drop for NativeScreenShareController {
     }
 }
 
-fn run_ffmpeg_capture_loop(params: &ResolvedCaptureParams, metrics: &Arc<SharedCaptureMetrics>) {
-    let args = build_encoder_args(params, cfg!(target_os = "windows"));
-    let mut cmd = Command::new("ffmpeg");
-    cmd.args(&args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-
+fn run_mjpeg_capture_loop(
+    source_id: &str,
+    params: &ResolvedCaptureParams,
+    metrics: &Arc<SharedCaptureMetrics>,
+) {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        win_capture::run_gdi_mjpeg_loop(source_id, params, metrics);
     }
 
-    let mut child = match cmd.spawn() {
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = source_id;
+        run_ffmpeg_mjpeg_loop(params, metrics);
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod win_capture {
+    use super::*;
+    use image::codecs::jpeg::JpegEncoder;
+    use std::io::Cursor;
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
+    use windows::Win32::Graphics::Gdi::{
+        BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
+        GetDIBits, ReleaseDC, SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
+        SRCCOPY,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible,
+        SM_CXSCREEN, SM_CYSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+    };
+
+    struct FindPidState {
+        target_pid: u32,
+        found: Option<HWND>,
+    }
+
+    unsafe extern "system" fn find_window_by_pid(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        if !IsWindowVisible(hwnd).as_bool() {
+            return BOOL(1);
+        }
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        let state = &mut *(lparam.0 as *mut FindPidState);
+        if pid == state.target_pid {
+            let mut rect = RECT::default();
+            if GetWindowRect(hwnd, &mut rect).is_ok()
+                && (rect.right - rect.left) >= 64
+                && (rect.bottom - rect.top) >= 64
+            {
+                state.found = Some(hwnd);
+                return BOOL(0);
+            }
+        }
+        BOOL(1)
+    }
+
+    fn resolve_capture_rect(source_id: &str) -> (i32, i32, i32, i32) {
+        if let Some(pid_str) = source_id.strip_prefix("window:") {
+            if let Ok(pid) = pid_str.parse::<u32>() {
+                let mut state = FindPidState {
+                    target_pid: pid,
+                    found: None,
+                };
+                unsafe {
+                    let _ = EnumWindows(
+                        Some(find_window_by_pid),
+                        LPARAM((&mut state as *mut FindPidState) as isize),
+                    );
+                }
+                if let Some(hwnd) = state.found {
+                    let mut rect = RECT::default();
+                    if unsafe { GetWindowRect(hwnd, &mut rect) }.is_ok() {
+                        let w = (rect.right - rect.left).max(64);
+                        let h = (rect.bottom - rect.top).max(64);
+                        return (rect.left, rect.top, w, h);
+                    }
+                }
+            }
+        }
+
+        unsafe {
+            let x = GetSystemMetrics(SM_XVIRTUALSCREEN);
+            let y = GetSystemMetrics(SM_YVIRTUALSCREEN);
+            let w = GetSystemMetrics(SM_CXSCREEN).max(640);
+            let h = GetSystemMetrics(SM_CYSCREEN).max(360);
+            (x, y, w, h)
+        }
+    }
+
+    pub fn run_gdi_mjpeg_loop(
+        source_id: &str,
+        params: &ResolvedCaptureParams,
+        metrics: &Arc<SharedCaptureMetrics>,
+    ) {
+        let frame_interval =
+            std::time::Duration::from_micros((1_000_000 / u64::from(params.fps.clamp(15, 60))).max(16_000));
+        let mut window_bytes: u64 = 0;
+        let mut window_start = Instant::now();
+        let mut bgra: Vec<u8> = Vec::new();
+        let mut rgb: Vec<u8> = Vec::new();
+        let mut jpeg_buf: Vec<u8> = Vec::with_capacity(256 * 1024);
+
+        while metrics.running.load(Ordering::Relaxed) {
+            let tick = Instant::now();
+            let (src_x, src_y, width, height) = resolve_capture_rect(source_id);
+
+            let captured = unsafe {
+                let hdc_screen = GetDC(HWND::default());
+                if hdc_screen.is_invalid() {
+                    false
+                } else {
+                    let hdc_mem = CreateCompatibleDC(hdc_screen);
+                    let hbm = CreateCompatibleBitmap(hdc_screen, width, height);
+                    let old = SelectObject(hdc_mem, hbm);
+
+                    let ok = BitBlt(
+                        hdc_mem,
+                        0,
+                        0,
+                        width,
+                        height,
+                        hdc_screen,
+                        src_x,
+                        src_y,
+                        SRCCOPY,
+                    )
+                    .is_ok();
+
+                    let mut got_bits = false;
+                    if ok {
+                        let byte_len = (width as usize) * (height as usize) * 4;
+                        bgra.resize(byte_len, 0);
+                        let mut bmi = BITMAPINFO {
+                            bmiHeader: BITMAPINFOHEADER {
+                                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                                biWidth: width,
+                                biHeight: -height, // top-down
+                                biPlanes: 1,
+                                biBitCount: 32,
+                                biCompression: BI_RGB.0,
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        };
+                        let lines = GetDIBits(
+                            hdc_mem,
+                            hbm,
+                            0,
+                            height as u32,
+                            Some(bgra.as_mut_ptr().cast()),
+                            &mut bmi,
+                            DIB_RGB_COLORS,
+                        );
+                        got_bits = lines > 0;
+                    }
+
+                    SelectObject(hdc_mem, old);
+                    let _ = DeleteObject(hbm);
+                    let _ = DeleteDC(hdc_mem);
+                    let _ = ReleaseDC(HWND::default(), hdc_screen);
+                    got_bits
+                }
+            };
+
+            if captured {
+                let px_count = (width as usize) * (height as usize);
+                rgb.resize(px_count * 3, 0);
+                for (i, chunk) in bgra.as_chunks::<4>().0.iter().enumerate() {
+                    let dst = i * 3;
+                    rgb[dst] = chunk[2];
+                    rgb[dst + 1] = chunk[1];
+                    rgb[dst + 2] = chunk[0];
+                }
+
+                jpeg_buf.clear();
+                let mut cursor = Cursor::new(&mut jpeg_buf);
+                let mut encoder = JpegEncoder::new_with_quality(&mut cursor, 85);
+                if encoder
+                    .encode(&rgb, width as u32, height as u32, image::ExtendedColorType::Rgb8)
+                    .is_ok()
+                {
+                    let n = jpeg_buf.len() as u64;
+                    metrics.bytes_sent.fetch_add(n, Ordering::Relaxed);
+                    window_bytes += n;
+                    if let Ok(mut latest) = metrics.latest_chunk.lock() {
+                        latest.clear();
+                        latest.extend_from_slice(&jpeg_buf);
+                    }
+                    let elapsed = window_start.elapsed().as_secs_f64();
+                    if elapsed >= 0.5 {
+                        let kbps = ((window_bytes as f64 * 8.0) / elapsed / 1000.0) as u64;
+                        metrics
+                            .bitrate_kbps_x10
+                            .store(kbps.saturating_mul(10), Ordering::Relaxed);
+                        window_bytes = 0;
+                        window_start = Instant::now();
+                    }
+                }
+            }
+
+            if let Some(rem) = frame_interval.checked_sub(tick.elapsed()) {
+                std::thread::sleep(rem);
+            }
+        }
+
+        metrics.running.store(false, Ordering::SeqCst);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn run_ffmpeg_mjpeg_loop(params: &ResolvedCaptureParams, metrics: &Arc<SharedCaptureMetrics>) {
+    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0.0".to_string());
+    let mut child = match Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "x11grab",
+            "-framerate",
+            &params.fps.clamp(15, 60).to_string(),
+            "-i",
+            &display,
+            "-q:v",
+            "4",
+            "-f",
+            "mjpeg",
+            "pipe:1",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
         Ok(c) => c,
         Err(e) => {
-            metrics.set_error(format!(
-                "Encoder nativo `ffmpeg` não encontrado no PATH (instale ffmpeg com NVENC/AMF/QSV/VAAPI): {e}"
-            ));
+            metrics.set_error(format!("ffmpeg não encontrado para captura Linux: {e}"));
             metrics.running.store(false, Ordering::SeqCst);
             return;
         }
@@ -685,33 +906,28 @@ fn run_ffmpeg_capture_loop(params: &ResolvedCaptureParams, metrics: &Arc<SharedC
 
     let Some(mut stdout) = child.stdout.take() else {
         let _ = child.kill();
-        metrics.set_error("Falha ao abrir pipe de bitstream do encoder.".to_string());
         metrics.running.store(false, Ordering::SeqCst);
         return;
     };
 
-    let mut buf = vec![0u8; 65_536];
-    let mut window_bytes: u64 = 0;
-    let mut window_start = Instant::now();
+    let mut read_buf = [0u8; 32_768];
+    let mut frame_buf: Vec<u8> = Vec::with_capacity(256 * 1024);
 
     while metrics.running.load(Ordering::Relaxed) {
-        match stdout.read(&mut buf) {
+        match stdout.read(&mut read_buf) {
             Ok(0) => break,
             Ok(n) => {
-                metrics.bytes_sent.fetch_add(n as u64, Ordering::Relaxed);
-                window_bytes += n as u64;
-                if let Ok(mut latest) = metrics.latest_chunk.lock() {
-                    latest.clear();
-                    latest.extend_from_slice(&buf[..n]);
-                }
-                let elapsed = window_start.elapsed().as_secs_f64();
-                if elapsed >= 0.5 {
-                    let kbps = ((window_bytes as f64 * 8.0) / elapsed / 1000.0) as u64;
+                frame_buf.extend_from_slice(&read_buf[..n]);
+                if let Some(end_pos) = frame_buf.windows(2).position(|w| w == [0xFF, 0xD9]) {
+                    let frame_end = end_pos + 2;
                     metrics
-                        .bitrate_kbps_x10
-                        .store(kbps.saturating_mul(10), Ordering::Relaxed);
-                    window_bytes = 0;
-                    window_start = Instant::now();
+                        .bytes_sent
+                        .fetch_add(frame_end as u64, Ordering::Relaxed);
+                    if let Ok(mut latest) = metrics.latest_chunk.lock() {
+                        latest.clear();
+                        latest.extend_from_slice(&frame_buf[..frame_end]);
+                    }
+                    frame_buf.drain(..frame_end);
                 }
             }
             Err(_) => break,
@@ -723,7 +939,7 @@ fn run_ffmpeg_capture_loop(params: &ResolvedCaptureParams, metrics: &Arc<SharedC
     metrics.running.store(false, Ordering::SeqCst);
 }
 
-fn run_loopback_server(
+fn run_mjpeg_loopback_server(
     listener: TcpListener,
     expected_token: &str,
     metrics: &Arc<SharedCaptureMetrics>,
@@ -749,33 +965,36 @@ fn run_loopback_server(
                     continue;
                 }
 
-                let header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nTransfer-Encoding: chunked\r\n\r\n";
+                let header = "HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=bpframe\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\n\r\n";
                 if stream.write_all(header.as_bytes()).is_err() {
                     continue;
                 }
 
                 while metrics.running.load(Ordering::Relaxed) {
-                    let chunk = metrics
+                    let frame = metrics
                         .latest_chunk
                         .lock()
                         .ok()
-                        .map(|mut c| std::mem::take(&mut *c))
+                        .map(|c| (*c).clone())
                         .unwrap_or_default();
 
-                    if chunk.is_empty() {
-                        std::thread::sleep(std::time::Duration::from_millis(4));
+                    if frame.is_empty() {
+                        std::thread::sleep(std::time::Duration::from_millis(8));
                         continue;
                     }
 
-                    let prefix = format!("{:x}\r\n", chunk.len());
-                    if stream.write_all(prefix.as_bytes()).is_err()
-                        || stream.write_all(&chunk).is_err()
+                    let part_header = format!(
+                        "--bpframe\r\nContent-Type: image/jpeg\r\nContent-Length: {}\r\n\r\n",
+                        frame.len()
+                    );
+                    if stream.write_all(part_header.as_bytes()).is_err()
+                        || stream.write_all(&frame).is_err()
                         || stream.write_all(b"\r\n").is_err()
                     {
                         break;
                     }
+                    std::thread::sleep(std::time::Duration::from_millis(16));
                 }
-                let _ = stream.write_all(b"0\r\n\r\n");
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(std::time::Duration::from_millis(15));

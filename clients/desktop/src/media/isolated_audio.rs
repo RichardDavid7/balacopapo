@@ -8,9 +8,13 @@
 //!     PCM `f32` estéreo 48 kHz em streaming via `pw-record` sem arquivos temporários.
 
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const CAPTURE_SAMPLE_RATE: u32 = 48_000;
 pub const CAPTURE_CHANNELS: u16 = 2;
@@ -47,6 +51,7 @@ pub struct IsolatedAudioStatus {
     pub active: bool,
     pub mode: Option<IsolatedAudioMode>,
     pub target_label: Option<String>,
+    pub loopback_url: Option<String>,
     pub backend: String,
     pub sample_rate: u32,
     pub channels: u16,
@@ -112,6 +117,7 @@ struct SharedMetrics {
     peak_bits: AtomicU32,
     captured_frames: AtomicU64,
     last_error: Mutex<Option<String>>,
+    pcm_queue: Mutex<VecDeque<Vec<u8>>>,
 }
 
 impl SharedMetrics {
@@ -121,6 +127,7 @@ impl SharedMetrics {
             peak_bits: AtomicU32::new(0.0_f32.to_bits()),
             captured_frames: AtomicU64::new(0),
             last_error: Mutex::new(None),
+            pcm_queue: Mutex::new(VecDeque::with_capacity(32)),
         }
     }
 
@@ -135,14 +142,89 @@ impl SharedMetrics {
         self.peak_bits.store(peak.to_bits(), Ordering::Relaxed);
         let frames = (samples.len() / usize::from(CAPTURE_CHANNELS)) as u64;
         self.captured_frames.fetch_add(frames, Ordering::Relaxed);
+
+        if let Ok(mut q) = self.pcm_queue.lock() {
+            if q.len() >= 24 {
+                q.pop_front();
+            }
+            let mut bytes = Vec::with_capacity(samples.len() * 4);
+            for &s in samples {
+                bytes.extend_from_slice(&s.to_le_bytes());
+            }
+            q.push_back(bytes);
+        }
+    }
+}
+
+fn generate_audio_token() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{:032x}", nanos ^ u128::from(std::process::id()).wrapping_mul(0x517c_c1b7_2722_0a95))
+}
+
+fn run_audio_loopback_server(
+    listener: TcpListener,
+    expected_token: &str,
+    metrics: &Arc<SharedMetrics>,
+) {
+    let expected_query = format!("token={expected_token}");
+    while metrics.running.load(Ordering::Relaxed) {
+        match listener.accept() {
+            Ok((mut stream, addr)) => {
+                if !addr.ip().is_loopback() {
+                    continue;
+                }
+                let _ = stream.set_nonblocking(false);
+                let mut req_buf = [0u8; 1024];
+                let Ok(read_n) = stream.read(&mut req_buf) else {
+                    continue;
+                };
+                let first_line = String::from_utf8_lossy(&req_buf[..read_n])
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .to_string();
+                if !first_line.contains(&expected_query) {
+                    let _ = stream.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n");
+                    continue;
+                }
+                let header = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nTransfer-Encoding: chunked\r\n\r\n";
+                if stream.write_all(header.as_bytes()).is_err() {
+                    continue;
+                }
+                while metrics.running.load(Ordering::Relaxed) {
+                    let chunk = metrics.pcm_queue.lock().ok().and_then(|mut q| q.pop_front());
+                    let Some(data) = chunk else {
+                        std::thread::sleep(std::time::Duration::from_millis(4));
+                        continue;
+                    };
+                    let prefix = format!("{:x}\r\n", data.len());
+                    if stream.write_all(prefix.as_bytes()).is_err()
+                        || stream.write_all(&data).is_err()
+                        || stream.write_all(b"\r\n").is_err()
+                    {
+                        break;
+                    }
+                }
+                let _ = stream.write_all(b"0\r\n\r\n");
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(std::time::Duration::from_millis(12));
+            }
+            Err(_) => break,
+        }
     }
 }
 
 struct ActiveCapture {
     mode: IsolatedAudioMode,
     target_label: String,
+    loopback_url: String,
     metrics: Arc<SharedMetrics>,
     worker: Option<JoinHandle<()>>,
+    server_worker: Option<JoinHandle<()>>,
 }
 
 pub struct IsolatedAudioController {
@@ -175,6 +257,16 @@ impl IsolatedAudioController {
                 .unwrap_or_else(|| format!("Processo PID {pid}")),
         };
 
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("Falha ao abrir loopback local de áudio: {e}"))?;
+        let port = listener
+            .local_addr()
+            .map_err(|e| format!("Falha ao obter porta loopback de áudio: {e}"))?
+            .port();
+        let _ = listener.set_nonblocking(true);
+        let token = generate_audio_token();
+        let loopback_url = format!("http://127.0.0.1:{port}/audio?token={token}");
+
         let metrics = Arc::new(SharedMetrics::new());
         let worker_metrics = Arc::clone(&metrics);
         let worker_mode = mode.clone();
@@ -197,12 +289,20 @@ impl IsolatedAudioController {
             })
             .map_err(|e| format!("Falha ao iniciar thread de captura de áudio: {e}"))?;
 
+        let srv_metrics = Arc::clone(&metrics);
+        let server_worker = std::thread::Builder::new()
+            .name("bp-audio-loopback".to_string())
+            .spawn(move || run_audio_loopback_server(listener, &token, &srv_metrics))
+            .map_err(|e| format!("Falha ao iniciar servidor loopback de áudio: {e}"))?;
+
         if let Ok(mut guard) = self.active.lock() {
             *guard = Some(ActiveCapture {
                 mode,
                 target_label,
+                loopback_url,
                 metrics,
                 worker: Some(worker),
+                server_worker: Some(server_worker),
             });
         }
 
@@ -216,6 +316,9 @@ impl IsolatedAudioController {
             if let Some(handle) = cap.worker.take() {
                 let _ = handle.join();
             }
+            if let Some(handle) = cap.server_worker.take() {
+                let _ = handle.join();
+            }
         }
     }
 
@@ -227,6 +330,7 @@ impl IsolatedAudioController {
                 active: cap.metrics.running.load(Ordering::Relaxed),
                 mode: Some(cap.mode.clone()),
                 target_label: Some(cap.target_label.clone()),
+                loopback_url: Some(cap.loopback_url.clone()),
                 backend: audio_isolation_backend_name().to_string(),
                 sample_rate: CAPTURE_SAMPLE_RATE,
                 channels: CAPTURE_CHANNELS,
@@ -239,6 +343,7 @@ impl IsolatedAudioController {
                 active: false,
                 mode: None,
                 target_label: None,
+                loopback_url: None,
                 backend: audio_isolation_backend_name().to_string(),
                 sample_rate: CAPTURE_SAMPLE_RATE,
                 channels: CAPTURE_CHANNELS,
@@ -700,7 +805,6 @@ mod win_impl {
 #[cfg(target_os = "linux")]
 mod linux_impl {
     use super::*;
-    use std::io::Read;
     use std::process::{Command, Stdio};
 
     pub fn list_pipewire_targets() -> Vec<AudioTarget> {

@@ -41,6 +41,7 @@ export interface IsolatedAudioStatus {
   active: boolean;
   mode: IsolatedAudioMode | null;
   targetLabel: string | null;
+  loopbackUrl: string | null;
   backend: string;
   sampleRate: number;
   channels: number;
@@ -298,3 +299,135 @@ export const desktopBridge = {
     return listen<T>(eventName, (ev) => handler(ev.payload));
   },
 };
+
+/**
+ * Monta um MediaStream real a partir do loopback local MJPEG (vídeo nativo Rust)
+ * e do loopback local PCM f32 48 kHz estéreo (WASAPI Process Loopback / PipeWire),
+ * pronto para `publishScreenShare(room, stream)` sem nunca chamar `getDisplayMedia()`.
+ */
+export async function createNativeDesktopMediaStream(
+  videoLoopbackUrl: string,
+  audioLoopbackUrl: string | null | undefined,
+  targetFps = 60,
+): Promise<MediaStream> {
+  const fps = Math.max(15, Math.min(60, Math.round(targetFps)));
+  const canvas = document.createElement('canvas');
+  canvas.width = 1280;
+  canvas.height = 720;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D indisponível');
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = videoLoopbackUrl;
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error('Timeout aguardando primeiro frame nativo')), 5000);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+      resolve();
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error('Falha ao conectar ao loopback local de vídeo'));
+    };
+  });
+
+  const drawInterval = window.setInterval(() => {
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    }
+  }, Math.max(16, Math.floor(1000 / fps)));
+
+  const stream = canvas.captureStream(fps);
+  const abortController = new AbortController();
+  let audioCtx: AudioContext | null = null;
+
+  if (audioLoopbackUrl) {
+    try {
+      audioCtx = new AudioContext({ sampleRate: 48_000 });
+      const dest = audioCtx.createMediaStreamDestination();
+      const audioTrack = dest.stream.getAudioTracks()[0];
+      if (audioTrack) stream.addTrack(audioTrack);
+
+      const ctxRef = audioCtx;
+      void (async () => {
+        try {
+          const resp = await fetch(audioLoopbackUrl, { signal: abortController.signal });
+          const reader = resp.body?.getReader();
+          if (!reader) return;
+
+          let leftover = new Uint8Array(0);
+          let nextPlayTime = ctxRef.currentTime + 0.04;
+
+          while (!abortController.signal.aborted) {
+            const { done, value } = await reader.read();
+            if (done || !value) break;
+
+            const merged = new Uint8Array(leftover.length + value.length);
+            merged.set(leftover, 0);
+            merged.set(value, leftover.length);
+
+            const frameBytes = 8; // 2 canais * f32 (4 bytes)
+            const usableBytes = Math.floor(merged.length / frameBytes) * frameBytes;
+            leftover = merged.slice(usableBytes);
+            if (usableBytes === 0) continue;
+
+            const frames = usableBytes / frameBytes;
+            const floats = new Float32Array(merged.buffer, merged.byteOffset, frames * 2);
+            const audioBuf = ctxRef.createBuffer(2, frames, 48_000);
+            const ch0 = audioBuf.getChannelData(0);
+            const ch1 = audioBuf.getChannelData(1);
+            for (let i = 0; i < frames; i++) {
+              ch0[i] = floats[i * 2] ?? 0;
+              ch1[i] = floats[i * 2 + 1] ?? 0;
+            }
+
+            const src = ctxRef.createBufferSource();
+            src.buffer = audioBuf;
+            src.connect(dest);
+            const now = ctxRef.currentTime;
+            if (nextPlayTime < now) nextPlayTime = now + 0.02;
+            src.start(nextPlayTime);
+            nextPlayTime += audioBuf.duration;
+          }
+        } catch {
+          // Encerrado ao parar compartilhamento
+        }
+      })();
+    } catch {
+      // Continua apenas com vídeo caso AudioContext não inicialize
+    }
+  }
+
+  const cleanup = () => {
+    window.clearInterval(drawInterval);
+    abortController.abort();
+    img.src = '';
+    if (audioCtx) {
+      void audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
+  };
+
+  const videoTrack = stream.getVideoTracks()[0];
+  if (videoTrack) {
+    const origStop = videoTrack.stop.bind(videoTrack);
+    videoTrack.stop = () => {
+      cleanup();
+      origStop();
+    };
+    videoTrack.addEventListener('ended', cleanup, { once: true });
+  }
+
+  return stream;
+}

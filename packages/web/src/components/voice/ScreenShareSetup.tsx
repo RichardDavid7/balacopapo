@@ -19,6 +19,7 @@ import {
 import { StreamQualityControls, StreamSummary, StreamHostSubtitle } from './StreamQualityControls';
 import { pickAutoStageSource, type ScreenSourceTab } from '../../utils/screenShareSources';
 import {
+  createNativeDesktopMediaStream,
   desktopBridge,
   isBalacopapoDesktop,
   type AudioTarget,
@@ -445,25 +446,29 @@ export function ScreenShareSetup() {
 
   const handleStart = useCallback(async () => {
     if (nativeDesktop) {
-      if (!selectedId) return;
+      const room = getActiveRoom();
+      if (!selectedId || !room) { setError('startFailed'); return; }
       setStarting(true);
       setError(null);
       setNativeStatusMsg(null);
       try {
         const shareCfg = useVoiceStore.getState().screenShareConfig;
+        let audioLoopbackUrl: string | null = null;
         if (!shareCfg.shareAudio) {
           await desktopBridge.stopIsolatedAudio();
         } else if (selectedId.startsWith('window:') && (shareCfg.audioScope ?? 'window') === 'window') {
           const pid = Number(selectedId.slice('window:'.length));
           const target = nativeAudioTargets.find((t) => !t.isSystemDefault && t.pid === pid);
-          await desktopBridge.startIsolatedAudio({
+          const audioSt = await desktopBridge.startIsolatedAudio({
             kind: 'includeProcessTree',
             pid,
             pipewireNodeId: target?.pipewireNodeId,
             label: target?.windowTitle,
           });
+          audioLoopbackUrl = audioSt?.loopbackUrl ?? null;
         } else {
-          await desktopBridge.startIsolatedAudio({ kind: 'excludeSelf' });
+          const audioSt = await desktopBridge.startIsolatedAudio({ kind: 'excludeSelf' });
+          audioLoopbackUrl = audioSt?.loopbackUrl ?? null;
         }
 
         const profile: CaptureProfile = shareCfg.fps >= 120
@@ -476,15 +481,37 @@ export function ScreenShareSetup() {
           sourceId: selectedId,
           profile,
         });
-        if (capStatus?.error) {
-          setNativeStatusMsg(capStatus.error);
+        if (!capStatus?.loopbackUrl || capStatus.error) {
+          setNativeStatusMsg(capStatus?.error ?? 'Falha ao iniciar captura nativa');
           setStarting(false);
           return;
         }
+
+        const nativeStream = await createNativeDesktopMediaStream(
+          capStatus.loopbackUrl,
+          audioLoopbackUrl,
+          shareCfg.fps,
+        );
+
+        const ok = await publishScreenShare(room, nativeStream, {
+          sourceId: selectedId,
+          pickerMode: 'app',
+        });
+        if (!ok) {
+          await desktopBridge.stopNativeScreenShare();
+          await desktopBridge.stopIsolatedAudio();
+          setError('startFailed');
+          setStarting(false);
+          return;
+        }
+
+        broadcastVoiceStatus();
         useVoiceStore.getState().setLastScreenShareSourceId(selectedId);
         setStarting(false);
         close();
       } catch (err) {
+        await desktopBridge.stopNativeScreenShare();
+        await desktopBridge.stopIsolatedAudio();
         setNativeStatusMsg(err instanceof Error ? err.message : String(err));
         setStarting(false);
       }
