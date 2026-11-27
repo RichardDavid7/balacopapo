@@ -443,10 +443,17 @@
       await invoke("update_overlay_config", { config: readOverlayForm() });
     });
 
+    let testSpeakersTimer = null;
+
     document.getElementById("ov-test-pointer").addEventListener("click", async () => {
       if (!invoke) return;
+      const wasEnabled = ovEnabled.checked;
       ovEnabled.checked = true;
       await invoke("update_overlay_config", { config: readOverlayForm() });
+      // Se o overlay acabou de ser criado agora, aguarda o WebView carregar antes de enviar o ping.
+      if (!wasEnabled) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
       await invoke("push_overlay_pointer", {
         pointer: {
           senderName: "Teste Clicar & Apontar",
@@ -460,14 +467,22 @@
 
     document.getElementById("ov-test-speakers").addEventListener("click", async () => {
       if (!invoke) return;
+      const wasEnabled = ovEnabled.checked;
       ovEnabled.checked = true;
       await invoke("update_overlay_config", { config: readOverlayForm() });
+      if (!wasEnabled) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
       await invoke("set_overlay_speakers", {
         speakers: [
           { identity: "u1", name: "Você", speaking: true, muted: false, avatarColor: "#3ba55d" },
           { identity: "u2", name: "Amigo na call", speaking: false, muted: false, avatarColor: "#5865f2" },
         ],
       });
+      if (testSpeakersTimer) clearTimeout(testSpeakersTimer);
+      testSpeakersTimer = setTimeout(() => {
+        invoke("set_overlay_speakers", { speakers: [] }).catch(() => {});
+      }, 4000);
     });
 
     // Áudio isolado

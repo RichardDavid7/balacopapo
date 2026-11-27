@@ -143,6 +143,47 @@ fn build_init_script() -> String {
               }}
             }}
           }});
+
+          function mountDesktopSettingsButton() {{
+            if (document.getElementById("bp-desktop-settings-fab")) return;
+            if (!document.body) return;
+            const btn = document.createElement("button");
+            btn.id = "bp-desktop-settings-fab";
+            btn.type = "button";
+            btn.title = "Configurações do Balacopapo Desktop (Ctrl+Alt+,)";
+            btn.textContent = "⚙ Desktop";
+            btn.style.cssText = [
+              "position:fixed",
+              "right:14px",
+              "bottom:14px",
+              "z-index:2147483000",
+              "padding:6px 11px",
+              "border-radius:999px",
+              "border:1px solid rgba(255,255,255,0.14)",
+              "background:rgba(18,21,29,0.82)",
+              "color:#e5eaf5",
+              "font:600 12px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+              "cursor:pointer",
+              "backdrop-filter:blur(10px)",
+              "box-shadow:0 6px 20px rgba(0,0,0,0.4)",
+              "opacity:0.72",
+              "transition:opacity 0.15s ease,transform 0.12s ease"
+            ].join(";");
+            btn.onmouseenter = function() {{ btn.style.opacity = "1"; }};
+            btn.onmouseleave = function() {{ btn.style.opacity = "0.72"; }};
+            btn.onclick = function() {{
+              if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {{
+                window.__TAURI__.core.invoke("open_desktop_settings");
+              }}
+            }};
+            document.body.appendChild(btn);
+          }}
+
+          if (document.readyState === "loading") {{
+            document.addEventListener("DOMContentLoaded", mountDesktopSettingsButton);
+          }} else {{
+            mountDesktopSettingsButton();
+          }}
         }})();
         "#
     )

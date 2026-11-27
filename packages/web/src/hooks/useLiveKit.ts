@@ -32,6 +32,7 @@ import { dmCallChannelId, dmCallOrigin, dmCallRoomKey, voiceSessionOrigin } from
 import { AudioManager } from '../audio/AudioManager';
 import { SpeakingDetector } from '../audio/SpeakingDetector';
 import { parseStreamPointer } from '../utils/streamPointerProtocol';
+import { desktopBridge, isBalacopapoDesktop } from '../utils/desktopBridge';
 import { useStreamPointerStore } from '../stores/streamPointerStore';
 import { useP2PStore } from '../stores/p2pStore';
 import { P2PMeshManager } from '../p2p/P2PMeshManager';
@@ -883,7 +884,15 @@ export function useLiveKit() {
             senderName,
             color: ptr.color ?? '#7c3aed',
           };
-          if (window.backspace?.dispatchOverlayEvent) {
+          if (isBalacopapoDesktop()) {
+            void desktopBridge.pushOverlayPointer({
+              x: ptr.x,
+              y: ptr.y,
+              senderName,
+              color: ptr.color ?? '#7c3aed',
+              mode: ptr.mode,
+            });
+          } else if (window.backspace?.dispatchOverlayEvent) {
             window.backspace.dispatchOverlayEvent({ kind: 'pointer_ping', ...pingPayload });
           } else if (window.backspace?.showStreamPointerOverlay) {
             window.backspace.showStreamPointerOverlay(pingPayload);
@@ -1620,6 +1629,10 @@ export function useLiveKit() {
         // from seeing intermediate states (e.g., participants empty but still "connected"
         // → triggers user_leave sound before the disconnect sound).
         useVoiceStore.getState().setSpeakingParticipants(new Set());
+        if (isBalacopapoDesktop()) {
+          void desktopBridge.setOverlaySpeakers([]);
+          void desktopBridge.hideOverlay();
+        }
         useVoiceStore.setState({ participants: [], isLiveKitConnected: false });
         useVoiceStore.getState().setVoiceConnectionStatus('disconnected');
 
