@@ -253,6 +253,20 @@ export const desktopBridge = {
   sendNativeNotification: (title: string, body: string) =>
     tauriInvoke<void>('send_native_notification', { title, body }),
   openDesktopSettings: () => tauriInvoke<void>('open_desktop_settings'),
+  getDesktopInfo: () =>
+    tauriInvoke<{
+      version: string;
+      buildSha: string | null;
+      platform: string;
+      instanceUrl: string | null;
+      autostartEnabled: boolean;
+      overlayActive: boolean;
+    }>('get_desktop_info'),
+  setAutostart: (enabled: boolean) => tauriInvoke<boolean>('set_autostart', { enabled }),
+  clearInstanceUrl: () => tauriInvoke<void>('clear_instance_url'),
+  checkUpdatesNow: () =>
+    tauriInvoke<{ kind: string; version?: string; message?: string }>('check_updates_now'),
+  applyUpdateAndRestart: () => tauriInvoke<void>('apply_update_and_restart'),
 
   // Atalhos Globais em Jogos (Etapa 4)
   getKeybinds: () => tauriInvoke<KeybindEntry[]>('get_keybinds'),

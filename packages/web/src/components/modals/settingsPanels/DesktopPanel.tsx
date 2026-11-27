@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { Toggle } from '../../ui/Toggle';
 import { useUpdateStore } from '../../../stores/updateStore';
 import { useFormatters, type Formatters } from '../../../i18n/formatters';
+import { desktopBridge, isBalacopapoDesktop } from '../../../utils/desktopBridge';
 
 function AutoLaunchSettings() {
   const { t } = useTranslation('settings');
@@ -224,11 +225,30 @@ function UpdateSettings() {
 
 export function DesktopPanel() {
   const { t } = useTranslation('settings');
+  const nativeDesktop = isBalacopapoDesktop();
   const initialize = useUpdateStore((s) => s.initialize);
   const [sandboxed, setSandboxed] = useState<boolean | null>(null);
+  const [nativeAutostart, setNativeAutostart] = useState(false);
+  const [nativeVersion, setNativeVersion] = useState<string | null>(null);
+  const [nativeUpdateState, setNativeUpdateState] = useState<'idle' | 'checking' | 'ready' | 'upToDate'>('idle');
 
-  useEffect(() => initialize(), [initialize]);
   useEffect(() => {
+    if (nativeDesktop) {
+      desktopBridge.getDesktopInfo().then((info) => {
+        if (!info) return;
+        setNativeAutostart(Boolean(info.autostartEnabled));
+        setNativeVersion(info.buildSha ? `${info.version} (${info.buildSha})` : info.version);
+      }).catch(() => {});
+      return;
+    }
+    return initialize();
+  }, [initialize, nativeDesktop]);
+
+  useEffect(() => {
+    if (nativeDesktop) {
+      setSandboxed(false);
+      return;
+    }
     const probe = window.backspace?.isSandboxed;
     if (!probe) {
       // Older desktop builds predate sandbox support and are ordinary native
@@ -237,7 +257,112 @@ export function DesktopPanel() {
       return;
     }
     probe().then(setSandboxed).catch(() => setSandboxed(false));
-  }, []);
+  }, [nativeDesktop]);
+
+  if (nativeDesktop) {
+    const handleNativeAutostart = async (enabled: boolean) => {
+      const next = await desktopBridge.setAutostart(enabled);
+      if (typeof next === 'boolean') setNativeAutostart(next);
+    };
+
+    const handleNativeCheckUpdates = async () => {
+      setNativeUpdateState('checking');
+      const res = await desktopBridge.checkUpdatesNow();
+      if (res?.kind === 'readyToRestart') setNativeUpdateState('ready');
+      else setNativeUpdateState('upToDate');
+    };
+
+    const handleChangeInstance = async () => {
+      await desktopBridge.clearInstanceUrl();
+      window.location.replace(
+        navigator.userAgent.includes('Windows') ? 'http://tauri.localhost/?switch=1' : 'tauri://localhost/?switch=1',
+      );
+    };
+
+    return (
+      <div className="space-y-5">
+        <h2 className="text-lg font-semibold text-txt-primary mb-6">{t('desktop.title')}</h2>
+
+        <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm text-txt-primary">{t('desktop.autoLaunch.openAtLogin.label')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">
+                {t('desktop.autoLaunch.openAtLogin.description')}
+              </div>
+            </div>
+            <Toggle enabled={nativeAutostart} onChange={(v) => void handleNativeAutostart(v)} />
+          </div>
+
+          <div className="border-t border-white/[0.04]" />
+
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4 min-w-0">
+              <div className="text-sm text-txt-primary">
+                {nativeVersion ? t('desktop.updates.versionLabel', { version: nativeVersion }) : t('desktop.updates.appName')}
+              </div>
+              <div className="text-xs text-txt-tertiary mt-0.5">
+                {nativeUpdateState === 'checking'
+                  ? t('desktop.updates.checking')
+                  : nativeUpdateState === 'ready'
+                    ? t('desktop.updates.restart')
+                    : nativeUpdateState === 'upToDate'
+                      ? t('desktop.updates.upToDate')
+                      : t('desktop.updates.idle')}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {nativeUpdateState === 'ready' && (
+                <button
+                  onClick={() => void desktopBridge.applyUpdateAndRestart()}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-accent-primary hover:bg-accent-primary/80 rounded-lg transition-colors"
+                >
+                  {t('desktop.updates.restart')}
+                </button>
+              )}
+              <button
+                onClick={() => void handleNativeCheckUpdates()}
+                disabled={nativeUpdateState === 'checking'}
+                className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors disabled:opacity-50"
+              >
+                {nativeUpdateState === 'checking' ? t('desktop.updates.checkingShort') : t('desktop.updates.checkNow')}
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-white/[0.04]" />
+
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <div className="text-sm text-txt-primary font-medium">{t('desktop.title')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('nav.appSettings')}</div>
+            </div>
+            <button
+              onClick={() => void desktopBridge.openDesktopSettings()}
+              className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+            >
+              {t('desktop.title')}
+            </button>
+          </div>
+
+          <div className="border-t border-white/[0.04]" />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-txt-primary font-medium">{window.location.origin}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.instance.current')}</div>
+            </div>
+            <button
+              onClick={() => void handleChangeInstance()}
+              className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+            >
+              {t('desktop.instance.change')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
