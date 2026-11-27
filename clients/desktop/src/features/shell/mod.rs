@@ -418,6 +418,20 @@ pub fn view<'a>(
 
     // Painel da Call no canto inferior esquerdo (1:1 com Discord: Voz conectada + 4 botões de mídia)
     if state.voice.connected_channel_id.is_some() || state.voice.loopback_active {
+        if state.voice.show_connection_info {
+            sidebar_col = sidebar_col.push(
+                container(
+                    voice::view_connection_info(
+                        &state.voice,
+                        &state.stream,
+                        state.p2p.survival_mode_active(),
+                    )
+                    .map(ShellMessage::Voice),
+                )
+                .padding([4, 8]),
+            );
+        }
+
         let ch_label = state
             .voice
             .connected_channel_name
@@ -439,17 +453,34 @@ pub fn view<'a>(
                 ..Default::default()
             });
 
-        let voice_top = row![
-            signal_badge,
-            column![
-                text("Voz conectada")
-                    .size(12)
-                    .color(aether_drift::SUCCESS_GREEN),
-                text(format!("{ch_label} / {grp_label}"))
-                    .size(11)
-                    .color(aether_drift::TEXT_MUTED),
+        let ping_suffix = state
+            .voice
+            .ping_ms
+            .map(|ms| format!(" · {ms} ms"))
+            .unwrap_or_default();
+
+        let status_trigger = button(
+            row![
+                signal_badge,
+                column![
+                    text(format!("Voz conectada{ping_suffix}"))
+                        .size(12)
+                        .color(aether_drift::SUCCESS_GREEN),
+                    text(format!("{ch_label} / {grp_label}"))
+                        .size(11)
+                        .color(aether_drift::TEXT_MUTED),
+                ]
+                .spacing(1),
             ]
-            .spacing(1),
+            .spacing(6)
+            .align_y(Alignment::Center),
+        )
+        .on_press(ShellMessage::Voice(VoiceAction::ToggleConnectionInfo))
+        .padding([2, 4])
+        .style(aether_drift::icon_button_style(state.voice.show_connection_info));
+
+        let voice_top = row![
+            status_trigger,
             horizontal_space(),
             button(icons::noise_suppression(
                 15.0,

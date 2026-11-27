@@ -768,6 +768,13 @@ impl BalacopapoApp {
 
         match event {
             WsEvent::WsReadyToSend(_) => Task::none(),
+            WsEvent::PingMeasured(rtt) => {
+                if let Some(prev) = shell.voice.ping_ms {
+                    shell.voice.jitter_ms = Some(rtt.abs_diff(prev));
+                }
+                shell.voice.ping_ms = Some(rtt);
+                Task::none()
+            }
             WsEvent::Connected => {
                 shell.ws_connected = true;
                 shell.ws_status_label = "Ao vivo · Zero WebView".to_string();
@@ -1399,6 +1406,7 @@ impl BalacopapoApp {
                 shell.voice.connected_channel_name = None;
                 shell.voice.livekit_url = None;
                 shell.voice.camera_on = false;
+                shell.voice.show_connection_info = false;
                 shell.voice.loopback_active = false;
                 shell.voice.loopback_sample_rate = None;
                 self.send_ws_json(serde_json::json!({ "type": "voice_leave" }));
@@ -1454,6 +1462,10 @@ impl BalacopapoApp {
                         }
                     }
                 }
+                Task::none()
+            }
+            VoiceAction::ToggleConnectionInfo => {
+                shell.voice.show_connection_info = !shell.voice.show_connection_info;
                 Task::none()
             }
             VoiceAction::ToggleAudioSettings => {

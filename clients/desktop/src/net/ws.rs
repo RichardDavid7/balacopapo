@@ -6,7 +6,7 @@
 use futures_util::{SinkExt, StreamExt};
 use iced::Subscription;
 use serde_json::json;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio_tungstenite::tungstenite::Message as TungsteniteMsg;
 
 use crate::core::models::{parse_ws_server_event, WsEvent};
@@ -58,12 +58,17 @@ pub fn connect_subscription(instance_url: String, token: String) -> Subscription
 
                         let mut heartbeat = tokio::time::interval(Duration::from_secs(15));
                         heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-                        // Consome o primeiro tick imediato
+                        // Consome o primeiro tick e dispara um ping inicial para medir RTT imediato
                         heartbeat.tick().await;
+                        let mut last_ping_sent: Option<Instant> = Some(Instant::now());
+                        let _ = write
+                            .send(TungsteniteMsg::Text(r#"{"type":"ping"}"#.to_string()))
+                            .await;
 
                         loop {
                             tokio::select! {
                                 _ = heartbeat.tick() => {
+                                    last_ping_sent = Some(Instant::now());
                                     if write
                                         .send(TungsteniteMsg::Text(r#"{"type":"ping"}"#.to_string()))
                                         .await
@@ -82,12 +87,24 @@ pub fn connect_subscription(instance_url: String, token: String) -> Subscription
                                 incoming = read.next() => {
                                     match incoming {
                                         Some(Ok(TungsteniteMsg::Text(text))) => {
+                                            if text.contains("\"pong\"") {
+                                                if let Some(sent) = last_ping_sent.take() {
+                                                    let rtt = sent.elapsed().as_millis().min(9999) as u32;
+                                                    let _ = output.send(WsEvent::PingMeasured(rtt)).await;
+                                                }
+                                            }
                                             if let Some(ev) = parse_ws_server_event(&text) {
                                                 let _ = output.send(ev).await;
                                             }
                                         }
                                         Some(Ok(TungsteniteMsg::Ping(payload))) => {
                                             let _ = write.send(TungsteniteMsg::Pong(payload)).await;
+                                        }
+                                        Some(Ok(TungsteniteMsg::Pong(_))) => {
+                                            if let Some(sent) = last_ping_sent.take() {
+                                                let rtt = sent.elapsed().as_millis().min(9999) as u32;
+                                                let _ = output.send(WsEvent::PingMeasured(rtt)).await;
+                                            }
                                         }
                                         Some(Ok(TungsteniteMsg::Close(_))) | None => break,
                                         Some(Err(_)) => break,

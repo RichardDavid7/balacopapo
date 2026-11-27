@@ -6,7 +6,9 @@ use std::collections::HashMap;
 
 use crate::core::audio_policy::{resolve_opus_policy, EffectiveOpusConfig, OpusMode, OpusOverride};
 use crate::core::models::ChannelSummary;
+use crate::features::stream::StreamState;
 use crate::media::audio_engine;
+use crate::media::screen_share::compute_dynamic_stream_bitrate_kbps;
 use crate::ui::{aether_drift, icons};
 
 #[derive(Debug, Clone)]
@@ -36,6 +38,10 @@ pub struct VoiceState {
     pub vad_threshold_db: f32,
     /// `0` = Automático (adaptativo estilo Mumble/NetEQ); >0 = override manual no Solucionador.
     pub jitter_buffer_ms: u32,
+    pub show_connection_info: bool,
+    pub ping_ms: Option<u32>,
+    pub jitter_ms: Option<u32>,
+    pub packet_loss_pct: f32,
     pub show_audio_settings: bool,
     pub show_troubleshooting: bool,
     pub opus_music_mode: bool,
@@ -69,6 +75,10 @@ impl Default for VoiceState {
             mic_gain_pct: 100.0,
             vad_threshold_db: -48.0,
             jitter_buffer_ms: 0,
+            show_connection_info: false,
+            ping_ms: None,
+            jitter_ms: None,
+            packet_loss_pct: 0.0,
             show_audio_settings: false,
             show_troubleshooting: false,
             opus_music_mode: false,
@@ -108,6 +118,7 @@ pub enum VoiceAction {
     ToggleCamera,
     ToggleRnnoise,
     ToggleLoopback,
+    ToggleConnectionInfo,
     ToggleAudioSettings,
     OpenStreamPanel,
     OpenSoundboardPanel,
@@ -697,5 +708,156 @@ fn preset_btn<'a>(label: &'a str, value: u32, current: u32) -> Element<'a, Voice
         .on_press(VoiceAction::JitterBufferChanged(value))
         .padding([4, 8])
         .style(style)
+        .into()
+}
+
+fn format_bitrate_kbps(kbps: u32) -> String {
+    if kbps < 1000 {
+        format!("{kbps} kbps")
+    } else {
+        format!("{:.1} Mbps", kbps as f32 / 1000.0)
+    }
+}
+
+fn health_color(val: f32, warn: f32, bad: f32) -> Color {
+    if val >= bad {
+        aether_drift::DANGER_RED
+    } else if val >= warn {
+        Color::from_rgb(0.984, 0.749, 0.141)
+    } else {
+        aether_drift::SUCCESS_GREEN
+    }
+}
+
+fn info_row<'a>(label: &'a str, value: String, value_color: Color) -> Element<'a, VoiceAction> {
+    row![
+        text(label).size(11).color(aether_drift::TEXT_MUTED),
+        horizontal_space(),
+        text(value).size(11).color(value_color),
+    ]
+    .align_y(Alignment::Center)
+    .into()
+}
+
+/// Painel de Telemetria de Conexão 1:1 com `ConnectionInfoPopover.tsx` do Web:
+/// Rede (Ping, Perda de Pacotes, Jitter, Servidor, Protocolo), Áudio (Opus, Bitrate, Modo, Canais, Buffer)
+/// e Vídeo/Transmissão (Codec, Resolução@FPS, Bitrate Dinâmico, Buffer A/V).
+pub fn view_connection_info<'a>(
+    state: &'a VoiceState,
+    stream: &'a StreamState,
+    p2p_survival: bool,
+) -> Element<'a, VoiceAction> {
+    let eff = state.effective_opus();
+
+    let (ping_txt, ping_col) = match state.ping_ms {
+        Some(ms) => (format!("{ms} ms"), health_color(ms as f32, 80.0, 180.0)),
+        None => ("—".to_string(), aether_drift::TEXT_MUTED),
+    };
+    let loss_col = health_color(state.packet_loss_pct, 2.0, 5.0);
+    let (jitter_txt, jitter_col) = match state.jitter_ms {
+        Some(ms) => (format!("{ms} ms"), health_color(ms as f32, 20.0, 50.0)),
+        None => ("0 ms".to_string(), aether_drift::SUCCESS_GREEN),
+    };
+
+    let server_host = state
+        .livekit_url
+        .as_deref()
+        .and_then(|u| url::Url::parse(u).ok())
+        .and_then(|u| u.host_str().map(str::to_string))
+        .unwrap_or_else(|| "Instância LiveKit".to_string());
+
+    let protocol = if p2p_survival {
+        "P2P Direto (Sobrevivência)"
+    } else {
+        "WSS / UDP (LiveKit SFU)"
+    };
+
+    let mode_txt = if eff.mode == OpusMode::Music {
+        "Música"
+    } else {
+        "Voz"
+    };
+    let ch_txt = if eff.stereo { "Estéreo" } else { "Mono" };
+    let rnnoise_txt = if state.rnnoise_enabled { "RNNoise ON" } else { "RNNoise OFF" };
+    let jb_txt = if state.jitter_buffer_ms == 0 {
+        "Automático".to_string()
+    } else {
+        format!("{} ms (manual)", state.jitter_buffer_ms)
+    };
+    let dac_txt = match state.loopback_sample_rate {
+        Some(sr) => format!("{sr} Hz · Lock-Free"),
+        None => "48000 Hz · Suspensão Ociosa".to_string(),
+    };
+
+    let mut col = column![
+        row![
+            text("Informações da Conexão").size(13),
+            horizontal_space(),
+            button(text("Fechar").size(10))
+                .on_press(VoiceAction::ToggleConnectionInfo)
+                .padding([2, 7])
+                .style(aether_drift::ghost_button_style),
+        ]
+        .align_y(Alignment::Center),
+        text("REDE").size(10).color(aether_drift::ACCENT_VIOLET),
+        info_row("Ping (RTT)", ping_txt, ping_col),
+        info_row(
+            "Perda de Pacotes",
+            format!("{:.1}%", state.packet_loss_pct),
+            loss_col
+        ),
+        info_row("Jitter", jitter_txt, jitter_col),
+        info_row("Servidor", server_host, aether_drift::TEXT_PRIMARY),
+        info_row("Protocolo", protocol.to_string(), aether_drift::TEXT_PRIMARY),
+        text("ÁUDIO").size(10).color(aether_drift::ACCENT_VIOLET),
+        info_row(
+            "Microfone (envio)",
+            format_bitrate_kbps(eff.bitrate_kbps),
+            aether_drift::TEXT_PRIMARY,
+        ),
+        text(format!("Opus · {mode_txt} · {ch_txt} · {rnnoise_txt}"))
+            .size(10)
+            .color(aether_drift::TEXT_MUTED),
+        info_row("Jitter Buffer", jb_txt, aether_drift::TEXT_PRIMARY),
+        info_row("Pipeline DAC", dac_txt, aether_drift::TEXT_PRIMARY),
+    ]
+    .spacing(4);
+
+    if stream.sharing_active || state.camera_on {
+        let dyn_kbps = compute_dynamic_stream_bitrate_kbps(
+            stream.instance_budget_mbps,
+            1,
+            stream.simulated_viewers,
+            stream.preset,
+        );
+        let av_buf = if stream.av_sync_buffer_ms == 0 {
+            "Automático (40 ms)".to_string()
+        } else {
+            format!("{} ms", stream.av_sync_buffer_ms)
+        };
+        col = col
+            .push(text("VÍDEO / TRANSMISSÃO").size(10).color(aether_drift::ACCENT_VIOLET))
+            .push(info_row(
+                "Tela (envio)",
+                format_bitrate_kbps(dyn_kbps),
+                aether_drift::TEXT_PRIMARY,
+            ))
+            .push(
+                text(format!("{} · H.264 / AV1 · maintain-resolution", stream.preset.label()))
+                    .size(10)
+                    .color(aether_drift::TEXT_MUTED),
+            )
+            .push(info_row("Buffer A/V", av_buf, aether_drift::TEXT_PRIMARY))
+            .push(info_row(
+                "Áudio da Tela",
+                stream.audio_scope.label_pt().to_string(),
+                aether_drift::TEXT_PRIMARY,
+            ));
+    }
+
+    container(col)
+        .width(Length::Fill)
+        .padding(10)
+        .style(aether_drift::card_style)
         .into()
 }

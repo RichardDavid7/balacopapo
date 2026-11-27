@@ -491,6 +491,7 @@ pub struct SpaceApiKeySummary {
 #[derive(Debug, Clone)]
 pub enum WsEvent {
     WsReadyToSend(tokio::sync::mpsc::UnboundedSender<String>),
+    PingMeasured(u32),
     Connected,
     Disconnected(String),
     Ready {
