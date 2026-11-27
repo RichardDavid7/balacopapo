@@ -5,7 +5,7 @@ use iced::{Alignment, Background, Border, Color, ContentFit, Element, Length, Pa
 use std::collections::HashMap;
 
 use crate::core::models::ChatMessage;
-use crate::ui::aether_drift;
+use crate::ui::{aether_drift, icons};
 
 #[derive(Debug, Clone, Default)]
 pub struct ChatState {
@@ -38,6 +38,7 @@ pub enum ChatMessageAction {
     CommitEdit,
     CancelEdit,
     OpenUrl(String),
+    OpenAuthorProfile(String),
     PickAttachment,
     RemovePendingAttachment(usize),
     DeleteMessage(String),
@@ -122,13 +123,60 @@ fn resolve_instance_url(base_url: &str, path: &str) -> String {
     }
 }
 
+fn mini_avatar<'a>(
+    image_cache: &'a HashMap<String, image::Handle>,
+    avatar_url: Option<&'a str>,
+    author: &str,
+    size: f32,
+) -> Element<'a, ChatMessageAction> {
+    let radius = size * 0.5;
+    if let Some(handle) = avatar_url.and_then(|u| image_cache.get(u)) {
+        container(
+            image(handle.clone())
+                .width(Length::Fixed(size))
+                .height(Length::Fixed(size))
+                .content_fit(ContentFit::Cover),
+        )
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .clip(true)
+        .style(move |_t| container::Style {
+            border: Border {
+                radius: radius.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
+    } else {
+        let font_sz = (size * 0.40).clamp(8.0, 13.0);
+        container(text(initials_of(author)).size(font_sz).color(Color::WHITE))
+            .width(Length::Fixed(size))
+            .height(Length::Fixed(size))
+            .center(Length::Fixed(size))
+            .style(move |_t| container::Style {
+                background: Some(Background::Color(aether_drift::SURFACE_ELEVATED)),
+                border: Border {
+                    radius: radius.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .into()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn view<'a>(
     state: &'a ChatState,
-    channel_id: &'a str,
-    channel_label: &'a str,
-    current_user_id: &'a str,
-    instance_url: &'a str,
+    channel_id: &str,
+    channel_label: &str,
+    is_dm: bool,
+    current_user_id: &str,
+    instance_url: &str,
     image_cache: &'a HashMap<String, image::Handle>,
+    author_colors: &HashMap<String, Color>,
+    author_nicks: &HashMap<String, String>,
 ) -> Element<'a, ChatMessageAction> {
     let messages = state
         .messages_by_channel
@@ -137,59 +185,27 @@ pub fn view<'a>(
         .unwrap_or(&[]);
 
     let query = state.search_query.trim().to_ascii_lowercase();
-    let mut feed = column![].spacing(2).padding([12, 18]);
+    let mut feed = column![].spacing(1).padding([12, 18]);
 
-    // Barra discreta de busca no canal
-    let search_bar: Element<'a, ChatMessageAction> = if state.show_search {
-        container(
-            row![
-                text_input("Buscar mensagens ou autor neste canal...", &state.search_query)
-                    .on_input(ChatMessageAction::SearchChanged)
-                    .padding(7)
-                    .style(aether_drift::input_style),
-                button(text("Fechar").size(11))
-                    .on_press(ChatMessageAction::ToggleSearch)
-                    .padding([6, 10])
-                    .style(aether_drift::ghost_button_style),
-            ]
-            .spacing(8)
-            .align_y(Alignment::Center),
-        )
-        .padding([8, 18])
-        .into()
-    } else {
-        container(
-            row![
-                horizontal_space(),
-                button(text("Buscar no canal").size(11).color(aether_drift::TEXT_MUTED))
-                    .on_press(ChatMessageAction::ToggleSearch)
-                    .padding([3, 8])
-                    .style(aether_drift::icon_button_style(false)),
-            ]
-            .align_y(Alignment::Center),
-        )
-        .padding([4, 14])
-        .into()
-    };
-
-    if !messages.is_empty() {
+    if !messages.is_empty() && query.is_empty() {
         let load_btn = button(
             text(if state.loading_history {
                 "Carregando..."
             } else {
                 "Carregar mensagens anteriores"
             })
-            .size(12),
+            .size(11.5)
+            .color(aether_drift::TEXT_SECONDARY),
         )
         .on_press_maybe((!state.loading_history).then_some(ChatMessageAction::LoadOlder))
-        .padding([6, 12])
+        .padding([5, 12])
         .style(aether_drift::ghost_button_style);
         feed = feed.push(
             container(load_btn)
                 .padding(Padding {
                     top: 0.0,
                     right: 0.0,
-                    bottom: 10.0,
+                    bottom: 8.0,
                     left: 0.0,
                 })
                 .center_x(Length::Fill),
@@ -203,62 +219,61 @@ pub fn view<'a>(
                 .color(aether_drift::TEXT_MUTED),
         );
     } else if messages.is_empty() {
+        let prefix = if is_dm { "@" } else { "#" };
         feed = feed.push(
-            column![
-                text(format!("Início de {channel_label}")).size(18),
-                text("Nenhuma mensagem por aqui ainda. Envie a primeira abaixo.")
-                    .size(13)
-                    .color(aether_drift::TEXT_MUTED),
-            ]
-            .spacing(4),
+            container(
+                column![
+                    text(format!("Bem-vindo a {prefix}{channel_label}"))
+                        .size(20)
+                        .color(aether_drift::TEXT_PRIMARY),
+                    text("Este é o começo da conversa.")
+                        .size(13)
+                        .color(aether_drift::TEXT_MUTED),
+                ]
+                .spacing(4),
+            )
+            .padding(Padding {
+                top: 16.0,
+                right: 0.0,
+                bottom: 8.0,
+                left: 0.0,
+            }),
         );
     } else {
-        let mut last_author: Option<&str> = None;
+        let mut last_author_uid: Option<&str> = None;
         for msg in messages {
             let body = msg.body_text();
+            let uid_opt = msg
+                .user_id
+                .as_deref()
+                .or_else(|| msg.user.as_ref().map(|u| u.id.as_str()));
+            let author_owned: String = uid_opt
+                .and_then(|uid| author_nicks.get(uid).cloned())
+                .unwrap_or_else(|| msg.author_label().to_string());
+
             if !query.is_empty()
                 && !body.to_ascii_lowercase().contains(&query)
-                && !msg.author_label().to_ascii_lowercase().contains(&query)
+                && !author_owned.to_ascii_lowercase().contains(&query)
             {
                 continue;
             }
 
-            let author = msg.author_label();
             let has_reply = msg.reply_to.is_some();
             let is_editing = state.editing_message_id.as_deref() == Some(msg.id.as_str());
-            let grouped = last_author == Some(author) && !has_reply && !is_editing;
-            last_author = Some(author);
+            let grouped = uid_opt.is_some()
+                && last_author_uid == uid_opt
+                && !has_reply
+                && !is_editing;
+            last_author_uid = uid_opt;
 
-            let is_mine = msg.user_id.as_deref() == Some(current_user_id);
-            let time_str = msg.short_time();
+            let is_mine = uid_opt == Some(current_user_id);
+            let time_str = msg.formatted_datetime_pt();
             let edited_tag = if msg.is_edited() { " (editada)" } else { "" };
+            let author_color = uid_opt
+                .and_then(|uid| author_colors.get(uid).copied())
+                .unwrap_or(aether_drift::TEXT_PRIMARY);
 
             let mut msg_body_col = column![].spacing(4);
-
-            // Citação de resposta (Reply)
-            if let Some(rep) = &msg.reply_to {
-                let rep_author = rep
-                    .user
-                    .as_ref()
-                    .map(|u| u.label())
-                    .unwrap_or("Mensagem anterior");
-                let rep_snippet = rep
-                    .content
-                    .as_deref()
-                    .unwrap_or("[anexo]")
-                    .chars()
-                    .take(80)
-                    .collect::<String>();
-                msg_body_col = msg_body_col.push(
-                    container(
-                        text(format!("Respondendo a @{rep_author}: {rep_snippet}"))
-                            .size(11)
-                            .color(aether_drift::TEXT_MUTED),
-                    )
-                    .padding([3, 8])
-                    .style(aether_drift::pill_style),
-                );
-            }
 
             // Corpo da mensagem ou editor inline
             if is_editing {
@@ -282,31 +297,34 @@ pub fn view<'a>(
                     .align_y(Alignment::Center),
                 );
             } else if !body.is_empty() {
-                msg_body_col =
-                    msg_body_col.push(text(body).size(14).color(aether_drift::TEXT_PRIMARY));
+                msg_body_col = msg_body_col.push(
+                    text(body)
+                        .size(14.5)
+                        .color(aether_drift::TEXT_MESSAGE),
+                );
             }
 
-            // Links clicáveis detectados no texto
+            // Links clicáveis detectados no texto (`--text-link: #7DD3FC`)
             let urls = extract_urls(body);
             if !urls.is_empty() {
                 let mut links_row = row![].spacing(6);
                 for u in urls {
-                    let label = if u.len() > 54 {
-                        format!("{}...", &u[..51])
+                    let label = if u.len() > 58 {
+                        format!("{}...", &u[..55])
                     } else {
                         u.clone()
                     };
                     links_row = links_row.push(
-                        button(text(label).size(11).color(aether_drift::ACCENT_VIOLET))
+                        button(text(label).size(12).color(aether_drift::TEXT_LINK))
                             .on_press(ChatMessageAction::OpenUrl(u))
-                            .padding([3, 8])
-                            .style(aether_drift::ghost_button_style),
+                            .padding([2, 6])
+                            .style(aether_drift::icon_button_style(false)),
                     );
                 }
                 msg_body_col = msg_body_col.push(links_row);
             }
 
-            // Anexos (Imagens inline + arquivos clicáveis)
+            // Anexos (Imagens inline estilo Backspace + arquivos clicáveis)
             for att in &msg.attachments {
                 let full_url = resolve_instance_url(instance_url, &att.full_path());
                 if att.is_image() {
@@ -317,7 +335,7 @@ pub fn view<'a>(
                                 container(
                                     image(handle.clone())
                                         .width(Length::Shrink)
-                                        .height(Length::Fixed(210.0))
+                                        .height(Length::Fixed(245.0))
                                         .content_fit(ContentFit::Contain),
                                 )
                                 .clip(true)
@@ -325,7 +343,7 @@ pub fn view<'a>(
                                     border: Border {
                                         color: aether_drift::BORDER_SUBTLE,
                                         width: 1.0,
-                                        radius: 10.0.into(),
+                                        radius: 8.0.into(),
                                     },
                                     ..Default::default()
                                 }),
@@ -342,7 +360,8 @@ pub fn view<'a>(
                                     att.original_name,
                                     att.size_label()
                                 ))
-                                .size(12),
+                                .size(12)
+                                .color(aether_drift::TEXT_LINK),
                             )
                             .on_press(ChatMessageAction::OpenUrl(full_url))
                             .padding([5, 10])
@@ -353,7 +372,10 @@ pub fn view<'a>(
                     msg_body_col = msg_body_col.push(
                         button(
                             row![
-                                text(&att.original_name).size(12),
+                                icons::download_tray(14.0, aether_drift::TEXT_SECONDARY),
+                                text(&att.original_name)
+                                    .size(12.5)
+                                    .color(aether_drift::TEXT_LINK),
                                 text(format!("({})", att.size_label()))
                                     .size(11)
                                     .color(aether_drift::TEXT_MUTED),
@@ -368,7 +390,7 @@ pub fn view<'a>(
                 }
             }
 
-            // Reações agrupadas
+            // Pílulas de Reação estilo Backspace (contagem mint `#86EFAC`)
             if !msg.reactions.is_empty() {
                 let mut counts: Vec<(&str, usize)> = Vec::new();
                 for r in &msg.reactions {
@@ -380,15 +402,19 @@ pub fn view<'a>(
                 }
                 let mut react_row = row![].spacing(6);
                 for (emoji, cnt) in counts {
-                    let display = if emoji.is_ascii() {
-                        format!("{emoji} {cnt}")
-                    } else {
-                        format!("Reação ({cnt})")
-                    };
                     react_row = react_row.push(
-                        container(text(display).size(11).color(aether_drift::TEXT_PRIMARY))
-                            .padding([2, 8])
-                            .style(aether_drift::pill_style),
+                        container(
+                            row![
+                                text(emoji).size(12),
+                                text(cnt.to_string())
+                                    .size(11.5)
+                                    .color(aether_drift::SUCCESS_GREEN),
+                            ]
+                            .spacing(4)
+                            .align_y(Alignment::Center),
+                        )
+                        .padding([2, 8])
+                        .style(aether_drift::mint_pill_style),
                     );
                 }
                 msg_body_col = msg_body_col.push(react_row);
@@ -396,94 +422,150 @@ pub fn view<'a>(
 
             if grouped {
                 let line = row![
-                    container(text("")).width(Length::Fixed(46.0)),
+                    container(text("")).width(Length::Fixed(48.0)),
                     msg_body_col,
                 ]
                 .spacing(0);
-                feed = feed.push(container(line).padding([2, 0]));
+                feed = feed.push(container(line).padding([1, 0]));
             } else {
-                let avatar_handle = msg
-                    .user
-                    .as_ref()
-                    .and_then(|u| u.avatar_url.as_deref())
-                    .and_then(|url| image_cache.get(url));
-                let avatar: Element<'a, ChatMessageAction> = if let Some(handle) = avatar_handle {
-                    container(
-                        image(handle.clone())
-                            .width(Length::Fixed(34.0))
-                            .height(Length::Fixed(34.0))
-                            .content_fit(ContentFit::Cover),
-                    )
-                    .width(Length::Fixed(34.0))
-                    .height(Length::Fixed(34.0))
-                    .clip(true)
-                    .style(|_t| container::Style {
-                        border: Border {
-                            radius: 17.0.into(),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    })
-                    .into()
-                } else {
-                    container(text(initials_of(author)).size(12).color(Color::WHITE))
-                        .width(Length::Fixed(34.0))
-                        .height(Length::Fixed(34.0))
-                        .center(Length::Fixed(34.0))
-                        .style(|_t| container::Style {
-                            background: Some(Background::Color(aether_drift::SURFACE_ELEVATED)),
-                            border: Border {
-                                color: aether_drift::BORDER_SUBTLE,
-                                width: 1.0,
-                                radius: 17.0.into(),
-                            },
-                            ..Default::default()
-                        })
+                // Linha superior de citação de resposta (`╭─ [avatar] Autor  trecho`) igual ao `Message.tsx`!
+                let reply_header: Option<Element<'a, ChatMessageAction>> =
+                    msg.reply_to.as_ref().map(|rep| {
+                        let rep_uid = rep.user.as_ref().map(|u| u.id.as_str());
+                        let rep_author_owned: String = rep_uid
+                            .and_then(|id| author_nicks.get(id).cloned())
+                            .or_else(|| {
+                                rep.user
+                                    .as_ref()
+                                    .map(|u| crate::core::models::AuthUser::label(u).to_string())
+                            })
+                            .unwrap_or_else(|| "Mensagem".to_string());
+                        let rep_color = rep_uid
+                            .and_then(|id| author_colors.get(id).copied())
+                            .unwrap_or(aether_drift::SUCCESS_GREEN);
+                        let rep_av = mini_avatar(
+                            image_cache,
+                            rep.user.as_ref().and_then(|u| u.avatar_url.as_deref()),
+                            &rep_author_owned,
+                            15.0,
+                        );
+                        let rep_snippet = rep
+                            .content
+                            .as_deref()
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or("Clique para ver anexo")
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .chars()
+                            .take(86)
+                            .collect::<String>();
+
+                        let spine = container(text("╭─").size(12).color(aether_drift::BORDER_SOFT))
+                            .width(Length::Fixed(36.0))
+                            .padding(Padding {
+                                top: 0.0,
+                                right: 0.0,
+                                bottom: 0.0,
+                                left: 16.0,
+                            });
+
+                        row![
+                            spine,
+                            row![
+                                rep_av,
+                                text(rep_author_owned).size(12).color(rep_color),
+                                text(rep_snippet)
+                                    .size(12)
+                                    .color(aether_drift::TEXT_SECONDARY),
+                            ]
+                            .spacing(6)
+                            .align_y(Alignment::Center),
+                        ]
+                        .spacing(12)
+                        .align_y(Alignment::Center)
                         .into()
+                    });
+
+                let avatar_el = mini_avatar(
+                    image_cache,
+                    msg.user.as_ref().and_then(|u| u.avatar_url.as_deref()),
+                    &author_owned,
+                    36.0,
+                );
+                let avatar: Element<'a, ChatMessageAction> = if let Some(uid) = uid_opt {
+                    button(avatar_el)
+                        .padding(0)
+                        .on_press(ChatMessageAction::OpenAuthorProfile(uid.to_string()))
+                        .style(aether_drift::icon_button_style(false))
+                        .into()
+                } else {
+                    avatar_el
+                };
+
+                let author_for_reply = author_owned.clone();
+                let author_btn: Element<'a, ChatMessageAction> = if let Some(uid) = uid_opt {
+                    button(text(author_owned).size(14.5).color(author_color))
+                        .padding(0)
+                        .on_press(ChatMessageAction::OpenAuthorProfile(uid.to_string()))
+                        .style(aether_drift::icon_button_style(false))
+                        .into()
+                } else {
+                    text(author_owned).size(14.5).color(author_color).into()
                 };
 
                 let mut head = row![
-                    text(author).size(14).color(aether_drift::TEXT_PRIMARY),
+                    author_btn,
                     text(format!("{time_str}{edited_tag}"))
-                        .size(11)
+                        .size(11.5)
                         .color(aether_drift::TEXT_MUTED),
                     horizontal_space(),
-                    button(text("Responder").size(11).color(aether_drift::TEXT_MUTED))
+                    button(text("Responder").size(10.5).color(aether_drift::TEXT_MUTED))
                         .on_press(ChatMessageAction::StartReply {
                             message_id: msg.id.clone(),
-                            author: author.to_string(),
+                            author: author_for_reply,
                         })
-                        .padding([2, 6])
+                        .padding([2, 5])
                         .style(aether_drift::icon_button_style(false)),
                 ]
-                .spacing(6)
+                .spacing(8)
                 .align_y(Alignment::Center);
 
                 if is_mine {
                     head = head
                         .push(
-                            button(text("Editar").size(11).color(aether_drift::TEXT_MUTED))
+                            button(text("Editar").size(10.5).color(aether_drift::TEXT_MUTED))
                                 .on_press(ChatMessageAction::StartEdit {
                                     message_id: msg.id.clone(),
                                     current_text: body.to_string(),
                                 })
-                                .padding([2, 6])
+                                .padding([2, 5])
                                 .style(aether_drift::icon_button_style(false)),
                         )
                         .push(
-                            button(text("Excluir").size(11).color(aether_drift::TEXT_MUTED))
+                            button(text("Excluir").size(10.5).color(aether_drift::TEXT_MUTED))
                                 .on_press(ChatMessageAction::DeleteMessage(msg.id.clone()))
-                                .padding([2, 6])
+                                .padding([2, 5])
                                 .style(aether_drift::icon_button_style(false)),
                         );
                 }
 
-                let block = row![avatar, column![head, msg_body_col].spacing(3)]
-                    .spacing(12)
-                    .align_y(Alignment::Start);
+                let main_row = row![
+                    avatar,
+                    column![head, msg_body_col].spacing(2).width(Length::Fill),
+                ]
+                .spacing(12)
+                .align_y(Alignment::Start);
 
-                feed = feed.push(container(block).padding(Padding {
-                    top: 10.0,
+                let full_block: Element<'a, ChatMessageAction> = if let Some(rep_row) = reply_header
+                {
+                    column![rep_row, main_row].spacing(3).into()
+                } else {
+                    main_row.into()
+                };
+
+                feed = feed.push(container(full_block).padding(Padding {
+                    top: 12.0,
                     right: 0.0,
                     bottom: 2.0,
                     left: 0.0,
@@ -492,34 +574,34 @@ pub fn view<'a>(
         }
     }
 
-    let mut composer_col = column![].spacing(6);
+    // ── Pílula Flutuante do Composer (`glass-bubble rounded-[14px]`, sem botão roxo "Enviar") ──
+    let mut bubble_inner = column![].spacing(0);
 
     if let Some((_, rep_author)) = &state.replying_to {
-        composer_col = composer_col.push(
+        bubble_inner = bubble_inner.push(
             container(
                 row![
-                    text(format!("Respondendo a @{rep_author}"))
+                    text(format!("Respondendo a {rep_author}"))
                         .size(12)
-                        .color(aether_drift::ACCENT_VIOLET),
+                        .color(aether_drift::TEXT_SECONDARY),
                     horizontal_space(),
-                    button(text("Cancelar").size(11))
+                    button(icons::close(13.0, aether_drift::TEXT_MUTED))
                         .on_press(ChatMessageAction::CancelReply)
-                        .padding([2, 8])
-                        .style(aether_drift::ghost_button_style),
+                        .padding(3)
+                        .style(aether_drift::icon_button_style(false)),
                 ]
                 .align_y(Alignment::Center),
             )
             .width(Length::Fill)
-            .padding([5, 10])
-            .style(aether_drift::pill_style),
-        );
-    }
-
-    if let Some(typer) = state.typing_users.get(channel_id) {
-        composer_col = composer_col.push(
-            text(format!("{typer} está digitando..."))
-                .size(11)
-                .color(aether_drift::TEXT_MUTED),
+            .padding([6, 14])
+            .style(|_t| container::Style {
+                border: Border {
+                    color: Color::from_rgba(1.0, 1.0, 1.0, 0.05),
+                    width: 1.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
         );
     }
 
@@ -529,68 +611,125 @@ pub fn view<'a>(
             att_row = att_row.push(
                 container(
                     row![
-                        text(name).size(11),
-                        button(text("x").size(10))
+                        text(name).size(11.5).color(aether_drift::TEXT_PRIMARY),
+                        button(icons::close(11.0, aether_drift::TEXT_MUTED))
                             .on_press(ChatMessageAction::RemovePendingAttachment(idx))
-                            .padding([1, 5])
+                            .padding(2)
                             .style(aether_drift::icon_button_style(false)),
                     ]
-                    .spacing(4)
+                    .spacing(5)
                     .align_y(Alignment::Center),
                 )
                 .padding([3, 8])
                 .style(aether_drift::pill_style),
             );
         }
-        composer_col = composer_col.push(att_row);
+        bubble_inner = bubble_inner.push(container(att_row).padding([6, 12]));
     }
 
-    let can_send = !state.sending
-        && !state.uploading
-        && (!state.draft.trim().is_empty() || !state.pending_attachments.is_empty());
+    let placeholder = if is_dm {
+        format!("Mensagem para @{channel_label}")
+    } else {
+        format!("Mensagem em #{channel_label}")
+    };
 
-    composer_col = composer_col.push(
-        row![
-            button(text(if state.uploading { "..." } else { "+" }).size(16))
-                .on_press_maybe((!state.uploading).then_some(ChatMessageAction::PickAttachment))
-                .padding([8, 13])
-                .style(aether_drift::ghost_button_style),
-            text_input(
-                &format!("Conversar em {channel_label}..."),
-                &state.draft,
-            )
+    let attach_icon_color = if state.uploading {
+        aether_drift::ACCENT_VIOLET
+    } else {
+        aether_drift::TEXT_SECONDARY
+    };
+
+    let input_row = row![
+        button(icons::add_circle(19.0, attach_icon_color))
+            .on_press_maybe((!state.uploading).then_some(ChatMessageAction::PickAttachment))
+            .padding(6)
+            .style(aether_drift::icon_button_style(false)),
+        text_input(&placeholder, &state.draft)
             .on_input(ChatMessageAction::DraftChanged)
             .on_submit(ChatMessageAction::Send)
-            .padding(11)
-            .style(aether_drift::input_style),
-            button(text(if state.sending { "..." } else { "Enviar" }).size(13))
-                .on_press_maybe(can_send.then_some(ChatMessageAction::Send))
-                .padding([11, 18])
-                .style(aether_drift::primary_button_style),
-        ]
-        .spacing(8)
-        .align_y(Alignment::Center),
-    );
+            .size(14)
+            .padding([9, 6])
+            .style(aether_drift::embedded_input_style),
+        button(icons::sticker(18.0, aether_drift::TEXT_MUTED))
+            .on_press_maybe((!state.uploading).then_some(ChatMessageAction::PickAttachment))
+            .padding(6)
+            .style(aether_drift::icon_button_style(false)),
+        button(icons::smile(18.0, aether_drift::TEXT_MUTED))
+            .padding(6)
+            .style(aether_drift::icon_button_style(false)),
+    ]
+    .spacing(4)
+    .padding([2, 8])
+    .align_y(Alignment::Center);
 
-    let composer = container(composer_col).padding(Padding {
-        top: 8.0,
-        right: 18.0,
-        bottom: 16.0,
-        left: 18.0,
-    });
+    bubble_inner = bubble_inner.push(input_row);
 
-    let mut root = column![search_bar, scrollable(feed).height(Length::Fill), composer].spacing(0);
+    let composer_pill = container(bubble_inner)
+        .width(Length::Fill)
+        .style(aether_drift::glass_bubble_style);
 
+    let mut bottom_wrap = column![].spacing(4);
+    if let Some(typer) = state.typing_users.get(channel_id) {
+        bottom_wrap = bottom_wrap.push(
+            container(
+                text(format!("{typer} está digitando..."))
+                    .size(11)
+                    .color(aether_drift::TEXT_SECONDARY),
+            )
+            .padding([0, 6]),
+        );
+    }
+    bottom_wrap = bottom_wrap.push(composer_pill);
     if let Some(err) = &state.error {
-        root = root.push(
-            container(text(err).size(12).color(aether_drift::DANGER_RED)).padding(Padding {
-                top: 0.0,
-                right: 18.0,
-                bottom: 8.0,
-                left: 18.0,
-            }),
+        bottom_wrap = bottom_wrap.push(
+            container(text(err).size(11.5).color(aether_drift::DANGER_RED)).padding([0, 6]),
         );
     }
 
-    root.height(Length::Fill).into()
+    let composer_outer = container(bottom_wrap).padding(Padding {
+        top: 4.0,
+        right: 14.0,
+        bottom: 12.0,
+        left: 14.0,
+    });
+
+    let mut root = column![].spacing(0);
+
+    // Barra de busca aparece SOMENTE quando acionada pela lupa no cabeçalho de 48 px!
+    if state.show_search {
+        root = root.push(
+            container(
+                row![
+                    icons::search(15.0, aether_drift::TEXT_MUTED),
+                    text_input(
+                        "Buscar mensagens ou autor neste canal...",
+                        &state.search_query
+                    )
+                    .on_input(ChatMessageAction::SearchChanged)
+                    .size(13)
+                    .padding([6, 8])
+                    .style(aether_drift::embedded_input_style),
+                    button(icons::close(14.0, aether_drift::TEXT_MUTED))
+                        .on_press(ChatMessageAction::ToggleSearch)
+                        .padding(4)
+                        .style(aether_drift::icon_button_style(false)),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .padding([6, 16])
+            .style(aether_drift::header_bar_style),
+        );
+    }
+
+    root = root
+        .push(scrollable(feed).height(Length::Fill))
+        .push(composer_outer);
+
+    container(root)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(aether_drift::chat_canvas_style)
+        .into()
 }

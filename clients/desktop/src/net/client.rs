@@ -245,6 +245,30 @@ impl ApiClient {
             .map_err(|e| format!("Erro ao interpretar canais do grupo: {e}"))
     }
 
+    pub async fn open_or_create_dm(&self, target_user_id: &str) -> Result<DmChannelSummary, String> {
+        let token = self.require_token()?;
+        let url = format!("{}/api/dm", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(token)
+            .json(&json!({ "userId": target_user_id }))
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao abrir DM: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!(
+                "Falha ao abrir DM (HTTP {})",
+                resp.status().as_u16()
+            ));
+        }
+
+        resp.json::<DmChannelSummary>()
+            .await
+            .map_err(|e| format!("Erro ao ler DM criada: {e}"))
+    }
+
     pub async fn fetch_dm_messages(
         &self,
         dm_id: &str,

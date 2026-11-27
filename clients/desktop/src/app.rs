@@ -91,6 +91,7 @@ pub enum Message {
         result: Result<Vec<u8>, String>,
     },
     DmsLoaded(Result<Vec<DmChannelSummary>, String>),
+    DmOpened(Result<DmChannelSummary, String>),
     MusicStateLoaded(Result<MusicChannelState, String>),
     MusicCommandDone(Result<(), String>),
     VoteSkipSaved(Result<u32, String>),
@@ -645,6 +646,40 @@ impl BalacopapoApp {
                 }
                 self.enqueue_images_for_shell()
             }
+            Message::DmOpened(result) => {
+                let mut load_msgs: Option<(String, String, String)> = None;
+                if let Screen::Shell(shell) = &mut self.screen {
+                    match result {
+                        Ok(dm) => {
+                            let dm_id = dm.id.clone();
+                            if !shell.dm.channels.iter().any(|c| c.id == dm_id) {
+                                shell.dm.channels.insert(0, dm);
+                            }
+                            shell.selected_profile_user_id = None;
+                            shell.dm.selected_dm_id = Some(dm_id.clone());
+                            shell.active_panel = ActivePanel::Dms;
+                            shell.chat.loading_history = true;
+                            load_msgs = Some((
+                                shell.instance_url.clone(),
+                                self.config.auth_token.clone().unwrap_or_default(),
+                                dm_id,
+                            ));
+                        }
+                        Err(err) => {
+                            shell.error = Some(err);
+                        }
+                    }
+                }
+                let img_task = self.enqueue_images_for_shell();
+                if let Some((url, token, dm_id)) = load_msgs {
+                    Task::batch([
+                        Self::load_dm_messages_task(url, token, dm_id, None, false),
+                        img_task,
+                    ])
+                } else {
+                    img_task
+                }
+            }
             Message::MusicStateLoaded(result) => {
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.music.busy = false;
@@ -821,13 +856,20 @@ impl BalacopapoApp {
             } => {
                 if let Screen::Shell(shell) = &mut self.screen {
                     if let Some(raw) = bytes {
-                        let handle = if circular {
-                            decode_circular_avatar(&raw, 128)
-                                .unwrap_or_else(|| iced::widget::image::Handle::from_bytes(raw))
+                        if circular {
+                            if let Some(sq) = decode_squircle_icon(&raw, 128, 41.0) {
+                                shell
+                                    .image_cache
+                                    .insert(format!("#squircle:{key}"), sq);
+                            }
+                            let handle = decode_circular_avatar(&raw, 128)
+                                .unwrap_or_else(|| iced::widget::image::Handle::from_bytes(raw));
+                            shell.image_cache.insert(key, handle);
                         } else {
-                            iced::widget::image::Handle::from_bytes(raw)
-                        };
-                        shell.image_cache.insert(key, handle);
+                            shell
+                                .image_cache
+                                .insert(key, iced::widget::image::Handle::from_bytes(raw));
+                        }
                     }
                 }
                 Task::none()
@@ -1190,17 +1232,6 @@ impl BalacopapoApp {
                 Task::none()
             }
             ShellMessage::SelectChannel(channel_id) => {
-                let now = std::time::Instant::now();
-                let is_double_click = shell
-                    .last_channel_click
-                    .as_ref()
-                    .is_some_and(|(prev_id, at)| {
-                        prev_id == &channel_id && now.duration_since(*at).as_millis() < 450
-                    });
-                shell.last_channel_click = Some((channel_id.clone(), now));
-
-                shell.selected_channel_id = Some(channel_id.clone());
-                shell.active_panel = ActivePanel::Channel;
                 shell.unread_counts.remove(&channel_id);
                 shell.chat.error = None;
 
@@ -1214,7 +1245,12 @@ impl BalacopapoApp {
                 if let Some(ch_name) = voice_ch_name {
                     let already_here =
                         shell.voice.connected_channel_id.as_deref() == Some(channel_id.as_str());
-                    if is_double_click && !already_here && !shell.voice.connecting {
+                    if already_here {
+                        shell.selected_channel_id = Some(channel_id);
+                        shell.active_panel = ActivePanel::Channel;
+                        return Task::none();
+                    }
+                    if !shell.voice.connecting {
                         return self.handle_voice_action(VoiceAction::JoinChannel {
                             channel_id,
                             name: ch_name,
@@ -1223,10 +1259,40 @@ impl BalacopapoApp {
                     return Task::none();
                 }
 
+                shell.selected_channel_id = Some(channel_id.clone());
+                shell.active_panel = ActivePanel::Channel;
                 shell.chat.loading_history = true;
                 let url = shell.instance_url.clone();
                 let token = self.config.auth_token.clone().unwrap_or_default();
                 Self::load_messages_task(url, token, channel_id, None, false)
+            }
+            ShellMessage::ToggleCategory(cat_id) => {
+                if !shell.collapsed_categories.remove(&cat_id) {
+                    shell.collapsed_categories.insert(cat_id);
+                }
+                Task::none()
+            }
+            ShellMessage::OpenSettingsTab(tab) => {
+                shell.settings.active_tab = tab;
+                shell.active_panel = ActivePanel::Settings;
+                if let Some(space_id) = shell.selected_group_id.clone() {
+                    shell.settings.loading_keys = true;
+                    let url = shell.instance_url.clone();
+                    let token = self.config.auth_token.clone().unwrap_or_default();
+                    return Self::load_api_keys_task(url, token, space_id);
+                }
+                Task::none()
+            }
+            ShellMessage::StartDmWithUser(target_user_id) => {
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let client = ApiClient::new(url, Some(token))?;
+                        client.open_or_create_dm(&target_user_id).await
+                    },
+                    Message::DmOpened,
+                )
             }
             ShellMessage::TogglePanel(panel) => {
                 if shell.active_panel == panel {
@@ -1397,6 +1463,9 @@ impl BalacopapoApp {
             ChatMessageAction::OpenUrl(url) => {
                 let _ = open::that(url);
                 Task::none()
+            }
+            ChatMessageAction::OpenAuthorProfile(uid) => {
+                self.handle_shell(ShellMessage::OpenProfile(uid))
             }
             ChatMessageAction::PickAttachment => {
                 if shell.chat.uploading {
@@ -2643,6 +2712,48 @@ fn decode_circular_avatar(bytes: &[u8], size: u32) -> Option<iced::widget::image
                 pixels[alpha_idx] = 0;
             } else if dist > radius - 0.75 {
                 let t = ((radius + 0.75) - dist) / 1.5;
+                let a = pixels[alpha_idx] as f32 * t.clamp(0.0, 1.0);
+                pixels[alpha_idx] = a.round() as u8;
+            }
+        }
+    }
+
+    Some(iced::widget::image::Handle::from_rgba(size, size, pixels))
+}
+
+/// Decodifica um ícone de grupo como squircle suave (`13px` em `40x40` ≈ `41px` em `128x128`) com antialiasing.
+fn decode_squircle_icon(
+    bytes: &[u8],
+    size: u32,
+    corner_radius: f32,
+) -> Option<iced::widget::image::Handle> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let (w, h) = (img.width(), img.height());
+    let side = w.min(h);
+    if side == 0 {
+        return None;
+    }
+    let x0 = (w - side) / 2;
+    let y0 = (h - side) / 2;
+    let cropped = img.crop_imm(x0, y0, side, side);
+    let resized = cropped
+        .resize_exact(size, size, image::imageops::FilterType::Triangle)
+        .to_rgba8();
+
+    let mut pixels = resized.into_raw();
+    let half = (size as f32 - 1.0) * 0.5;
+    let inner = (half - corner_radius).max(0.0);
+
+    for y in 0..size {
+        for x in 0..size {
+            let qx = (x as f32 - half).abs() - inner;
+            let qy = (y as f32 - half).abs() - inner;
+            let dist = (qx.max(0.0).hypot(qy.max(0.0))) + qx.max(qy).min(0.0) - corner_radius;
+            let alpha_idx = ((y * size + x) * 4 + 3) as usize;
+            if dist >= 0.75 {
+                pixels[alpha_idx] = 0;
+            } else if dist > -0.75 {
+                let t = (0.75 - dist) / 1.5;
                 let a = pixels[alpha_idx] as f32 * t.clamp(0.0, 1.0);
                 pixels[alpha_idx] = a.round() as u8;
             }

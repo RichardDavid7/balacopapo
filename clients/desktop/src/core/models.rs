@@ -89,6 +89,10 @@ pub struct AuthUser {
     pub display_name: Option<String>,
     #[serde(default)]
     pub bio: Option<String>,
+    #[serde(default)]
+    pub custom_status: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<i64>,
     #[serde(default, alias = "avatar")]
     pub avatar_url: Option<String>,
     #[serde(default, alias = "banner")]
@@ -120,6 +124,8 @@ pub struct ChannelCategory {
     pub name: String,
     #[serde(default)]
     pub position: i32,
+    #[serde(default)]
+    pub is_private: bool,
 }
 
 #[allow(dead_code)]
@@ -142,6 +148,8 @@ pub struct GroupMember {
     pub user_id: String,
     #[serde(default)]
     pub nickname: Option<String>,
+    #[serde(default)]
+    pub joined_at: Option<i64>,
     pub user: AuthUser,
     #[serde(default)]
     pub roles: Vec<RoleSummary>,
@@ -167,12 +175,14 @@ impl GroupMember {
         )
     }
 
+    pub fn top_role(&self) -> Option<&RoleSummary> {
+        self.roles.iter().max_by_key(|r| r.position)
+    }
+
     pub fn color_hex(&self) -> Option<&str> {
-        self.roles
-            .iter()
-            .filter(|r| r.color.as_deref().is_some_and(|c| !c.is_empty()))
-            .max_by_key(|r| r.position)
+        self.top_role()
             .and_then(|r| r.color.as_deref())
+            .filter(|c| !c.is_empty())
     }
 }
 
@@ -182,6 +192,10 @@ impl GroupMember {
 pub struct GroupSummary {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub owner_id: Option<String>,
+    #[serde(default)]
+    pub owner_title: Option<String>,
     #[serde(default, alias = "icon")]
     pub icon_url: Option<String>,
     #[serde(default)]
@@ -352,7 +366,7 @@ impl ChatMessage {
 
     pub fn short_time(&self) -> String {
         if let Some(ms) = self.created_at.as_i64() {
-            let secs = ms / 1000;
+            let secs = (ms / 1000) - 3 * 3600;
             let day_secs = secs.rem_euclid(86_400);
             let h = (day_secs / 3600) as u8;
             let m = ((day_secs % 3600) / 60) as u8;
@@ -367,6 +381,91 @@ impl ChatMessage {
         }
         String::new()
     }
+
+    /// Formata no padrão do Backspace Web PT-BR: `"22 de nov. de 2026, 14:51"`.
+    pub fn formatted_datetime_pt(&self) -> String {
+        if let Some(ms) = self.created_at.as_i64() {
+            return format_datetime_pt_ms(ms);
+        }
+        if let Some(s) = self.created_at.as_str() {
+            if let Ok(ms) = s.parse::<i64>() {
+                return format_datetime_pt_ms(ms);
+            }
+            if let Some((date_part, time_part)) = s.split_once('T') {
+                let mut parts = date_part.split('-');
+                if let (Some(y), Some(mo), Some(d)) = (
+                    parts.next().and_then(|v| v.parse::<i32>().ok()),
+                    parts.next().and_then(|v| v.parse::<usize>().ok()),
+                    parts.next().and_then(|v| v.parse::<u32>().ok()),
+                ) {
+                    let hm = if time_part.len() >= 5 {
+                        &time_part[..5]
+                    } else {
+                        "00:00"
+                    };
+                    return format!("{d} de {} de {y}, {hm}", month_short_pt(mo));
+                }
+            }
+        }
+        self.short_time()
+    }
+}
+
+fn civil_from_days(z_in: i64) -> (i32, usize, u32) {
+    let z = z_in + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as usize;
+    let year = (if m <= 2 { y + 1 } else { y }) as i32;
+    (year, m, d)
+}
+
+fn month_short_pt(month: usize) -> &'static str {
+    match month {
+        1 => "jan.",
+        2 => "fev.",
+        3 => "mar.",
+        4 => "abr.",
+        5 => "mai.",
+        6 => "jun.",
+        7 => "jul.",
+        8 => "ago.",
+        9 => "set.",
+        10 => "out.",
+        11 => "nov.",
+        12 => "dez.",
+        _ => "jan.",
+    }
+}
+
+pub fn format_datetime_pt_ms(ms: i64) -> String {
+    let secs = if ms > 100_000_000_000 {
+        ms / 1000
+    } else {
+        ms
+    } - 3 * 3600;
+    let days = secs.div_euclid(86_400);
+    let day_secs = secs.rem_euclid(86_400);
+    let h = (day_secs / 3600) as u8;
+    let min = ((day_secs % 3600) / 60) as u8;
+    let (year, month, day) = civil_from_days(days);
+    format!("{day} de {} de {year}, {h:02}:{min:02}", month_short_pt(month))
+}
+
+pub fn format_date_pt_ms(ms: i64) -> String {
+    let secs = if ms > 100_000_000_000 {
+        ms / 1000
+    } else {
+        ms
+    } - 3 * 3600;
+    let days = secs.div_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    format!("{day} de {} de {year}", month_short_pt(month))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

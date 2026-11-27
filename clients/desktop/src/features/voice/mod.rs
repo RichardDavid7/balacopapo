@@ -857,7 +857,7 @@ pub fn view_connection_info<'a>(
 
     container(col)
         .width(Length::Fill)
-        .padding(10)
-        .style(aether_drift::card_style)
+        .padding(12)
+        .style(aether_drift::glass_modal_style)
         .into()
 }
