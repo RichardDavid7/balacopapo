@@ -925,14 +925,21 @@ pub fn view<'a>(
         && state.active_panel == ActivePanel::Channel
     {
         if let Some(group) = selected_group {
-            row![
+            let mut r = row![
                 container(center_content)
                     .width(Length::Fill)
                     .height(Length::Fill),
-                member_list_sidebar(state, group),
             ]
-            .height(Length::Fill)
-            .into()
+            .height(Length::Fill);
+
+            if let Some(pid) = state.selected_profile_user_id.as_deref() {
+                if let Some(pm) = group.members.iter().find(|m| m.user_id == pid) {
+                    r = r.push(profile_side_panel(state, group, pm));
+                }
+            }
+
+            r = r.push(member_list_sidebar(state, group));
+            r.into()
         } else {
             center_content
         }
@@ -1143,6 +1150,182 @@ fn voice_participants_rows<'a>(
     rows
 }
 
+fn profile_side_panel<'a>(
+    state: &'a ShellState,
+    group: &'a GroupSummary,
+    pm: &'a GroupMember,
+) -> Element<'a, ShellMessage> {
+    let banner_accent = pm
+        .color_hex()
+        .and_then(parse_hex_color)
+        .unwrap_or(aether_drift::ACCENT_VIOLET);
+
+    let banner: Element<'a, ShellMessage> = if let Some(handle) = pm
+        .user
+        .banner_url
+        .as_deref()
+        .and_then(|u| state.image_cache.get(u))
+    {
+        container(
+            image(handle.clone())
+                .width(Length::Fill)
+                .height(Length::Fixed(96.0))
+                .content_fit(ContentFit::Cover),
+        )
+        .width(Length::Fill)
+        .height(Length::Fixed(96.0))
+        .clip(true)
+        .into()
+    } else {
+        container(text(""))
+            .width(Length::Fill)
+            .height(Length::Fixed(84.0))
+            .style(move |_t| container::Style {
+                background: Some(Background::Color(Color::from_rgba(
+                    banner_accent.r,
+                    banner_accent.g,
+                    banner_accent.b,
+                    0.35,
+                ))),
+                ..Default::default()
+            })
+            .into()
+    };
+
+    let av = avatar_circle(
+        &state.image_cache,
+        pm.user.avatar_url.as_deref(),
+        pm.display_name(),
+        68.0,
+    );
+    let presence = PresenceStatus::from_api_str(pm.user.status.as_deref());
+    let status_dot = container(text(""))
+        .width(Length::Fixed(10.0))
+        .height(Length::Fixed(10.0))
+        .style(move |_t| container::Style {
+            background: Some(Background::Color(status_color(presence))),
+            border: Border {
+                radius: 5.0.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    let active_voice_name = state
+        .voice_states
+        .iter()
+        .find(|(_, users)| users.iter().any(|u| u == &pm.user_id))
+        .and_then(|(ch_id, _)| group.channels.iter().find(|c| &c.id == ch_id))
+        .map(|c| c.name.as_str());
+
+    let mut body = column![
+        row![
+            av,
+            horizontal_space(),
+            button(text("Fechar").size(11))
+                .on_press(ShellMessage::CloseProfile)
+                .padding([4, 10])
+                .style(aether_drift::ghost_button_style),
+        ]
+        .align_y(Alignment::Start),
+        text(pm.display_name()).size(17),
+        row![
+            status_dot,
+            text(format!("@{} · {}", pm.user.username, presence.label_pt()))
+                .size(12)
+                .color(aether_drift::TEXT_MUTED),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center),
+    ]
+    .spacing(8)
+    .padding(14);
+
+    if let Some(vch) = active_voice_name {
+        body = body.push(
+            container(
+                row![
+                    icons::volume(13.0, aether_drift::SUCCESS_GREEN),
+                    text(format!("Em voz · {vch}"))
+                        .size(12)
+                        .color(aether_drift::SUCCESS_GREEN),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center),
+            )
+            .width(Length::Fill)
+            .padding([6, 10])
+            .style(aether_drift::pill_style),
+        );
+    }
+
+    if let Some(bio) = pm.user.bio.as_deref().filter(|b| !b.trim().is_empty()) {
+        body = body.push(
+            container(
+                column![
+                    text("SOBRE MIM")
+                        .size(10)
+                        .color(aether_drift::TEXT_MUTED),
+                    text(bio).size(12).color(aether_drift::TEXT_PRIMARY),
+                ]
+                .spacing(4),
+            )
+            .width(Length::Fill)
+            .padding(10)
+            .style(aether_drift::card_style),
+        );
+    }
+
+    if !pm.roles.is_empty() {
+        let mut roles_col = column![
+            text("CARGOS")
+                .size(10)
+                .color(aether_drift::TEXT_MUTED),
+        ]
+        .spacing(6);
+        let mut rrow = row![].spacing(6);
+        for r in pm.roles.iter().take(6) {
+            let rc = r
+                .color
+                .as_deref()
+                .and_then(parse_hex_color)
+                .unwrap_or(aether_drift::ACCENT_VIOLET);
+            let rdot = container(text(""))
+                .width(Length::Fixed(8.0))
+                .height(Length::Fixed(8.0))
+                .style(move |_t| container::Style {
+                    background: Some(Background::Color(rc)),
+                    border: Border {
+                        radius: 4.0.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            rrow = rrow.push(
+                container(
+                    row![rdot, text(&r.name).size(11)]
+                        .spacing(5)
+                        .align_y(Alignment::Center),
+                )
+                .padding([3, 8])
+                .style(aether_drift::pill_style),
+            );
+        }
+        roles_col = roles_col.push(rrow);
+        body = body.push(roles_col);
+    }
+
+    let card = container(column![banner, body])
+        .width(Length::Fixed(296.0))
+        .style(aether_drift::card_style);
+
+    container(scrollable(card))
+        .width(Length::Fixed(316.0))
+        .height(Length::Fill)
+        .padding([12, 10])
+        .into()
+}
+
 fn member_list_sidebar<'a>(
     state: &'a ShellState,
     group: &'a GroupSummary,
@@ -1168,57 +1351,6 @@ fn member_list_sidebar<'a>(
     });
 
     let mut list = column![].spacing(4).padding([12, 10]);
-
-    // Card de Perfil clicável no topo da barra de membros
-    if let Some(pid) = state.selected_profile_user_id.as_deref() {
-        if let Some(pm) = group.members.iter().find(|m| m.user_id == pid) {
-            let av = avatar_circle(
-                &state.image_cache,
-                pm.user.avatar_url.as_deref(),
-                pm.display_name(),
-                56.0,
-            );
-            let presence = PresenceStatus::from_api_str(pm.user.status.as_deref());
-            let mut roles_row = row![].spacing(4);
-            for r in pm.roles.iter().take(4) {
-                roles_row = roles_row.push(
-                    container(text(&r.name).size(10))
-                        .padding([2, 6])
-                        .style(aether_drift::pill_style),
-                );
-            }
-            let mut card_col = column![
-                row![
-                    av,
-                    horizontal_space(),
-                    button(text("Fechar").size(10))
-                        .on_press(ShellMessage::CloseProfile)
-                        .padding([3, 7])
-                        .style(aether_drift::ghost_button_style),
-                ]
-                .align_y(Alignment::Start),
-                text(pm.display_name()).size(14),
-                text(format!("@{} · {}", pm.user.username, presence.label_pt()))
-                    .size(11)
-                    .color(aether_drift::TEXT_MUTED),
-            ]
-            .spacing(5);
-
-            if let Some(bio) = pm.user.bio.as_deref().filter(|b| !b.trim().is_empty()) {
-                card_col = card_col.push(text(bio).size(11).color(aether_drift::TEXT_PRIMARY));
-            }
-            if !pm.roles.is_empty() {
-                card_col = card_col.push(roles_row);
-            }
-
-            list = list.push(
-                container(card_col)
-                    .width(Length::Fill)
-                    .padding(10)
-                    .style(aether_drift::card_style),
-            );
-        }
-    }
 
     if group.members.is_empty() {
         list = list.push(

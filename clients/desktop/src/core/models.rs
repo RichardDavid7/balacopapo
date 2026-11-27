@@ -91,6 +91,8 @@ pub struct AuthUser {
     pub bio: Option<String>,
     #[serde(default, alias = "avatar")]
     pub avatar_url: Option<String>,
+    #[serde(default, alias = "banner")]
+    pub banner_url: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
 }

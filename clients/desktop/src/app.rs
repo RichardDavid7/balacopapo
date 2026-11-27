@@ -1196,9 +1196,13 @@ impl BalacopapoApp {
                 Task::none()
             }
             ShellMessage::OpenProfile(user_id) => {
+                if shell.selected_profile_user_id.as_deref() == Some(user_id.as_str()) {
+                    shell.selected_profile_user_id = None;
+                    return Task::none();
+                }
                 shell.selected_profile_user_id = Some(user_id);
                 shell.show_member_list = true;
-                Task::none()
+                self.enqueue_images_for_shell()
             }
             ShellMessage::CloseProfile => {
                 shell.selected_profile_user_id = None;
@@ -2432,6 +2436,11 @@ impl BalacopapoApp {
                 for m in &g.members {
                     if let Some(url) = m.user.avatar_url.as_deref() {
                         candidates.push((url.to_string(), true));
+                    }
+                    if shell.selected_profile_user_id.as_deref() == Some(m.user_id.as_str()) {
+                        if let Some(banner) = m.user.banner_url.as_deref() {
+                            candidates.push((banner.to_string(), false));
+                        }
                     }
                 }
             }
