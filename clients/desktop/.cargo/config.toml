@@ -1,0 +1,5 @@
+# O binário estático `libwebrtc.lib` do LiveKit para Windows é compilado com /MT (CRT estático).
+# Ativar `+crt-static` alinha o runtime MSVC de todas as crates Rust/C++ (evitando LNK2038/LNK1169)
+# e ainda elimina a dependência externa de `vcruntime140.dll` no Windows.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
