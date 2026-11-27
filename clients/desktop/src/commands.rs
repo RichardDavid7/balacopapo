@@ -264,7 +264,7 @@ pub fn get_overlay_config(state: State<'_, DesktopState>) -> OverlayConfig {
 }
 
 #[tauri::command]
-pub fn show_overlay(
+pub async fn show_overlay(
     app: AppHandle,
     config: Option<OverlayConfig>,
     state: State<'_, DesktopState>,
@@ -301,7 +301,7 @@ pub fn hide_overlay(app: AppHandle, state: State<'_, DesktopState>) -> OverlayCo
 }
 
 #[tauri::command]
-pub fn update_overlay_config(
+pub async fn update_overlay_config(
     app: AppHandle,
     config: OverlayConfig,
     state: State<'_, DesktopState>,
@@ -481,7 +481,7 @@ pub fn request_remote_control(
 }
 
 #[tauri::command]
-pub fn approve_remote_control(
+pub async fn approve_remote_control(
     app: AppHandle,
     allow_mouse: bool,
     allow_keyboard: bool,
@@ -540,8 +540,11 @@ pub fn revoke_remote_control(
     RemoteControlState::Idle
 }
 
+#[cfg(target_os = "windows")]
+pub const WINDOWS_WEBVIEW_ARGS: &str = "--use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --disable-features=HardwareMediaKeyHandling";
+
 #[tauri::command]
-pub fn open_desktop_settings(app: AppHandle) -> Result<(), String> {
+pub async fn open_desktop_settings(app: AppHandle) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window("settings") {
         let _ = existing.show();
         let _ = existing.unminimize();
@@ -549,12 +552,21 @@ pub fn open_desktop_settings(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    tauri::WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("Configurações do Balacopapo Desktop")
-        .inner_size(940.0, 640.0)
-        .min_inner_size(760.0, 520.0)
-        .resizable(true)
-        .background_color(tauri::window::Color(14, 16, 21, 255))
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
+            .title("Configurações do Balacopapo Desktop")
+            .inner_size(940.0, 640.0)
+            .min_inner_size(760.0, 520.0)
+            .resizable(true)
+            .background_color(tauri::window::Color(14, 16, 21, 255));
+
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.additional_browser_args(WINDOWS_WEBVIEW_ARGS);
+    }
+
+    builder
         .build()
         .map_err(|e| format!("Falha ao abrir configurações do desktop: {e}"))?;
 

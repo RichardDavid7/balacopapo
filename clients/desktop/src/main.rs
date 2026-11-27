@@ -259,24 +259,27 @@ fn handle_global_shortcut_pressed(app: &AppHandle, shortcut: &Shortcut) {
     };
 
     if matches!(action, KeybindActionKind::ToggleOverlay) {
-        if os::overlay::is_overlay_active(app) {
-            os::overlay::destroy_overlay_window(app);
-            if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
-                guard.enabled = false;
-            }
-        } else {
-            let mut cfg = if let Ok(guard) = app.state::<DesktopState>().overlay_config.lock() {
-                guard.clone()
+        let handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if os::overlay::is_overlay_active(&handle) {
+                os::overlay::destroy_overlay_window(&handle);
+                if let Ok(mut guard) = handle.state::<DesktopState>().overlay_config.lock() {
+                    guard.enabled = false;
+                }
             } else {
-                os::overlay::OverlayConfig::default()
-            };
-            cfg.enabled = true;
-            if os::overlay::ensure_overlay_window(app, &cfg).is_ok() {
-                if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
-                    *guard = cfg;
+                let mut cfg = if let Ok(guard) = handle.state::<DesktopState>().overlay_config.lock() {
+                    guard.clone()
+                } else {
+                    os::overlay::OverlayConfig::default()
+                };
+                cfg.enabled = true;
+                if os::overlay::ensure_overlay_window(&handle, &cfg).is_ok() {
+                    if let Ok(mut guard) = handle.state::<DesktopState>().overlay_config.lock() {
+                        *guard = cfg;
+                    }
                 }
             }
-        }
+        });
     }
 
     let _ = app.emit("balacopapo://keybind-triggered", action);
@@ -379,36 +382,49 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(move |app, event| match event.id.as_ref() {
             MENU_OPEN => focus_main_window(app),
             MENU_DESKTOP_SETTINGS => {
-                let _ = commands::open_desktop_settings(app.clone());
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = commands::open_desktop_settings(handle).await;
+                });
             }
             MENU_TOGGLE_OVERLAY => {
-                if os::overlay::is_overlay_active(app) {
-                    os::overlay::destroy_overlay_window(app);
-                    if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
-                        guard.enabled = false;
-                    }
-                } else {
-                    let mut cfg = if let Ok(guard) = app.state::<DesktopState>().overlay_config.lock() {
-                        guard.clone()
-                    } else {
-                        os::overlay::OverlayConfig::default()
-                    };
-                    cfg.enabled = true;
-                    if os::overlay::ensure_overlay_window(app, &cfg).is_ok() {
-                        if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
-                            *guard = cfg;
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if os::overlay::is_overlay_active(&handle) {
+                        os::overlay::destroy_overlay_window(&handle);
+                        if let Ok(mut guard) = handle.state::<DesktopState>().overlay_config.lock()
+                        {
+                            guard.enabled = false;
                         }
-                        os::overlay::emit_toast(
-                            app,
-                            os::overlay::OverlayToastPayload {
-                                title: "Overlay In-Game ativado".to_string(),
-                                body: "Click-through ativo e invisível na transmissão.".to_string(),
-                                kind: "info".to_string(),
-                                duration_ms: 2_800,
-                            },
-                        );
+                    } else {
+                        let mut cfg = if let Ok(guard) =
+                            handle.state::<DesktopState>().overlay_config.lock()
+                        {
+                            guard.clone()
+                        } else {
+                            os::overlay::OverlayConfig::default()
+                        };
+                        cfg.enabled = true;
+                        if os::overlay::ensure_overlay_window(&handle, &cfg).is_ok() {
+                            if let Ok(mut guard) =
+                                handle.state::<DesktopState>().overlay_config.lock()
+                            {
+                                *guard = cfg;
+                            }
+                            tokio::time::sleep(Duration::from_millis(350)).await;
+                            os::overlay::emit_toast(
+                                &handle,
+                                os::overlay::OverlayToastPayload {
+                                    title: "Overlay In-Game ativado".to_string(),
+                                    body: "Click-through ativo e invisível na transmissão."
+                                        .to_string(),
+                                    kind: "info".to_string(),
+                                    duration_ms: 3_200,
+                                },
+                            );
+                        }
                     }
-                }
+                });
             }
             MENU_SWITCH_INSTANCE => {
                 if let Some(window) = app.get_webview_window("main") {
@@ -550,15 +566,20 @@ fn main() {
                     .min_inner_size(960.0, 620.0)
                     .resizable(true)
                     .background_color(tauri::window::Color(14, 16, 21, 255))
-                    .initialization_script(build_init_script());
+                    .initialization_script(build_init_script())
+                    .on_new_window(|url, _features| {
+                        // Abre OIDC e links externos (target="_blank" / window.open) no navegador padrão do SO.
+                        if matches!(url.scheme(), "http" | "https") {
+                            let _ = open::that(url.as_str());
+                        }
+                        tauri::webview::NewWindowResponse::Deny
+                    });
 
             #[cfg(target_os = "windows")]
             {
-                // Auto-concede microfone/câmera reais sem popup de navegador, libera autoplay
-                // de voz/soundboard e evita captura indesejada de teclas multimídia pelo WebView2.
-                window_builder = window_builder.additional_browser_args(
-                    "--use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --disable-features=HardwareMediaKeyHandling",
-                );
+                // Mesmas flags em TODAS as janelas WebView2 (obrigatório para evitar ERROR_INVALID_STATE).
+                window_builder =
+                    window_builder.additional_browser_args(commands::WINDOWS_WEBVIEW_ARGS);
             }
 
             let main_window = window_builder.build()?;

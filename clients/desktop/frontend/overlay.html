@@ -190,6 +190,7 @@
   <div id="toasts-layer"></div>
 
   <script>
+    const invoke = window.__TAURI__?.core?.invoke;
     const listen = window.__TAURI__?.event?.listen;
     const pointersLayer = document.getElementById("pointers-layer");
     const speakersLayer = document.getElementById("speakers-layer");
@@ -287,6 +288,12 @@
 
       const ttl = Math.max(1200, Math.min(8000, payload.durationMs || 3200));
       setTimeout(() => card.remove(), ttl);
+    }
+
+    if (invoke) {
+      invoke("get_overlay_config").then((cfg) => {
+        if (cfg) applyConfig(cfg);
+      }).catch(() => {});
     }
 
     if (listen) {

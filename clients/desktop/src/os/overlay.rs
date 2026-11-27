@@ -180,7 +180,8 @@ pub fn ensure_overlay_window(app: &AppHandle, config: &OverlayConfig) -> Result<
         return Ok(());
     }
 
-    let overlay = tauri::WebviewWindowBuilder::new(
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
+    let mut builder = tauri::WebviewWindowBuilder::new(
         app,
         OVERLAY_LABEL,
         WebviewUrl::App("overlay.html".into()),
@@ -194,9 +195,16 @@ pub fn ensure_overlay_window(app: &AppHandle, config: &OverlayConfig) -> Result<
     .skip_taskbar(true)
     .shadow(false)
     .resizable(false)
-    .focused(false)
-    .build()
-    .map_err(|e| format!("Falha ao criar janela de overlay: {e}"))?;
+    .focused(false);
+
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.additional_browser_args(crate::commands::WINDOWS_WEBVIEW_ARGS);
+    }
+
+    let overlay = builder
+        .build()
+        .map_err(|e| format!("Falha ao criar janela de overlay: {e}"))?;
 
     let _ = overlay.set_ignore_cursor_events(true);
 
