@@ -21,6 +21,7 @@ use crate::features::soundboard::SoundboardAction;
 use crate::features::stream::{ActivePointerPing, StreamAction};
 use crate::features::voice::VoiceAction;
 use crate::media::audio_engine::{self, ActiveLoopback, AudioParams};
+use crate::media::livekit_session::{self, ActiveVoiceSession};
 use crate::media::wav_dsp::{quadratic_gain, WavClip};
 use crate::net::client::ApiClient;
 use crate::net::ws;
@@ -34,12 +35,23 @@ pub enum Screen {
     Shell(Box<ShellState>),
 }
 
+#[derive(Clone)]
+pub struct VoiceSessionHolder(pub std::sync::Arc<std::sync::Mutex<Option<ActiveVoiceSession>>>);
+
+impl std::fmt::Debug for VoiceSessionHolder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("VoiceSessionHolder")
+    }
+}
+
 pub struct BalacopapoApp {
     config: AppConfig,
     screen: Screen,
     update_state: UpdateCheckState,
     audio_params: AudioParams,
     active_loopback: Option<ActiveLoopback>,
+    active_voice: Option<ActiveVoiceSession>,
+    user_volumes: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, f32>>>,
     ws_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 }
 
@@ -72,6 +84,7 @@ pub enum Message {
         channel_name: String,
         result: Result<LiveKitTokenResponse, String>,
     },
+    LiveKitConnected(Result<VoiceSessionHolder, String>),
     SoundboardLoaded(Result<Vec<SoundboardSound>, String>),
     SoundboardClipFetched {
         name: String,
@@ -157,6 +170,10 @@ impl BalacopapoApp {
             update_state: UpdateCheckState::Checking,
             audio_params: AudioParams::default(),
             active_loopback: None,
+            active_voice: None,
+            user_volumes: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
             ws_tx: None,
         };
 
@@ -484,6 +501,12 @@ impl BalacopapoApp {
             } => {
                 let mut fetch_music: Option<(String, String, String)> = None;
                 let mut joined_ch: Option<String> = None;
+                let mut lk_connect_args: Option<(
+                    String,
+                    String,
+                    Option<String>,
+                    Option<String>,
+                )> = None;
                 if let Screen::Shell(shell) = &mut self.screen {
                     shell.voice.connecting = false;
                     match result {
@@ -491,7 +514,7 @@ impl BalacopapoApp {
                             shell.voice.error = None;
                             shell.voice.connected_channel_id = Some(channel_id.clone());
                             shell.voice.connected_channel_name = Some(channel_name);
-                            shell.voice.livekit_url = Some(resp.url);
+                            shell.voice.livekit_url = Some(resp.url.clone());
                             // Garante presença imediata na lista local da call
                             let my_id = shell.user.id.clone();
                             for users in shell.voice_states.values_mut() {
@@ -503,6 +526,12 @@ impl BalacopapoApp {
                                 .or_default()
                                 .push(my_id);
                             joined_ch = Some(channel_id.clone());
+                            lk_connect_args = Some((
+                                resp.url,
+                                resp.token,
+                                shell.voice.selected_input.clone(),
+                                shell.voice.selected_output.clone(),
+                            ));
                             fetch_music = Some((
                                 shell.instance_url.clone(),
                                 self.config.auth_token.clone().unwrap_or_default(),
@@ -515,17 +544,54 @@ impl BalacopapoApp {
                     }
                 }
                 if let Some(ch_id) = joined_ch {
+                    self.active_voice = None;
                     self.send_ws_json(serde_json::json!({
                         "type": "voice_join",
                         "channelId": ch_id,
                     }));
                     self.sync_voice_status_ws();
                 }
-                if let Some((url, token, ch_id)) = fetch_music {
-                    Self::load_music_task(url, token, ch_id)
-                } else {
-                    Task::none()
+                let mut tasks = Vec::new();
+                if let Some((lk_url, lk_token, in_dev, out_dev)) = lk_connect_args {
+                    let params = self.audio_params.clone();
+                    let vols = self.user_volumes.clone();
+                    tasks.push(Task::perform(
+                        async move {
+                            let session = livekit_session::connect_voice_session(
+                                lk_url, lk_token, in_dev, out_dev, params, vols,
+                            )
+                            .await?;
+                            Ok(VoiceSessionHolder(std::sync::Arc::new(
+                                std::sync::Mutex::new(Some(session)),
+                            )))
+                        },
+                        Message::LiveKitConnected,
+                    ));
                 }
+                if let Some((url, token, ch_id)) = fetch_music {
+                    tasks.push(Self::load_music_task(url, token, ch_id));
+                }
+                if tasks.is_empty() {
+                    Task::none()
+                } else {
+                    Task::batch(tasks)
+                }
+            }
+            Message::LiveKitConnected(result) => {
+                match result {
+                    Ok(holder) => {
+                        self.active_voice = holder.0.lock().ok().and_then(|mut g| g.take());
+                        if let Screen::Shell(shell) = &mut self.screen {
+                            shell.voice.error = None;
+                        }
+                    }
+                    Err(err) => {
+                        if let Screen::Shell(shell) = &mut self.screen {
+                            shell.voice.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
             }
             Message::SoundboardLoaded(result) => {
                 if let Screen::Shell(shell) = &mut self.screen {
@@ -1253,6 +1319,8 @@ impl BalacopapoApp {
             }
             ShellMessage::Logout => {
                 self.active_loopback = None;
+                self.active_voice = None;
+                self.ws_tx = None;
                 self.config.auth_token = None;
                 let _ = self.config.save();
                 self.screen = Screen::Auth(AuthState::new(self.config.instance_url.clone()));
@@ -1491,6 +1559,7 @@ impl BalacopapoApp {
             }
             VoiceAction::LeaveChannel => {
                 self.active_loopback = None;
+                self.active_voice = None;
                 let my_id = shell.user.id.clone();
                 for users in shell.voice_states.values_mut() {
                     users.retain(|u| u != &my_id);
@@ -1593,7 +1662,10 @@ impl BalacopapoApp {
                 user_id,
                 volume_pct,
             } => {
-                shell.voice.user_volumes.insert(user_id, volume_pct);
+                shell.voice.user_volumes.insert(user_id.clone(), volume_pct);
+                if let Ok(mut map) = self.user_volumes.lock() {
+                    map.insert(user_id, volume_pct as f32 / 100.0);
+                }
                 Task::none()
             }
             VoiceAction::RefreshDevices => {
