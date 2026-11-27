@@ -4,12 +4,6 @@ import type { TFunction } from 'i18next';
 import { Toggle } from '../../ui/Toggle';
 import { useUpdateStore } from '../../../stores/updateStore';
 import { useFormatters, type Formatters } from '../../../i18n/formatters';
-import {
-  desktopBridge,
-  isBalacopapoDesktop,
-  type OverlayConfig,
-  type OverlayCorner,
-} from '../../../utils/desktopBridge';
 
 function AutoLaunchSettings() {
   const { t } = useTranslation('settings');
@@ -228,58 +222,122 @@ function UpdateSettings() {
   );
 }
 
-export function DesktopPanel() {
+type OverlayCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+function OverlaySettingsSection() {
   const { t } = useTranslation('settings');
-  const nativeDesktop = isBalacopapoDesktop();
-  const initialize = useUpdateStore((s) => s.initialize);
-  const [sandboxed, setSandboxed] = useState<boolean | null>(null);
-  const [nativeAutostart, setNativeAutostart] = useState(false);
-  const [nativeVersion, setNativeVersion] = useState<string | null>(null);
-  const [nativeUpdateState, setNativeUpdateState] = useState<'idle' | 'checking' | 'ready' | 'upToDate'>('idle');
-  const [overlayCfg, setOverlayCfg] = useState<OverlayConfig>({
-    enabled: false,
-    showPointers: true,
-    showSpeakers: true,
-    showToasts: true,
-    corner: 'top-left',
-    opacity: 0.92,
-    monitorIndex: null,
-  });
-  const [gamePresenceEnabled, setGamePresenceEnabled] = useState(true);
-  const [ignoredGamesText, setIgnoredGamesText] = useState('');
-  const [detectedGameName, setDetectedGameName] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(true);
+  const [corner, setCorner] = useState<OverlayCorner>('top-left');
+  const [opacity, setOpacity] = useState(92);
   const speakersTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (nativeDesktop) {
-      desktopBridge.getDesktopInfo().then((info) => {
-        if (!info) return;
-        setNativeAutostart(Boolean(info.autostartEnabled));
-        setNativeVersion(info.buildSha ? `${info.version} (${info.buildSha})` : info.version);
-      }).catch(() => {});
-      desktopBridge.getOverlayConfig().then((cfg) => {
-        if (cfg) setOverlayCfg(cfg);
-      }).catch(() => {});
-      desktopBridge.getGamePresenceConfig().then((gp) => {
-        if (!gp) return;
-        setGamePresenceEnabled(Boolean(gp.enabled));
-        setIgnoredGamesText((gp.ignoredGames ?? []).join(', '));
-      }).catch(() => {});
-      desktopBridge.getCurrentGamePresence().then((g) => {
-        setDetectedGameName(g?.displayName ?? null);
-      }).catch(() => {});
-      return () => {
-        if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
-      };
-    }
-    return initialize();
-  }, [initialize, nativeDesktop]);
+  useEffect(() => () => {
+    if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
+  }, []);
 
+  if (!window.backspace?.setOverlayConfig) return null;
+
+  const pushConfig = (next: { enabled?: boolean; corner?: OverlayCorner; opacity?: number }) => {
+    const e = next.enabled ?? enabled;
+    const c = next.corner ?? corner;
+    const o = next.opacity ?? opacity;
+    setEnabled(e);
+    setCorner(c);
+    setOpacity(o);
+    window.backspace?.setOverlayConfig?.({ enabled: e, corner: c, opacity: o / 100 });
+  };
+
+  const testPointer = () => {
+    if (!enabled) pushConfig({ enabled: true });
+    window.backspace?.dispatchOverlayEvent?.({
+      kind: 'pointer_ping',
+      x: 0.35 + Math.random() * 0.3,
+      y: 0.35 + Math.random() * 0.3,
+      senderName: t('desktop.overlay.pointers'),
+      color: '#5865f2',
+    });
+  };
+
+  const testSpeakers = () => {
+    if (!enabled) pushConfig({ enabled: true });
+    window.backspace?.dispatchOverlayEvent?.({
+      kind: 'speaking_update',
+      speakers: [{ id: 'preview', name: t('desktop.updates.appName'), avatarColor: '#3ba55d' }],
+    });
+    if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
+    speakersTimerRef.current = window.setTimeout(() => {
+      window.backspace?.dispatchOverlayEvent?.({ kind: 'speaking_update', speakers: [] });
+    }, 4000);
+  };
+
+  return (
+    <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
+      <div>
+        <div className="text-sm font-semibold text-txt-primary">{t('desktop.overlay.title')}</div>
+        <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.description')}</div>
+      </div>
+
+      <div className="flex items-center justify-between py-1">
+        <div className="flex-1 mr-4">
+          <div className="text-sm text-txt-primary">{t('desktop.overlay.enabled')}</div>
+          <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.enabledDesc')}</div>
+        </div>
+        <Toggle enabled={enabled} onChange={(v) => pushConfig({ enabled: v })} />
+      </div>
+
+      <div className="border-t border-white/[0.04]" />
+
+      <div className="flex items-center justify-between py-1 gap-4">
+        <div className="text-sm text-txt-primary">{t('desktop.overlay.corner')}</div>
+        <select
+          value={corner}
+          onChange={(e) => pushConfig({ corner: e.target.value as OverlayCorner })}
+          className="rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
+        >
+          <option value="top-left">{t('desktop.overlay.corners.top-left')}</option>
+          <option value="top-right">{t('desktop.overlay.corners.top-right')}</option>
+          <option value="bottom-left">{t('desktop.overlay.corners.bottom-left')}</option>
+          <option value="bottom-right">{t('desktop.overlay.corners.bottom-right')}</option>
+        </select>
+      </div>
+
+      <div className="flex items-center justify-between py-1 gap-4">
+        <div className="text-sm text-txt-primary">{t('desktop.overlay.opacity', { value: opacity })}</div>
+        <input
+          type="range"
+          min={30}
+          max={100}
+          value={opacity}
+          onChange={(e) => pushConfig({ opacity: Number(e.target.value) })}
+          className="w-40 accent-accent-primary"
+        />
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <button
+          onClick={testPointer}
+          className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+        >
+          {t('desktop.overlay.testPointer')}
+        </button>
+        <button
+          onClick={testSpeakers}
+          className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+        >
+          {t('desktop.overlay.testSpeakers')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function DesktopPanel() {
+  const { t } = useTranslation('settings');
+  const initialize = useUpdateStore((s) => s.initialize);
+  const [sandboxed, setSandboxed] = useState<boolean | null>(null);
+
+  useEffect(() => initialize(), [initialize]);
   useEffect(() => {
-    if (nativeDesktop) {
-      setSandboxed(false);
-      return;
-    }
     const probe = window.backspace?.isSandboxed;
     if (!probe) {
       // Older desktop builds predate sandbox support and are ordinary native
@@ -288,285 +346,7 @@ export function DesktopPanel() {
       return;
     }
     probe().then(setSandboxed).catch(() => setSandboxed(false));
-  }, [nativeDesktop]);
-
-  if (nativeDesktop) {
-    const handleNativeAutostart = async (enabled: boolean) => {
-      const next = await desktopBridge.setAutostart(enabled);
-      if (typeof next === 'boolean') setNativeAutostart(next);
-    };
-
-    const handleNativeCheckUpdates = async () => {
-      setNativeUpdateState('checking');
-      const res = await desktopBridge.checkUpdatesNow();
-      if (res?.kind === 'readyToRestart') setNativeUpdateState('ready');
-      else setNativeUpdateState('upToDate');
-    };
-
-    const handleChangeInstance = async () => {
-      await desktopBridge.clearInstanceUrl();
-      window.location.replace(
-        navigator.userAgent.includes('Windows') ? 'http://tauri.localhost/?switch=1' : 'tauri://localhost/?switch=1',
-      );
-    };
-
-    const patchOverlay = async (patch: Partial<OverlayConfig>) => {
-      const next: OverlayConfig = { ...overlayCfg, ...patch };
-      setOverlayCfg(next);
-      const saved = await desktopBridge.updateOverlayConfig(next);
-      if (saved) setOverlayCfg(saved);
-    };
-
-    const handleTestPointer = async () => {
-      const wasEnabled = overlayCfg.enabled;
-      if (!wasEnabled) {
-        await patchOverlay({ enabled: true });
-        await new Promise((r) => window.setTimeout(r, 400));
-      }
-      await desktopBridge.pushOverlayPointer({
-        senderName: t('desktop.overlay.pointers'),
-        x: 0.35 + Math.random() * 0.3,
-        y: 0.35 + Math.random() * 0.3,
-        color: '#5865f2',
-        mode: 'ping',
-      });
-    };
-
-    const handleTestSpeakers = async () => {
-      const wasEnabled = overlayCfg.enabled;
-      if (!wasEnabled) {
-        await patchOverlay({ enabled: true });
-        await new Promise((r) => window.setTimeout(r, 400));
-      }
-      await desktopBridge.setOverlaySpeakers([
-        { identity: 'preview-1', name: t('desktop.updates.appName'), speaking: true, muted: false, avatarColor: '#3ba55d' },
-      ]);
-      if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
-      speakersTimerRef.current = window.setTimeout(() => {
-        void desktopBridge.setOverlaySpeakers([]);
-      }, 4000);
-    };
-
-    const saveGamePresence = async (nextEnabled: boolean, nextIgnoredText: string) => {
-      setGamePresenceEnabled(nextEnabled);
-      setIgnoredGamesText(nextIgnoredText);
-      const ignoredGames = nextIgnoredText.split(',').map((s) => s.trim()).filter(Boolean);
-      await desktopBridge.setGamePresenceConfig({
-        enabled: nextEnabled,
-        ignoredGames,
-        manualOverride: null,
-      });
-    };
-
-    const opacityPercent = Math.round((overlayCfg.opacity ?? 0.92) * 100);
-
-    return (
-      <div className="space-y-5">
-        <h2 className="text-lg font-semibold text-txt-primary mb-6">{t('desktop.title')}</h2>
-
-        {/* Sistema, atualizações e instância */}
-        <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm text-txt-primary">{t('desktop.autoLaunch.openAtLogin.label')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">
-                {t('desktop.autoLaunch.openAtLogin.description')}
-              </div>
-            </div>
-            <Toggle enabled={nativeAutostart} onChange={(v) => void handleNativeAutostart(v)} />
-          </div>
-
-          <div className="border-t border-white/[0.04]" />
-
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4 min-w-0">
-              <div className="text-sm text-txt-primary">
-                {nativeVersion ? t('desktop.updates.versionLabel', { version: nativeVersion }) : t('desktop.updates.appName')}
-              </div>
-              <div className="text-xs text-txt-tertiary mt-0.5">
-                {nativeUpdateState === 'checking'
-                  ? t('desktop.updates.checking')
-                  : nativeUpdateState === 'ready'
-                    ? t('desktop.updates.restart')
-                    : nativeUpdateState === 'upToDate'
-                      ? t('desktop.updates.upToDate')
-                      : t('desktop.updates.idle')}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {nativeUpdateState === 'ready' && (
-                <button
-                  onClick={() => void desktopBridge.applyUpdateAndRestart()}
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-accent-primary hover:bg-accent-primary/80 rounded-lg transition-colors"
-                >
-                  {t('desktop.updates.restart')}
-                </button>
-              )}
-              <button
-                onClick={() => void handleNativeCheckUpdates()}
-                disabled={nativeUpdateState === 'checking'}
-                className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors disabled:opacity-50"
-              >
-                {nativeUpdateState === 'checking' ? t('desktop.updates.checkingShort') : t('desktop.updates.checkNow')}
-              </button>
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.04]" />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-txt-primary font-medium">{window.location.origin}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.instance.current')}</div>
-            </div>
-            <button
-              onClick={() => void handleChangeInstance()}
-              className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-            >
-              {t('desktop.instance.change')}
-            </button>
-          </div>
-        </div>
-
-        {/* Sobreposição em Jogo (Overlay) — embutida direto nas configurações do app */}
-        <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
-          <div>
-            <div className="text-sm font-semibold text-txt-primary">{t('desktop.overlay.title')}</div>
-            <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.description')}</div>
-          </div>
-
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm text-txt-primary">{t('desktop.overlay.enabled')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.enabledDesc')}</div>
-            </div>
-            <Toggle enabled={overlayCfg.enabled} onChange={(v) => void patchOverlay({ enabled: v })} />
-          </div>
-
-          <div className="border-t border-white/[0.04]" />
-
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm text-txt-primary">{t('desktop.overlay.pointers')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.pointersDesc')}</div>
-            </div>
-            <Toggle enabled={overlayCfg.showPointers} onChange={(v) => void patchOverlay({ showPointers: v })} />
-          </div>
-
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm text-txt-primary">{t('desktop.overlay.speakers')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.speakersDesc')}</div>
-            </div>
-            <Toggle enabled={overlayCfg.showSpeakers} onChange={(v) => void patchOverlay({ showSpeakers: v })} />
-          </div>
-
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm text-txt-primary">{t('desktop.overlay.toasts')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.toastsDesc')}</div>
-            </div>
-            <Toggle enabled={overlayCfg.showToasts} onChange={(v) => void patchOverlay({ showToasts: v })} />
-          </div>
-
-          <div className="border-t border-white/[0.04]" />
-
-          <div className="flex items-center justify-between py-1 gap-4">
-            <div className="text-sm text-txt-primary">{t('desktop.overlay.corner')}</div>
-            <select
-              value={overlayCfg.corner}
-              onChange={(e) => void patchOverlay({ corner: e.target.value as OverlayCorner })}
-              className="rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
-            >
-              <option value="top-left">{t('desktop.overlay.corners.top-left')}</option>
-              <option value="top-right">{t('desktop.overlay.corners.top-right')}</option>
-              <option value="bottom-left">{t('desktop.overlay.corners.bottom-left')}</option>
-              <option value="bottom-right">{t('desktop.overlay.corners.bottom-right')}</option>
-            </select>
-          </div>
-
-          <div className="flex items-center justify-between py-1 gap-4">
-            <div className="text-sm text-txt-primary">{t('desktop.overlay.opacity', { value: opacityPercent })}</div>
-            <input
-              type="range"
-              min={30}
-              max={100}
-              value={opacityPercent}
-              onChange={(e) => void patchOverlay({ opacity: Number(e.target.value) / 100 })}
-              className="w-40 accent-accent-primary"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              onClick={() => void handleTestPointer()}
-              className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-            >
-              {t('desktop.overlay.testPointer')}
-            </button>
-            <button
-              onClick={() => void handleTestSpeakers()}
-              className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-            >
-              {t('desktop.overlay.testSpeakers')}
-            </button>
-          </div>
-        </div>
-
-        {/* Presença de Jogos & Controle Remoto Seguro */}
-        <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm font-semibold text-txt-primary">{t('desktop.gamePresence.title')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">
-                {detectedGameName
-                  ? t('desktop.gamePresence.detected', { name: detectedGameName })
-                  : t('desktop.gamePresence.none')}
-              </div>
-            </div>
-            <Toggle
-              enabled={gamePresenceEnabled}
-              onChange={(v) => void saveGamePresence(v, ignoredGamesText)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3 py-1">
-            <div className="text-xs text-txt-secondary">{t('desktop.gamePresence.ignoredLabel')}</div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={ignoredGamesText}
-                onChange={(e) => setIgnoredGamesText(e.target.value)}
-                placeholder={t('desktop.gamePresence.ignoredPlaceholder')}
-                className="w-44 rounded-lg bg-black/40 border border-white/10 px-2.5 py-1 text-xs text-txt-primary outline-none"
-              />
-              <button
-                onClick={() => void saveGamePresence(gamePresenceEnabled, ignoredGamesText)}
-                className="px-2.5 py-1 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-              >
-                {t('desktop.gamePresence.save')}
-              </button>
-            </div>
-          </div>
-
-          <div className="border-t border-white/[0.04]" />
-
-          <div className="flex items-center justify-between py-1">
-            <div className="flex-1 mr-4">
-              <div className="text-sm font-semibold text-txt-primary">{t('desktop.remoteControl.title')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.remoteControl.description')}</div>
-            </div>
-            <button
-              onClick={() => void desktopBridge.revokeRemoteControl()}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-accent-rose/80 hover:bg-accent-rose rounded-lg transition-colors"
-            >
-              {t('desktop.remoteControl.revoke')}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  }, []);
 
   return (
     <div className="space-y-5">
@@ -591,6 +371,8 @@ export function DesktopPanel() {
           </button>
         </div>
       </div>
+
+      <OverlaySettingsSection />
     </div>
   );
 }

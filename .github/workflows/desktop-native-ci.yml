@@ -1,123 +1,75 @@
-name: Desktop CI & Edge Release (Tauri v2 Híbrido — Win & Linux)
+name: Balacopapo Desktop CI & Edge Release (Electron — Win & Linux)
 
 on:
   push:
     branches: [main]
     paths:
-      - 'clients/desktop/**'
-      - 'packages/shared/src/permissions.ts'
-      - 'scripts/check-desktop-parity.mjs'
+      - 'packages/desktop/**'
+      - 'packages/shared/**'
       - '.github/workflows/desktop-native-ci.yml'
   pull_request:
     paths:
-      - 'clients/desktop/**'
-      - 'packages/shared/src/permissions.ts'
-      - 'scripts/check-desktop-parity.mjs'
+      - 'packages/desktop/**'
       - '.github/workflows/desktop-native-ci.yml'
   workflow_dispatch:
 
 concurrency:
-  group: desktop-native-ci-${{ github.ref }}
+  group: desktop-ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  parity:
-    name: Parity Check (shared -> desktop)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '22'
-      - name: Check PermissionBits parity
-        run: node scripts/check-desktop-parity.mjs
-
   build-and-test:
-    name: Rust Native (${{ matrix.target }})
+    name: Electron Desktop (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, target: windows-x64 }
-          - { os: ubuntu-22.04, target: linux-x64 }
+          - { os: windows-latest, target: windows-x64, flag: --win --x64 }
+          - { os: ubuntu-22.04, target: linux-x64, flag: --linux --x64 }
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: clients/desktop
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Linux Tauri v2, graphics/audio dependencies & Clang 21
-        if: runner.os == 'Linux'
+      - name: Enable Corepack & pnpm
         run: |
-          sudo apt-get update
-          sudo apt-get install -y lsb-release wget software-properties-common gnupg libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libxkbcommon-dev libwayland-dev libx11-dev libxext-dev libxrandr-dev libxcomposite-dev libxdamage-dev libxtst-dev libdrm-dev libgbm-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev libglib2.0-dev pkg-config
-          wget -q https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
-          chmod +x /tmp/llvm.sh
-          sudo /tmp/llvm.sh 21
-          echo "CC=clang-21" >> "$GITHUB_ENV"
-          echo "CXX=clang++-21" >> "$GITHUB_ENV"
+          corepack enable
+          corepack prepare pnpm@10.34.3 --activate
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          components: clippy
+          node-version: '22'
+          cache: 'pnpm'
 
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: clients/desktop
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter @backspace/desktop...
 
-      - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+      - name: Run desktop unit tests
+        run: pnpm --filter @backspace/desktop test
 
-      - name: Unit Tests
-        run: cargo test
+      - name: TypeScript build
+        run: pnpm --filter @backspace/desktop build:ts
 
-      - name: Release Build
-        shell: bash
-        run: BALACOPAPO_BUILD_SHA="${GITHUB_SHA::7}" cargo build --release
-
-      - name: Package Windows Installer & Portable Binary
-        if: matrix.target == 'windows-x64'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target\release\balacopapo-desktop.exe "dist\Balacopapo-Desktop-windows-x64.exe"
-          Compress-Archive -Path "dist\Balacopapo-Desktop-windows-x64.exe" -DestinationPath "dist\Balacopapo-Desktop-windows-x64.zip" -Force
-          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          if (Test-Path $iscc) {
-            & $iscc "packaging\windows\balacopapo.iss"
-          } else {
-            choco install innosetup -y
-            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows\balacopapo.iss"
-          }
-
-      - name: Package Linux Installer & Binary
-        if: matrix.target == 'linux-x64'
-        run: |
-          mkdir -p dist/linux-pkg
-          cp target/release/balacopapo-desktop "dist/Balacopapo-Desktop-linux-x64"
-          chmod +x "dist/Balacopapo-Desktop-linux-x64"
-          cp target/release/balacopapo-desktop "dist/linux-pkg/balacopapo-desktop"
-          cp packaging/linux/balacopapo.desktop "dist/linux-pkg/balacopapo.desktop"
-          cp packaging/linux/install.sh "dist/linux-pkg/install.sh"
-          cp icons/snafuonda.ico "dist/linux-pkg/snafuonda.ico"
-          chmod +x "dist/linux-pkg/balacopapo-desktop" "dist/linux-pkg/install.sh"
-          tar -czf "dist/Balacopapo-Desktop-linux-x64.tar.gz" -C dist/linux-pkg .
-          rm -rf dist/linux-pkg
+      - name: Package installer (${{ matrix.target }})
+        working-directory: packages/desktop
+        run: pnpm exec electron-builder ${{ matrix.flag }} --publish never
 
       - name: Upload Desktop Artifact
         uses: actions/upload-artifact@v7
         with:
           name: balacopapo-desktop-${{ matrix.target }}
           path: |
-            clients/desktop/dist/Balacopapo-*
+            packages/desktop/dist-electron/*.exe
+            packages/desktop/dist-electron/*.AppImage
+            packages/desktop/dist-electron/*.deb
+            packages/desktop/dist-electron/*.blockmap
+            packages/desktop/dist-electron/latest*.yml
 
   publish-edge:
     name: Publicar Balacopapo Desktop (Edge)
-    needs: [parity, build-and-test]
+    needs: [build-and-test]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -135,7 +87,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="desktop-edge"
           TITLE="Balacopapo Desktop (Edge — ${SHORT_SHA})"
-          NOTES="Cliente desktop Tauri v2 Híbrido (WebView do SO + Motor Nativo Rust, Zero Electron) para Windows e Linux (Fedora, CachyOS/Arch) — commit ${SHORT_SHA}. Windows: baixe e instale com Balacopapo-Setup-windows-x64.exe (Menu Iniciar, Area de Trabalho, balacopapo:// e auto-update silencioso) ou use a versao portable .exe/.zip. Linux: extraia Balacopapo-Desktop-linux-x64.tar.gz e rode ./install.sh."
+          NOTES="Balacopapo Desktop (Electron + OverlayManager + uIOhook + PipeWire) para Windows e Linux — commit ${SHORT_SHA}. Windows: instale com Balacopapo-*-win-x64.exe (NSIS, zero barra flutuante, zero dependencia de WebView2). Linux: use .AppImage ou .deb."
 
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"

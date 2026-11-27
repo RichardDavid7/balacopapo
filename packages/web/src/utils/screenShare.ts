@@ -10,7 +10,6 @@ import { useUIStore } from '../stores/uiStore';
 import { openScreenShareSetup } from '../stores/screenShareSetupStore';
 import i18n from '../i18n';
 import { isElectron, getElectronAPI } from '../platform/platform';
-import { desktopBridge, isBalacopapoDesktop } from './desktopBridge';
 import { acquireAppExcludedSystemAudio } from './systemAudioSource';
 import type { InstanceStreamingLimits } from '@backspace/shared';
 import {
@@ -1169,10 +1168,6 @@ export async function stopScreenShare(room: Room): Promise<void> {
   // Viewers handle the message on either side of the removal.
   announceShare(room, 'stream_stop');
   _stopping = true;
-  if (isBalacopapoDesktop()) {
-    void desktopBridge.stopNativeScreenShare();
-    void desktopBridge.stopIsolatedAudio();
-  }
   try {
     for (const source of [Track.Source.ScreenShare, Track.Source.ScreenShareAudio]) {
       // Per publication, not per loop: a throw on the video track used to abort

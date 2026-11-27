@@ -20,7 +20,6 @@ import {
   SettingsPanelSuspense,
 } from './lazySettingsPanels';
 import { isElectron } from '../../platform/platform';
-import { isBalacopapoDesktop } from '../../utils/desktopBridge';
 import { useInstanceUpdateBadge } from '../../hooks/useInstanceUpdateBadge';
 import { SettingsSectionsProvider, useSettingsSectionsContext } from './SettingsSectionsContext';
 import { HiButton } from '../telemetry/answers/HiButton';
@@ -203,7 +202,7 @@ export function UserSettingsModal() {
     privacy: () => <PrivacyPanel />,
     connections: () => <ConnectionsPanel />,
     keybinds: () => <KeybindsPanel />,
-    desktop: () => ((isElectron() || isBalacopapoDesktop())
+    desktop: () => (isElectron()
       ? <DesktopPanel />
       : <DesktopDownloadPanel version={instanceInfo?.version ?? null} />),
     instance: () => (isAdmin ? <InstancePanel /> : null),
