@@ -288,13 +288,19 @@ impl ApiClient {
         dm_id: &str,
         content: &str,
         reply_to_id: Option<&str>,
+        attachments: &[String],
     ) -> Result<ChatMessage, String> {
         let token = self.require_token()?;
         let url = format!("{}/api/dm/{dm_id}/messages", self.base_url);
-        let body = match reply_to_id {
-            Some(rid) => json!({ "content": content, "replyToId": rid }),
-            None => json!({ "content": content }),
-        };
+        let mut map = serde_json::Map::new();
+        map.insert("content".to_string(), json!(content));
+        if let Some(rid) = reply_to_id {
+            map.insert("replyToId".to_string(), json!(rid));
+        }
+        if !attachments.is_empty() {
+            map.insert("attachments".to_string(), json!(attachments));
+        }
+        let body = serde_json::Value::Object(map);
         let resp = self
             .http
             .post(&url)
@@ -361,13 +367,19 @@ impl ApiClient {
         channel_id: &str,
         content: &str,
         reply_to_id: Option<&str>,
+        attachments: &[String],
     ) -> Result<ChatMessage, String> {
         let token = self.require_token()?;
         let url = format!("{}/api/channels/{channel_id}/messages", self.base_url);
-        let body = match reply_to_id {
-            Some(rid) => json!({ "content": content, "replyToId": rid }),
-            None => json!({ "content": content }),
-        };
+        let mut map = serde_json::Map::new();
+        map.insert("content".to_string(), json!(content));
+        if let Some(rid) = reply_to_id {
+            map.insert("replyToId".to_string(), json!(rid));
+        }
+        if !attachments.is_empty() {
+            map.insert("attachments".to_string(), json!(attachments));
+        }
+        let body = serde_json::Value::Object(map);
         let resp = self
             .http
             .post(&url)
@@ -891,10 +903,108 @@ impl ApiClient {
             .map_err(|e| format!("Erro ao ler bytes da imagem: {e}"))
     }
 
+    /// Faz upload resumível via protocolo TUS (`POST /api/files` + `PATCH <Location>`) e retorna o `attachmentId`.
+    pub async fn upload_file_tus(
+        &self,
+        filename: &str,
+        mimetype: &str,
+        bytes: Vec<u8>,
+    ) -> Result<String, String> {
+        let token = self.require_token()?;
+        let meta = format!(
+            "filename {},filetype {}",
+            base64_encode(filename.as_bytes()),
+            base64_encode(mimetype.as_bytes()),
+        );
+        let create_url = format!("{}/api/files", self.base_url);
+        let create_resp = self
+            .http
+            .post(&create_url)
+            .bearer_auth(token)
+            .header("Tus-Resumable", "1.0.0")
+            .header("Upload-Length", bytes.len().to_string())
+            .header("Upload-Metadata", meta)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao iniciar upload: {e}"))?;
+
+        if !create_resp.status().is_success() {
+            return Err(format!(
+                "Falha ao iniciar upload (HTTP {})",
+                create_resp.status().as_u16()
+            ));
+        }
+
+        let loc = create_resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| "Servidor não retornou cabeçalho Location no upload.".to_string())?
+            .to_string();
+
+        let patch_url = if loc.starts_with("http://") || loc.starts_with("https://") {
+            loc
+        } else {
+            format!("{}/{}", self.base_url, loc.trim_start_matches('/'))
+        };
+
+        let patch_resp = self
+            .http
+            .patch(&patch_url)
+            .bearer_auth(token)
+            .header("Tus-Resumable", "1.0.0")
+            .header("Upload-Offset", "0")
+            .header("Content-Type", "application/offset+octet-stream")
+            .body(bytes)
+            .send()
+            .await
+            .map_err(|e| format!("Erro ao enviar arquivo: {e}"))?;
+
+        if !patch_resp.status().is_success() {
+            return Err(format!(
+                "Falha ao concluir upload (HTTP {})",
+                patch_resp.status().as_u16()
+            ));
+        }
+
+        let val: serde_json::Value = patch_resp
+            .json()
+            .await
+            .map_err(|e| format!("Erro ao ler resposta do upload: {e}"))?;
+        val.get("id")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| "Upload concluído sem ID de anexo.".to_string())
+    }
+
     fn require_token(&self) -> Result<&str, String> {
         self.token
             .as_deref()
             .filter(|t| !t.is_empty())
             .ok_or_else(|| "Sessão não autenticada.".to_string())
     }
+}
+
+fn base64_encode(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((n >> 6) & 63) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(n & 63) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
 }

@@ -24,6 +24,8 @@ pub struct AppConfig {
     pub clock_format: String,
     #[serde(default = "default_true")]
     pub low_interrupt_mode: bool,
+    #[serde(default = "default_true")]
+    pub desktop_notifications: bool,
 }
 
 fn default_language() -> String {
@@ -51,6 +53,7 @@ impl Default for AppConfig {
             theme: default_theme(),
             clock_format: default_clock_format(),
             low_interrupt_mode: true,
+            desktop_notifications: true,
         }
     }
 }

@@ -41,6 +41,8 @@ pub struct SettingsState {
     pub retention_enabled: bool,
     // Desktop & Aparência
     pub low_interrupt_mode: bool,
+    pub desktop_notifications: bool,
+    pub autostart_enabled: bool,
     pub theme: AppThemeId,
     pub language: AppLanguage,
     pub clock_format: ClockFormat,
@@ -70,6 +72,8 @@ impl Default for SettingsState {
             api_keys_error: None,
             retention_enabled: false,
             low_interrupt_mode: true,
+            desktop_notifications: true,
+            autostart_enabled: false,
             theme: AppThemeId::AetherDrift,
             language: AppLanguage::Pt,
             clock_format: ClockFormat::Auto,
@@ -108,6 +112,8 @@ pub enum SettingsAction {
     RefreshApiKeys,
     ToggleRetention,
     ToggleLowInterrupt,
+    ToggleDesktopNotifications,
+    ToggleAutostart,
     SelectTheme(AppThemeId),
     SelectLanguage(AppLanguage),
     SelectClockFormat(ClockFormat),
@@ -197,32 +203,88 @@ pub fn view<'a>(
             }
 
             let desktop_card = container(
-                row![
-                    column![
-                        text("Modo Zero-Stutter (Low CPU Interrupt Budget)").size(14),
-                        text("Event-driven puro sem WebView: 0% GPU em segundo plano durante jogos.")
-                            .size(12)
-                            .color(aether_drift::TEXT_MUTED),
-                    ]
-                    .spacing(2),
-                    horizontal_space(),
-                    button(
-                        text(if state.low_interrupt_mode {
-                            "Ativo"
+                column![
+                    text("Aplicativo Desktop & Sistema").size(15),
+                    row![
+                        column![
+                            text("Notificações Nativas do Sistema").size(13),
+                            text("Mostra alertas nativos do Windows/Linux ao receber novas mensagens.")
+                                .size(11)
+                                .color(aether_drift::TEXT_MUTED),
+                        ]
+                        .spacing(2),
+                        horizontal_space(),
+                        button(
+                            text(if state.desktop_notifications {
+                                "Ativadas"
+                            } else {
+                                "Desativadas"
+                            })
+                            .size(12),
+                        )
+                        .on_press(SettingsAction::ToggleDesktopNotifications)
+                        .padding([6, 12])
+                        .style(if state.desktop_notifications {
+                            aether_drift::primary_button_style
                         } else {
-                            "Desativado"
-                        })
-                        .size(12),
-                    )
-                    .on_press(SettingsAction::ToggleLowInterrupt)
-                    .padding([6, 12])
-                    .style(if state.low_interrupt_mode {
-                        aether_drift::primary_button_style
-                    } else {
-                        aether_drift::ghost_button_style
-                    }),
+                            aether_drift::ghost_button_style
+                        }),
+                    ]
+                    .align_y(Alignment::Center),
+                    row![
+                        column![
+                            text("Iniciar com o Sistema").size(13),
+                            text("Abre o Balacopapo automaticamente ao ligar o computador.")
+                                .size(11)
+                                .color(aether_drift::TEXT_MUTED),
+                        ]
+                        .spacing(2),
+                        horizontal_space(),
+                        button(
+                            text(if state.autostart_enabled {
+                                "Ativo"
+                            } else {
+                                "Desativado"
+                            })
+                            .size(12),
+                        )
+                        .on_press(SettingsAction::ToggleAutostart)
+                        .padding([6, 12])
+                        .style(if state.autostart_enabled {
+                            aether_drift::primary_button_style
+                        } else {
+                            aether_drift::ghost_button_style
+                        }),
+                    ]
+                    .align_y(Alignment::Center),
+                    row![
+                        column![
+                            text("Modo Zero-Stutter (Low CPU Interrupt Budget)").size(13),
+                            text("Event-driven puro sem WebView: 0% GPU em segundo plano durante jogos.")
+                                .size(11)
+                                .color(aether_drift::TEXT_MUTED),
+                        ]
+                        .spacing(2),
+                        horizontal_space(),
+                        button(
+                            text(if state.low_interrupt_mode {
+                                "Ativo"
+                            } else {
+                                "Desativado"
+                            })
+                            .size(12),
+                        )
+                        .on_press(SettingsAction::ToggleLowInterrupt)
+                        .padding([6, 12])
+                        .style(if state.low_interrupt_mode {
+                            aether_drift::primary_button_style
+                        } else {
+                            aether_drift::ghost_button_style
+                        }),
+                    ]
+                    .align_y(Alignment::Center),
                 ]
-                .align_y(Alignment::Center),
+                .spacing(10),
             )
             .width(Length::Fill)
             .padding(16)

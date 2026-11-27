@@ -17,6 +17,8 @@ pub struct ChatState {
     pub editing_message_id: Option<String>,
     pub edit_draft: String,
     pub typing_users: HashMap<String, String>,
+    pub pending_attachments: Vec<(String, String)>,
+    pub uploading: bool,
     pub loading_history: bool,
     pub sending: bool,
     pub error: Option<String>,
@@ -36,6 +38,8 @@ pub enum ChatMessageAction {
     CommitEdit,
     CancelEdit,
     OpenUrl(String),
+    PickAttachment,
+    RemovePendingAttachment(usize),
     DeleteMessage(String),
 }
 
@@ -519,8 +523,38 @@ pub fn view<'a>(
         );
     }
 
+    if !state.pending_attachments.is_empty() {
+        let mut att_row = row![].spacing(6).align_y(Alignment::Center);
+        for (idx, (_, name)) in state.pending_attachments.iter().enumerate() {
+            att_row = att_row.push(
+                container(
+                    row![
+                        text(name).size(11),
+                        button(text("x").size(10))
+                            .on_press(ChatMessageAction::RemovePendingAttachment(idx))
+                            .padding([1, 5])
+                            .style(aether_drift::icon_button_style(false)),
+                    ]
+                    .spacing(4)
+                    .align_y(Alignment::Center),
+                )
+                .padding([3, 8])
+                .style(aether_drift::pill_style),
+            );
+        }
+        composer_col = composer_col.push(att_row);
+    }
+
+    let can_send = !state.sending
+        && !state.uploading
+        && (!state.draft.trim().is_empty() || !state.pending_attachments.is_empty());
+
     composer_col = composer_col.push(
         row![
+            button(text(if state.uploading { "..." } else { "+" }).size(16))
+                .on_press_maybe((!state.uploading).then_some(ChatMessageAction::PickAttachment))
+                .padding([8, 13])
+                .style(aether_drift::ghost_button_style),
             text_input(
                 &format!("Conversar em {channel_label}..."),
                 &state.draft,
@@ -530,14 +564,11 @@ pub fn view<'a>(
             .padding(11)
             .style(aether_drift::input_style),
             button(text(if state.sending { "..." } else { "Enviar" }).size(13))
-                .on_press_maybe(
-                    (!state.sending && !state.draft.trim().is_empty())
-                        .then_some(ChatMessageAction::Send)
-                )
+                .on_press_maybe(can_send.then_some(ChatMessageAction::Send))
                 .padding([11, 18])
                 .style(aether_drift::primary_button_style),
         ]
-        .spacing(10)
+        .spacing(8)
         .align_y(Alignment::Center),
     );
 

@@ -24,6 +24,8 @@ use crate::media::audio_engine::{self, ActiveLoopback, AudioParams};
 use crate::media::wav_dsp::{quadratic_gain, WavClip};
 use crate::net::client::ApiClient;
 use crate::net::ws;
+use crate::os::autostart;
+use crate::os::notifications;
 use crate::os::updater::{self, UpdateCheckState};
 use crate::ui::aether_drift::{self, AppThemeId};
 
@@ -58,6 +60,7 @@ pub enum Message {
     },
     ChatSent(Result<ChatMessage, String>),
     ChatEdited(Result<ChatMessage, String>),
+    AttachmentUploaded(Result<Option<(String, String)>, String>),
     ChatDeleted {
         channel_id: String,
         message_id: String,
@@ -218,6 +221,8 @@ impl BalacopapoApp {
                     shell_state.settings.theme = AppThemeId::from_code(&self.config.theme);
                     shell_state.settings.language = AppLanguage::from_code(&self.config.language);
                     shell_state.settings.low_interrupt_mode = self.config.low_interrupt_mode;
+                    shell_state.settings.desktop_notifications = self.config.desktop_notifications;
+                    shell_state.settings.autostart_enabled = autostart::is_enabled();
                     shell_state.dm.loading = true;
                     self.screen = Screen::Shell(Box::new(shell_state));
                     Task::batch([
@@ -240,6 +245,8 @@ impl BalacopapoApp {
                     shell_state.settings.theme = AppThemeId::from_code(&self.config.theme);
                     shell_state.settings.language = AppLanguage::from_code(&self.config.language);
                     shell_state.settings.low_interrupt_mode = self.config.low_interrupt_mode;
+                    shell_state.settings.desktop_notifications = self.config.desktop_notifications;
+                    shell_state.settings.autostart_enabled = autostart::is_enabled();
                     shell_state.dm.loading = true;
                     self.screen = Screen::Shell(Box::new(shell_state));
                     Task::batch([
@@ -397,8 +404,25 @@ impl BalacopapoApp {
                             shell.chat.error = None;
                             shell.chat.draft.clear();
                             shell.chat.replying_to = None;
+                            shell.chat.pending_attachments.clear();
                             shell.chat.upsert_message(msg);
                         }
+                        Err(err) => {
+                            shell.chat.error = Some(err);
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::AttachmentUploaded(result) => {
+                if let Screen::Shell(shell) = &mut self.screen {
+                    shell.chat.uploading = false;
+                    match result {
+                        Ok(Some((att_id, name))) => {
+                            shell.chat.error = None;
+                            shell.chat.pending_attachments.push((att_id, name));
+                        }
+                        Ok(None) => {}
                         Err(err) => {
                             shell.chat.error = Some(err);
                         }
@@ -850,9 +874,26 @@ impl BalacopapoApp {
             }
             WsEvent::MessageCreated(msg) => {
                 let is_active =
-                    shell.selected_channel_id.as_deref() == Some(msg.channel_id.as_str());
+                    shell.selected_channel_id.as_deref() == Some(msg.channel_id.as_str())
+                        || shell.dm.selected_dm_id.as_deref() == Some(msg.channel_id.as_str());
+                let from_other = msg.user_id.as_deref() != Some(shell.user.id.as_str());
                 if !is_active {
                     *shell.unread_counts.entry(msg.channel_id.clone()).or_insert(0) += 1;
+                }
+                if from_other && shell.settings.desktop_notifications {
+                    let mentioned = msg
+                        .body_text()
+                        .contains(&format!("@{}", shell.user.username))
+                        || msg.body_text().contains("@everyone");
+                    if !is_active || mentioned {
+                        let title = format!("Balacopapo — {}", msg.author_label());
+                        let body = if msg.body_text().is_empty() {
+                            "Enviou um anexo".to_string()
+                        } else {
+                            msg.body_text().chars().take(160).collect()
+                        };
+                        notifications::send_desktop_notification(title, body);
+                    }
                 }
                 shell.chat.typing_users.remove(&msg.channel_id);
                 shell.chat.upsert_message(msg);
@@ -1285,6 +1326,38 @@ impl BalacopapoApp {
                 let _ = open::that(url);
                 Task::none()
             }
+            ChatMessageAction::PickAttachment => {
+                if shell.chat.uploading {
+                    return Task::none();
+                }
+                shell.chat.uploading = true;
+                let url = shell.instance_url.clone();
+                let token = self.config.auth_token.clone().unwrap_or_default();
+                Task::perform(
+                    async move {
+                        let Some(file) = rfd::AsyncFileDialog::new()
+                            .set_title("Selecionar arquivo ou imagem para enviar")
+                            .pick_file()
+                            .await
+                        else {
+                            return Ok(None);
+                        };
+                        let name = file.file_name();
+                        let bytes = file.read().await;
+                        let mime = guess_mime_from_filename(&name);
+                        let client = ApiClient::new(url, Some(token))?;
+                        let att_id = client.upload_file_tus(&name, mime, bytes).await?;
+                        Ok(Some((att_id, name)))
+                    },
+                    Message::AttachmentUploaded,
+                )
+            }
+            ChatMessageAction::RemovePendingAttachment(idx) => {
+                if idx < shell.chat.pending_attachments.len() {
+                    shell.chat.pending_attachments.remove(idx);
+                }
+                Task::none()
+            }
             ChatMessageAction::Send => {
                 let is_dm = shell.active_panel == ActivePanel::Dms;
                 let target_id = if is_dm {
@@ -1296,7 +1369,13 @@ impl BalacopapoApp {
                     return Task::none();
                 };
                 let content = shell.chat.draft.trim().to_string();
-                if content.is_empty() || shell.chat.sending {
+                let attachment_ids: Vec<String> = shell
+                    .chat
+                    .pending_attachments
+                    .iter()
+                    .map(|(id, _)| id.clone())
+                    .collect();
+                if (content.is_empty() && attachment_ids.is_empty()) || shell.chat.sending {
                     return Task::none();
                 }
                 let reply_to = shell.chat.replying_to.as_ref().map(|(id, _)| id.clone());
@@ -1308,11 +1387,21 @@ impl BalacopapoApp {
                         let client = ApiClient::new(url, Some(token))?;
                         if is_dm {
                             client
-                                .send_dm_message(&channel_id, &content, reply_to.as_deref())
+                                .send_dm_message(
+                                    &channel_id,
+                                    &content,
+                                    reply_to.as_deref(),
+                                    &attachment_ids,
+                                )
                                 .await
                         } else {
                             client
-                                .send_message(&channel_id, &content, reply_to.as_deref())
+                                .send_message(
+                                    &channel_id,
+                                    &content,
+                                    reply_to.as_deref(),
+                                    &attachment_ids,
+                                )
                                 .await
                         }
                     },
@@ -2171,6 +2260,25 @@ impl BalacopapoApp {
                 let _ = self.config.save();
                 Task::none()
             }
+            SettingsAction::ToggleDesktopNotifications => {
+                shell.settings.desktop_notifications = !shell.settings.desktop_notifications;
+                self.config.desktop_notifications = shell.settings.desktop_notifications;
+                let _ = self.config.save();
+                Task::none()
+            }
+            SettingsAction::ToggleAutostart => {
+                let target = !shell.settings.autostart_enabled;
+                match autostart::set_enabled(target) {
+                    Ok(()) => {
+                        shell.settings.autostart_enabled = target;
+                        shell.settings.profile_error = None;
+                    }
+                    Err(err) => {
+                        shell.settings.profile_error = Some(err);
+                    }
+                }
+                Task::none()
+            }
             SettingsAction::SelectTheme(theme_id) => {
                 shell.settings.theme = theme_id;
                 self.config.theme = theme_id.code().to_string();
@@ -2461,4 +2569,31 @@ fn decode_circular_avatar(bytes: &[u8], size: u32) -> Option<iced::widget::image
     }
 
     Some(iced::widget::image::Handle::from_rgba(size, size, pixels))
+}
+
+fn guess_mime_from_filename(name: &str) -> &'static str {
+    let lower = name.to_ascii_lowercase();
+    if lower.ends_with(".png") {
+        "image/png"
+    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if lower.ends_with(".webp") {
+        "image/webp"
+    } else if lower.ends_with(".gif") {
+        "image/gif"
+    } else if lower.ends_with(".mp4") {
+        "video/mp4"
+    } else if lower.ends_with(".webm") {
+        "video/webm"
+    } else if lower.ends_with(".mp3") {
+        "audio/mpeg"
+    } else if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".ogg") {
+        "audio/ogg"
+    } else if lower.ends_with(".pdf") {
+        "application/pdf"
+    } else {
+        "application/octet-stream"
+    }
 }
