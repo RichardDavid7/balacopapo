@@ -50,11 +50,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Linux graphics/audio dependencies (Zero WebView)
+      - name: Install Linux graphics/audio dependencies & Clang 21 (Zero WebView)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxext-dev libxrandr-dev libxcomposite-dev libxdamage-dev libxtst-dev libdrm-dev libgbm-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev libglib2.0-dev pkg-config
+          sudo apt-get install -y lsb-release wget software-properties-common gnupg libxkbcommon-dev libwayland-dev libx11-dev libxext-dev libxrandr-dev libxcomposite-dev libxdamage-dev libxtst-dev libdrm-dev libgbm-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev libglib2.0-dev pkg-config
+          wget -q https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 21
+          echo "CC=clang-21" >> "$GITHUB_ENV"
+          echo "CXX=clang++-21" >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
