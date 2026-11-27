@@ -18,6 +18,19 @@ import {
 } from '../../utils/screenShare';
 import { StreamQualityControls, StreamSummary, StreamHostSubtitle } from './StreamQualityControls';
 import { pickAutoStageSource, type ScreenSourceTab } from '../../utils/screenShareSources';
+import {
+  desktopBridge,
+  isBalacopapoDesktop,
+  type AudioTarget,
+  type CaptureProfile,
+} from '../../utils/desktopBridge';
+
+const MONITOR_THUMB_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#131620"/><rect x="44" y="24" width="232" height="114" rx="10" fill="#1c2130" stroke="#5865f2" stroke-width="4"/><rect x="128" y="146" width="64" height="8" rx="4" fill="#3a4258"/></svg>',
+)}`;
+const WINDOW_THUMB_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#131620"/><rect x="38" y="26" width="244" height="128" rx="10" fill="#1b202e" stroke="#3ba55d" stroke-width="3"/><rect x="38" y="26" width="244" height="26" rx="10" fill="#252c40"/><circle cx="56" cy="39" r="4" fill="#f04747"/><circle cx="70" cy="39" r="4" fill="#fbbf24"/><circle cx="84" cy="39" r="4" fill="#3ba55d"/></svg>',
+)}`;
 
 /**
  * ScreenShareSetup — the one screen every screen share starts from.
@@ -82,11 +95,18 @@ export function ScreenShareSetup() {
 
   const api = getElectronAPI();
   const electron = isElectron();
+  const nativeDesktop = isBalacopapoDesktop();
+
+  // Balacopapo Desktop (Tauri v2) native audio targets & capture profile
+  const [nativeAudioTargets, setNativeAudioTargets] = useState<AudioTarget[]>([]);
+  const [selectedAudioTargetKey, setSelectedAudioTargetKey] = useState<string>('excludeSelf');
+  const [nativeProfile, setNativeProfile] = useState<CaptureProfile>('highClarity120');
+  const [nativeStatusMsg, setNativeStatusMsg] = useState<string | null>(null);
 
   // Who picks: null until the desktop answered (or immediately 'app' where it can't be asked)
   const [pickerMode, setPickerMode] = useState<'app' | 'system' | null>(null);
-  const canListSources = electron && pickerMode === 'app' && typeof api?.getScreenSources === 'function';
-  const systemPicker = electron && pickerMode === 'system';
+  const canListSources = nativeDesktop || (electron && pickerMode === 'app' && typeof api?.getScreenSources === 'function');
+  const systemPicker = !nativeDesktop && electron && pickerMode === 'system';
 
   // Electron source grid
   const [sources, setSources] = useState<ElectronScreenSource[]>([]);
@@ -192,8 +212,22 @@ export function ScreenShareSetup() {
     }
   }, [api, replaceStaged, markPromptInFlight]);
 
-  /** Electron: a tile was clicked. Resolve an in-flight prompt, or preselect and stage. */
+  /** Desktop / Electron: a tile was clicked. */
   const stageSource = useCallback(async (sourceId: string) => {
+    if (nativeDesktop) {
+      setSelectedId(sourceId);
+      setNativeStatusMsg(null);
+      if (sourceId.startsWith('window:')) {
+        const pid = Number(sourceId.slice('window:'.length));
+        const match = nativeAudioTargets.find((t) => !t.isSystemDefault && t.pid === pid);
+        if (match) {
+          setSelectedAudioTargetKey(`pid:${match.pid}`);
+        }
+      } else {
+        setSelectedAudioTargetKey('excludeSelf');
+      }
+      return;
+    }
     if (!api) return;
     const shareAudio = useVoiceStore.getState().screenShareConfig.shareAudio;
     if (promptInFlightRef.current) {
@@ -232,7 +266,7 @@ export function ScreenShareSetup() {
     const matchedSource = sources.find((s) => s.id === sourceId);
     const targetAppName = matchedSource && sourceId.startsWith('window:') ? matchedSource.name : undefined;
     void stage(generation, targetAppName);
-  }, [api, stage, sources]);
+  }, [api, stage, sources, nativeDesktop, nativeAudioTargets]);
 
   // Ask the desktop who picks, once per open
   useEffect(() => {
@@ -246,12 +280,44 @@ export function ScreenShareSetup() {
     return () => { cancelled = true; };
   }, [isOpen, electron, api]);
 
+  // Native Balacopapo Desktop (Tauri v2): list monitors, windows & isolated audio targets up front
+  useEffect(() => {
+    if (!isOpen || !nativeDesktop) return;
+    let cancelled = false;
+    setLoadingSources(true);
+    setNativeStatusMsg(null);
+    Promise.all([desktopBridge.listCaptureSources(), desktopBridge.listAudioTargets()])
+      .then(([capSources, audioTargets]) => {
+        if (cancelled) return;
+        const mapped: ElectronScreenSource[] = (capSources ?? []).map((s) => ({
+          id: s.id,
+          name: s.kind === 'monitor' && s.width > 0 ? `${s.name} (${s.width}×${s.height})` : s.name,
+          thumbnailDataUrl: s.kind === 'monitor' ? MONITOR_THUMB_SVG : WINDOW_THUMB_SVG,
+          appIconDataUrl: null,
+          isScreen: s.kind === 'monitor',
+        }));
+        setSources(mapped);
+        setNativeAudioTargets(audioTargets ?? []);
+        if (mapped.length > 0 && !selectedId) {
+          setSelectedId(mapped[0]!.id);
+        }
+      })
+      .catch((err) => {
+        console.error('[ScreenShareSetup] native desktop source scan failed:', err);
+        if (!cancelled) setSources([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSources(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen, nativeDesktop, sourcesNonce]);
+
   // Electron: list sources up front when we can. `sourcesNonce` is what the
   // empty state's "Try again" bumps — an enumeration that came back empty
   // (macOS without the Screen Recording grant) is worth retrying by hand once
   // the user has granted it, and nothing else would re-run this.
   useEffect(() => {
-    if (!isOpen || !canListSources || !api?.getScreenSources) return;
+    if (!isOpen || nativeDesktop || !canListSources || !api?.getScreenSources) return;
     let cancelled = false;
     setLoadingSources(true);
     api.getScreenSources()
@@ -385,6 +451,46 @@ export function ScreenShareSetup() {
   useEffect(() => () => stopStagedCapture(stagedRef.current), []);
 
   const handleStart = useCallback(async () => {
+    if (nativeDesktop) {
+      if (!selectedId) return;
+      setStarting(true);
+      setError(null);
+      setNativeStatusMsg(null);
+      try {
+        if (selectedAudioTargetKey === 'muted') {
+          await desktopBridge.stopIsolatedAudio();
+        } else if (selectedAudioTargetKey === 'excludeSelf') {
+          await desktopBridge.startIsolatedAudio({ kind: 'excludeSelf' });
+        } else if (selectedAudioTargetKey.startsWith('pid:')) {
+          const pid = Number(selectedAudioTargetKey.slice(4));
+          const target = nativeAudioTargets.find((t) => !t.isSystemDefault && t.pid === pid);
+          await desktopBridge.startIsolatedAudio({
+            kind: 'includeProcessTree',
+            pid,
+            pipewireNodeId: target?.pipewireNodeId,
+            label: target?.windowTitle,
+          });
+        }
+
+        const capStatus = await desktopBridge.startNativeScreenShare({
+          sourceId: selectedId,
+          profile: nativeProfile,
+        });
+        if (capStatus?.error) {
+          setNativeStatusMsg(capStatus.error);
+          setStarting(false);
+          return;
+        }
+        useVoiceStore.getState().setLastScreenShareSourceId(selectedId);
+        setStarting(false);
+        close();
+      } catch (err) {
+        setNativeStatusMsg(err instanceof Error ? err.message : String(err));
+        setStarting(false);
+      }
+      return;
+    }
+
     const stream = stagedRef.current;
     const room = getActiveRoom();
     if (!stream || !room) { setError('startFailed'); return; }
@@ -411,7 +517,7 @@ export function ScreenShareSetup() {
     setStaged(null);
     setStarting(false);
     close();
-  }, [close, selectedId, pickerMode]);
+  }, [close, selectedId, pickerMode, nativeDesktop, selectedAudioTargetKey, nativeAudioTargets, nativeProfile]);
 
   const screens = useMemo(() => sources.filter((s) => s.isScreen), [sources]);
   const windows = useMemo(() => {
@@ -423,15 +529,15 @@ export function ScreenShareSetup() {
 
   if (!isOpen) return null;
 
-  const showGrid = electron && (canListSources || promptInFlight || sources.length > 0);
+  const showGrid = nativeDesktop || (electron && (canListSources || promptInFlight || sources.length > 0));
   const activeSources = activeTab === 'windows' ? windows : screens;
-  const supported = isScreenCaptureSupported();
+  const supported = nativeDesktop || isScreenCaptureSupported();
   // Turning System Audio off after picking is honoured at Start (the audio is
   // held back). Turning it on is too where the desktop app can add loopback
   // audio to the running share; elsewhere audio comes only with a new pick.
-  const audioNeedsRepick = !!staged && config.shareAudio && !stagedShareAudio
+  const audioNeedsRepick = !nativeDesktop && !!staged && config.shareAudio && !stagedShareAudio
     && !canAddScreenShareAudioLater(selectedId, pickerMode);
-  const canStart = !!staged && !staging && !starting;
+  const canStart = nativeDesktop ? (!!selectedId && !starting) : (!!staged && !staging && !starting);
   const chooseHint = !electron
     ? t('voice:screenPicker.chooseHint')
     : systemPicker
@@ -563,6 +669,48 @@ export function ScreenShareSetup() {
                     </div>
                   )}
                 </div>
+
+                {/* Balacopapo Desktop native isolated audio + 1080p120 profile bar */}
+                {nativeDesktop && (
+                  <div className="flex-shrink-0 mt-3 rounded-xl glass px-3.5 py-3 flex flex-col gap-2.5">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-txt-secondary flex-1 min-w-[220px]">
+                        <span className="whitespace-nowrap">Áudio Isolado:</span>
+                        <select
+                          value={selectedAudioTargetKey}
+                          onChange={(e) => setSelectedAudioTargetKey(e.target.value)}
+                          className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
+                        >
+                          <option value="excludeSelf">Sistema inteiro (sem eco do Balacopapo)</option>
+                          <option value="muted">Sem áudio</option>
+                          {nativeAudioTargets
+                            .filter((t) => !t.isSystemDefault && t.pid > 0)
+                            .map((t) => (
+                              <option key={`${t.pid}-${t.pipewireNodeId ?? 0}`} value={`pid:${t.pid}`}>
+                                {t.windowTitle} ({t.processName})
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                      <label className="flex items-center gap-2 text-xs font-semibold text-txt-secondary flex-1 min-w-[220px]">
+                        <span className="whitespace-nowrap">Perfil Nativo:</span>
+                        <select
+                          value={nativeProfile}
+                          onChange={(e) => setNativeProfile(e.target.value as CaptureProfile)}
+                          className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
+                        >
+                          <option value="highClarity120">1080p · 120 fps · 150 Mbps (4:2:0 sem downscale)</option>
+                          <option value="pixelPerfect444">1080p · 120 fps · 150 Mbps (4:4:4 Pixel-Perfect)</option>
+                          <option value="ultraCrisp60">1440p · 60 fps · 80 Mbps</option>
+                          <option value="balanced60">1080p · 60 fps · 25 Mbps</option>
+                        </select>
+                      </label>
+                    </div>
+                    {nativeStatusMsg && (
+                      <div className="text-xs text-txt-danger">{nativeStatusMsg}</div>
+                    )}
+                  </div>
+                )}
 
                 {/* Staged strip — live preview of the chosen tile */}
                 <div className={`flex-shrink-0 overflow-hidden transition-all duration-300 ${staged ? 'max-h-40 mt-3 opacity-100' : 'max-h-0 mt-0 opacity-0'}`}>
