@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import type http from 'node:http';
 import path from 'node:path';
 import type { MusicBotCommandType, MusicSourceKind, MusicTrack } from '@backspace/shared';
-import { BalacopapoApi, RateLimitError, type BotInfo } from './api.js';
+import { BalacopapoApi, RateLimitError, type BotInfo, type LivekitCredentials } from './api.js';
 import { AudioCache } from './cache.js';
-import { LiveKitVoice } from './livekit.js';
 import { ChannelPlayer } from './player.js';
 import { TrackResolver } from './resolver.js';
 import { appDataDir, cacheDir } from './paths.js';
@@ -98,7 +98,7 @@ export class Controller {
         (c) => cfg.channelIds.length === 0 || cfg.channelIds.includes(c.id),
       );
       this.players = new Map(
-        channels.map((c) => [c.id, new ChannelPlayer(c.id, cfg, api, resolver, new LiveKitVoice(), this.log)]),
+        channels.map((c) => [c.id, new ChannelPlayer(c.id, cfg, api, resolver, this.log)]),
       );
       this.log(`Conectado ao Espaço "${this.info.space.name}" — ${channels.length} canal(is) de voz`);
       this.state = 'running';
@@ -201,6 +201,38 @@ export class Controller {
     const player = this.players.get(channelId);
     if (!player) throw new Error('Canal não está ativo no bot');
     await player.leave();
+  }
+
+  getCredentials(channelId: string): Promise<LivekitCredentials> {
+    const player = this.players.get(channelId);
+    if (!player) throw new Error('Canal não está ativo no bot');
+    return player.getCredentials();
+  }
+
+  setVoiceState(channelId: string, connected: boolean, info?: string): Promise<void> {
+    const player = this.players.get(channelId);
+    if (!player) return Promise.resolve();
+    return player.onVoiceState(connected, info);
+  }
+
+  onTrackEnded(channelId: string, gen: number, failed?: boolean): Promise<void> {
+    const player = this.players.get(channelId);
+    if (!player) return Promise.resolve();
+    return player.onTrackEnded(gen, failed);
+  }
+
+  onPosition(channelId: string, gen: number, sec: number): void {
+    this.players.get(channelId)?.onPosition(gen, sec);
+  }
+
+  streamAudio(channelId: string, gen: number, res: http.ServerResponse): void {
+    const player = this.players.get(channelId);
+    if (!player) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    player.streamAudio(gen, res);
   }
 
   private async pollLoop(token: number, api: BalacopapoApi): Promise<void> {

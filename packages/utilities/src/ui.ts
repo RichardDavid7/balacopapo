@@ -288,6 +288,7 @@ pre.logs{background:var(--bg);border:1px solid var(--border);border-radius:8px;p
   </main>
 </div>
 
+<script src="/livekit-client.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -300,6 +301,198 @@ let selectedChannelIdsConfig = [];
 let availableChannels = [];
 let volDebounce = null;
 let draggingVol = false;
+
+// ─── WebVoiceEngine: publica áudio 48 kHz ESTÉREO real via livekit-client (forceStereo + TF_STEREO) ───
+const engines = new Map();
+
+class WebVoiceEngine {
+  constructor(channelId) {
+    this.channelId = channelId;
+    this.room = null;
+    this.connecting = false;
+    this.ctx = null;
+    this.gain = null;
+    this.dest = null;
+    this.audio = null;
+    this.playingGen = -1;
+    this.startSec = 0;
+    this.posTimer = null;
+  }
+
+  ensureAudioGraph() {
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    this.ctx = new AC({ sampleRate: 48000 });
+    this.gain = this.ctx.createGain();
+    this.gain.gain.value = 0.8;
+    this.dest = this.ctx.createMediaStreamDestination();
+    this.dest.channelCount = 2;
+    this.dest.channelCountMode = 'explicit';
+    this.audio = document.createElement('audio');
+    this.audio.preload = 'none';
+    const src = this.ctx.createMediaElementSource(this.audio);
+    src.connect(this.gain);
+    this.gain.connect(this.dest);
+
+    this.audio.onended = () => {
+      const gen = this.playingGen;
+      if (gen <= 0) return;
+      this.playingGen = -1;
+      void api('/api/channels/' + encodeURIComponent(this.channelId) + '/ended', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gen, failed: false }),
+      }).then(() => refresh()).catch(() => {});
+    };
+    this.audio.onerror = () => {
+      const gen = this.playingGen;
+      if (gen <= 0 || !this.audio.getAttribute('src')) return;
+      this.playingGen = -1;
+      void api('/api/channels/' + encodeURIComponent(this.channelId) + '/ended', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gen, failed: true }),
+      }).then(() => refresh()).catch(() => {});
+    };
+  }
+
+  async connect() {
+    if (this.room || this.connecting) return;
+    this.connecting = true;
+    try {
+      this.ensureAudioGraph();
+      if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => {});
+      const creds = await api('/api/channels/' + encodeURIComponent(this.channelId) + '/lk-token', { method: 'POST' });
+      const LK = window.LivekitClient;
+      if (!LK) throw new Error('livekit-client não carregado');
+
+      const room = new LK.Room({ adaptiveStream: false, dynacast: false });
+      await room.connect(creds.url, creds.token, { autoSubscribe: false });
+
+      const maxBitrateBps = Math.max(64000, Math.min(510000, Math.round(creds.maxBitrateBps || 510000)));
+      const stereo = creds.stereo !== false;
+      const track = this.dest.stream.getAudioTracks()[0];
+      await room.localParticipant.publishTrack(track, {
+        name: 'music',
+        source: LK.Track.Source.Microphone,
+        audioPreset: { maxBitrate: maxBitrateBps },
+        dtx: false,
+        red: false,
+        forceStereo: stereo,
+      });
+
+      this.room = room;
+      const kbps = Math.round(maxBitrateBps / 1000);
+      room.on(LK.RoomEvent.Disconnected, () => {
+        if (this.room === room) {
+          this.room = null;
+          this.stopAudio();
+          void api('/api/channels/' + encodeURIComponent(this.channelId) + '/voice-state', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ connected: false, info: 'desconectado da sala LiveKit' }),
+          }).catch(() => {});
+        }
+      });
+
+      await api('/api/channels/' + encodeURIComponent(this.channelId) + '/voice-state', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connected: true,
+          info: 'entrou na sala ' + creds.room + ' (' + kbps + ' kbps ' + (stereo ? 'ESTÉREO real' : 'mono') + ')',
+        }),
+      });
+    } catch (err) {
+      showBox('playerErr', 'LiveKit: ' + err.message);
+      void api('/api/channels/' + encodeURIComponent(this.channelId) + '/voice-state', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connected: false, info: 'falha LiveKit: ' + err.message }),
+      }).catch(() => {});
+    } finally {
+      this.connecting = false;
+    }
+  }
+
+  stopAudio() {
+    this.playingGen = -1;
+    if (this.posTimer) { clearInterval(this.posTimer); this.posTimer = null; }
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.removeAttribute('src');
+      this.audio.load();
+    }
+  }
+
+  async disconnect() {
+    this.stopAudio();
+    const room = this.room;
+    this.room = null;
+    if (room) await room.disconnect().catch(() => {});
+  }
+
+  sync(p) {
+    if (!p.wantConnected) {
+      if (this.room) void this.disconnect();
+      else this.stopAudio();
+      return;
+    }
+    if (!this.room && !this.connecting) {
+      void this.connect();
+      return;
+    }
+    if (!this.room || !this.audio || !this.gain || !this.ctx) return;
+
+    const targetGain = Math.max(0, Math.min(1, (p.volume ?? 80) / 100));
+    this.gain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.02);
+
+    if (!p.hasInput || p.status === 'idle') {
+      if (this.playingGen !== -1) this.stopAudio();
+      return;
+    }
+
+    if (this.playingGen !== p.generation) {
+      this.playingGen = p.generation;
+      this.startSec = p.startSec || 0;
+      if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
+      this.audio.src = '/api/channels/' + encodeURIComponent(this.channelId) + '/stream?gen=' + p.generation;
+      if (p.status === 'playing') void this.audio.play().catch(() => {});
+      if (this.posTimer) clearInterval(this.posTimer);
+      this.posTimer = setInterval(() => {
+        if (!this.audio || this.audio.paused || this.playingGen !== p.generation) return;
+        const sec = Math.floor(this.startSec + (this.audio.currentTime || 0));
+        void api('/api/channels/' + encodeURIComponent(this.channelId) + '/position', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gen: p.generation, positionSec: sec }),
+        }).catch(() => {});
+      }, 2000);
+      return;
+    }
+
+    if (p.status === 'paused' && !this.audio.paused) {
+      this.audio.pause();
+    } else if (p.status === 'playing' && this.audio.paused) {
+      if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
+      void this.audio.play().catch(() => {});
+    }
+  }
+}
+
+function syncVoiceEngines(channels) {
+  const activeIds = new Set();
+  for (const c of channels || []) {
+    if (!c.active || !c.player) continue;
+    activeIds.add(c.id);
+    let eng = engines.get(c.id);
+    if (!eng) {
+      eng = new WebVoiceEngine(c.id);
+      engines.set(c.id, eng);
+    }
+    eng.sync(c.player);
+  }
+  for (const [id, eng] of engines.entries()) {
+    if (!activeIds.has(id)) {
+      void eng.disconnect();
+      engines.delete(id);
+    }
+  }
+}
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -370,6 +563,7 @@ function renderStatus(s) {
   }
 
   const activeChs = (s.channels || []).filter(c => c.active);
+  syncVoiceEngines(s.channels);
   $('notConnectedBanner').style.display = activeChs.length ? 'none' : 'block';
   $('playerArea').style.display = activeChs.length ? 'block' : 'none';
 

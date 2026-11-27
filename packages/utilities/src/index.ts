@@ -1,11 +1,14 @@
-import { AudioSource } from '@livekit/rtc-node';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { Controller } from './controller.js';
 import { appDataDir, settingsFile } from './paths.js';
 import { startUiServer } from './server.js';
 import { loadSettings } from './settings.js';
 
 const PORT = Number(process.env.BALACOPAPO_UTIL_PORT) || 47821;
+const require = createRequire(import.meta.url);
 
 function openBrowser(url: string): void {
   const [cmd, args] =
@@ -17,8 +20,8 @@ function openBrowser(url: string): void {
 
 async function main(): Promise<void> {
   if (process.argv.includes('--check')) {
-    const src = new AudioSource(48_000, 2, 100);
-    await src.close();
+    const lkBundle = path.join(path.dirname(require.resolve('livekit-client')), 'livekit-client.umd.js');
+    if (!fs.existsSync(lkBundle)) throw new Error('livekit-client.umd.js não encontrado');
     console.log('Balacopapo Utilidades: self-check OK');
     process.exit(0);
   }

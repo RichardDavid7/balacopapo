@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@livekit/rtc-node": "^0.13.0"
+    "livekit-client": "^2.22.3"
   },
   "devDependencies": {
     "@backspace/shared": "workspace:*",

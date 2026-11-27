@@ -1,48 +1,47 @@
+import type http from 'node:http';
 import type { MusicBotCommand, MusicLoopMode, MusicPlaybackStatus, MusicTrack } from '@backspace/shared';
-import type { BalacopapoApi } from './api.js';
-import { applyGain, decode } from './audio.js';
+import type { BalacopapoApi, LivekitCredentials } from './api.js';
+import { streamWav } from './audio.js';
 import type { UtilitiesConfig } from './config.js';
-import type { AudioSink, VoiceConnectOptions } from './livekit.js';
 import { TrackQueue } from './queue.js';
 import type { TrackResolver } from './resolver.js';
 
-export interface VoiceConnection extends AudioSink {
-  readonly connected: boolean;
-  connect(url: string, token: string, options?: VoiceConnectOptions): Promise<void>;
-  disconnect(): Promise<void>;
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-/** Um player por canal de voz: aplica comandos, toca a faixa atual e reporta o estado ao servidor. */
+/**
+ * Um player por canal de voz: gerencia fila, resolve áudio (yt-dlp/local/URL),
+ * entrega o stream WAV estéreo para a WebView (que publica via livekit-client com forceStereo)
+ * e reporta o estado ao servidor Balacopapo.
+ */
 export class ChannelPlayer {
   readonly queue = new TrackQueue();
   private status: MusicPlaybackStatus = 'idle';
   private volume = 80;
   private positionSec = 0;
-  private paused = false;
-  /** Incrementa a cada (re)início/cancelamento; loops antigos se encerram sozinhos. */
+  private startSec = 0;
   private generation = 0;
+  private resolvedInput: string | null = null;
+  private wantConnected = false;
+  private connected = false;
   private idleTimer: NodeJS.Timeout | null = null;
   private reportTimer: NodeJS.Timeout | null = null;
-  private decoderKill: (() => void) | null = null;
+  lastError: string | null = null;
 
   constructor(
     readonly channelId: string,
     private readonly cfg: UtilitiesConfig,
     private readonly api: BalacopapoApi,
     private readonly resolver: TrackResolver,
-    private readonly voice: VoiceConnection,
     private readonly log: (msg: string) => void = console.log,
   ) {}
-
-  lastError: string | null = null;
 
   snapshot() {
     return {
       channelId: this.channelId,
-      connected: this.voice.connected,
+      wantConnected: this.wantConnected,
+      connected: this.connected,
       status: this.status,
+      generation: this.generation,
+      hasInput: this.resolvedInput !== null,
+      startSec: this.startSec,
       currentTrack: this.queue.current,
       title: this.queue.current?.title ?? null,
       artist: this.queue.current?.artist ?? null,
@@ -57,7 +56,7 @@ export class ChannelPlayer {
     };
   }
 
-  // ─── Comandos vindos do servidor ─────────────────────────────────────────
+  // ─── Comandos vindos do servidor ou da UI ────────────────────────────────
 
   async handleCommand(cmd: MusicBotCommand): Promise<void> {
     const p = cmd.payload ?? {};
@@ -70,15 +69,12 @@ export class ChannelPlayer {
         break;
       }
       case 'pause':
-        if (this.queue.current && !this.paused) {
-          this.paused = true;
+        if (this.queue.current && this.status === 'playing') {
           this.status = 'paused';
-          this.voice.clear();
         }
         break;
       case 'resume':
-        if (this.queue.current && this.paused) {
-          this.paused = false;
+        if (this.queue.current && this.status === 'paused') {
           this.status = 'playing';
         }
         break;
@@ -113,27 +109,67 @@ export class ChannelPlayer {
     await this.report();
   }
 
+  // ─── Ponte com o WebVoiceEngine (livekit-client na WebView) ──────────────
+
+  async getCredentials(): Promise<LivekitCredentials> {
+    return this.api.getLivekitCredentials(this.channelId);
+  }
+
+  async onVoiceState(connected: boolean, info?: string): Promise<void> {
+    this.connected = connected;
+    if (info) this.log(`[${this.channelId}] ${info}`);
+    await this.report(connected);
+  }
+
+  onPosition(gen: number, sec: number): void {
+    if (gen !== this.generation) return;
+    if (Number.isFinite(sec) && sec >= 0) this.positionSec = sec;
+  }
+
+  async onTrackEnded(gen: number, failed = false): Promise<void> {
+    if (gen !== this.generation) return;
+    const next = failed && this.queue.loopMode === 'track' ? this.queue.advance() : this.queue.onTrackEnded();
+    if (next) {
+      this.startCurrent(0);
+    } else {
+      this.stopPlayback();
+    }
+    await this.report();
+  }
+
+  streamAudio(gen: number, res: http.ServerResponse): void {
+    if (gen !== this.generation || !this.resolvedInput) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    streamWav(this.cfg.ffmpegPath, this.resolvedInput, this.startSec, res, (msg) => {
+      this.lastError = msg;
+      this.log(`[${this.channelId}] ${msg}`);
+    });
+  }
+
   // ─── Reprodução ──────────────────────────────────────────────────────────
 
   private startCurrent(startSec: number): void {
     const track = this.queue.current;
     if (!track) return;
     const gen = ++this.generation;
-    this.decoderKill?.();
-    this.voice.clear();
-    this.paused = false;
+    this.resolvedInput = null;
+    this.wantConnected = true;
     this.status = 'playing';
-    this.positionSec = startSec;
+    this.startSec = Math.max(0, Math.floor(startSec));
+    this.positionSec = this.startSec;
+    this.lastError = null;
     this.clearIdleTimer();
-    void this.playLoop(gen, track, startSec);
+    void this.prepareTrack(gen, track);
   }
 
   private stopPlayback(): void {
     this.generation++;
-    this.decoderKill?.();
-    this.voice.clear();
-    this.paused = false;
+    this.resolvedInput = null;
     this.status = 'idle';
+    this.startSec = 0;
     this.positionSec = 0;
     this.armIdleTimer();
   }
@@ -143,18 +179,8 @@ export class ChannelPlayer {
     if (next) this.resolver.prefetch(next);
   }
 
-  private async playLoop(gen: number, track: MusicTrack, startSec: number): Promise<void> {
-    let failed = false;
+  private async prepareTrack(gen: number, track: MusicTrack): Promise<void> {
     try {
-      if (!this.voice.connected) {
-        const creds = await this.api.getLivekitCredentials(this.channelId);
-        if (gen !== this.generation) return;
-        const kbps = Math.round((creds.maxBitrateBps ?? 510_000) / 1000);
-        await this.voice.connect(creds.url, creds.token, { maxBitrateBps: creds.maxBitrateBps, stereo: creds.stereo });
-        this.log(`[${this.channelId}] conectado à sala ${creds.room} (${kbps} kbps ${creds.stereo === false ? 'mono' : 'estéreo'})`);
-      }
-      await this.report(true);
-
       this.log(`[${this.channelId}] resolvendo faixa (${track.source}): ${track.url}`);
       const resolved = await this.resolver.resolve(track);
       if (gen !== this.generation) return;
@@ -166,49 +192,17 @@ export class ChannelPlayer {
           thumbnailUrl: resolved.meta.thumbnailUrl ?? track.thumbnailUrl,
         });
       }
-      this.log(`[${this.channelId}] tocando: ${this.queue.current?.title ?? track.title}`);
+      this.resolvedInput = resolved.input;
+      this.log(`[${this.channelId}] tocando (48 kHz estéreo): ${this.queue.current?.title ?? track.title}`);
       this.prefetchNext();
-      void this.report();
       this.startReportTimer(gen);
-
-      const decoder = decode(this.cfg.ffmpegPath, resolved.input, startSec);
-      this.decoderKill = decoder.kill;
-
-      let sentMs = 0;
-      let base = Date.now();
-      for await (const frame of decoder.frames) {
-        if (gen !== this.generation) return;
-        if (this.paused) {
-          while (this.paused && gen === this.generation) await sleep(100);
-          if (gen !== this.generation) return;
-          sentMs = 0;
-          base = Date.now();
-        }
-        applyGain(frame, this.volume / 100);
-        await this.voice.push(frame);
-        sentMs += 10;
-        this.positionSec = startSec + sentMs / 1000;
-        // Segurança extra de ritmo caso o sink não aplique backpressure.
-        const ahead = sentMs - (Date.now() - base);
-        if (ahead > 1000) await sleep(ahead - 500);
-      }
-      if (gen !== this.generation) return;
-      await this.voice.drain();
+      await this.report();
     } catch (err) {
-      failed = true;
+      if (gen !== this.generation) return;
       this.lastError = (err as Error).message;
-      this.log(`[${this.channelId}] erro ao tocar "${track.title}": ${(err as Error).message}`);
+      this.log(`[${this.channelId}] erro ao preparar "${track.title}": ${this.lastError}`);
+      await this.onTrackEnded(gen, true);
     }
-
-    if (gen !== this.generation) return;
-    // Faixa terminou (ou falhou): em caso de erro nunca repete a mesma faixa.
-    const next = failed && this.queue.loopMode === 'track' ? this.queue.advance() : this.queue.onTrackEnded();
-    if (next) {
-      this.startCurrent(0);
-    } else {
-      this.stopPlayback();
-    }
-    await this.report();
   }
 
   // ─── Estado / ciclo de vida ──────────────────────────────────────────────
@@ -216,7 +210,7 @@ export class ChannelPlayer {
   private async report(connected?: boolean): Promise<void> {
     try {
       await this.api.reportState(this.channelId, {
-        botConnected: connected ?? this.voice.connected,
+        botConnected: connected ?? this.connected,
         botName: this.cfg.botName,
         status: this.status,
         currentTrack: this.queue.current,
@@ -256,14 +250,9 @@ export class ChannelPlayer {
 
   async join(): Promise<void> {
     this.lastError = null;
-    if (!this.voice.connected) {
-      const creds = await this.api.getLivekitCredentials(this.channelId);
-      const kbps = Math.round((creds.maxBitrateBps ?? 510_000) / 1000);
-      await this.voice.connect(creds.url, creds.token, { maxBitrateBps: creds.maxBitrateBps, stereo: creds.stereo });
-      this.log(`[${this.channelId}] entrou na sala ${creds.room} (${kbps} kbps ${creds.stereo === false ? 'mono' : 'estéreo'})`);
-    }
+    this.wantConnected = true;
     this.armIdleTimer();
-    await this.report(true);
+    await this.report(this.connected);
   }
 
   async leave(): Promise<void> {
@@ -271,8 +260,9 @@ export class ChannelPlayer {
     if (this.reportTimer) clearInterval(this.reportTimer);
     this.reportTimer = null;
     this.generation++;
-    this.decoderKill?.();
-    if (this.voice.connected) await this.voice.disconnect().catch(() => undefined);
+    this.resolvedInput = null;
+    this.wantConnected = false;
+    this.connected = false;
     this.status = 'idle';
     await this.report(false);
   }

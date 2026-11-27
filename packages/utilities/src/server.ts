@@ -1,8 +1,22 @@
+import fs from 'node:fs/promises';
 import http from 'node:http';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import type { MusicBotCommandType } from '@backspace/shared';
 import type { Controller } from './controller.js';
 import { loadSettings, normalizeSettings, saveSettings } from './settings.js';
 import { UI_HTML } from './ui.js';
+
+const require = createRequire(import.meta.url);
+let livekitBundleCache: string | null = null;
+
+async function getLivekitBundle(): Promise<string> {
+  if (!livekitBundleCache) {
+    const p = path.join(path.dirname(require.resolve('livekit-client')), 'livekit-client.umd.js');
+    livekitBundleCache = await fs.readFile(p, 'utf8');
+  }
+  return livekitBundleCache;
+}
 
 export function isLocalHost(hostHeader: string | undefined, port: number): boolean {
   return hostHeader === `127.0.0.1:${port}` || hostHeader === `localhost:${port}`;
@@ -33,9 +47,13 @@ export function startUiServer(controller: Controller, home: string | undefined, 
           return send(res, 403, { error: 'origem inválida' });
         }
       }
-      const url = (req.url ?? '/').split('?')[0] ?? '/';
+      const parsedUrl = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
+      const url = parsedUrl.pathname;
 
       if (req.method === 'GET' && url === '/') return send(res, 200, UI_HTML, 'text/html');
+      if (req.method === 'GET' && url === '/livekit-client.js') {
+        return send(res, 200, await getLivekitBundle(), 'application/javascript');
+      }
       if (req.method === 'GET' && url === '/api/status') return send(res, 200, controller.status());
       if (req.method === 'GET' && url === '/api/cache') return send(res, 200, await controller.cacheStats());
       if (req.method === 'POST' && url === '/api/cache/clear') {
@@ -80,13 +98,56 @@ export function startUiServer(controller: Controller, home: string | undefined, 
         return send(res, 200, { ok: true });
       }
 
+      // ─── Streaming WAV estéreo + bridge WebView ↔ LiveKit ────────────────
+      const streamMatch = req.method === 'GET' && url.match(/^\/api\/channels\/([^/]+)\/stream$/);
+      if (streamMatch && streamMatch[1]) {
+        const gen = Number(parsedUrl.searchParams.get('gen')) || 0;
+        controller.streamAudio(decodeURIComponent(streamMatch[1]), gen, res);
+        return;
+      }
+
+      const lkTokenMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/lk-token$/);
+      if (lkTokenMatch && lkTokenMatch[1]) {
+        const creds = await controller.getCredentials(decodeURIComponent(lkTokenMatch[1]));
+        return send(res, 200, creds);
+      }
+
+      const voiceStateMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/voice-state$/);
+      if (voiceStateMatch && voiceStateMatch[1]) {
+        const body = await readJson(req);
+        await controller.setVoiceState(
+          decodeURIComponent(voiceStateMatch[1]),
+          Boolean(body.connected),
+          typeof body.info === 'string' ? body.info : undefined,
+        );
+        return send(res, 200, { ok: true });
+      }
+
+      const endedMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/ended$/);
+      if (endedMatch && endedMatch[1]) {
+        const body = await readJson(req);
+        await controller.onTrackEnded(
+          decodeURIComponent(endedMatch[1]),
+          Number(body.gen) || 0,
+          Boolean(body.failed),
+        );
+        return send(res, 200, { ok: true });
+      }
+
+      const posMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/position$/);
+      if (posMatch && posMatch[1]) {
+        const body = await readJson(req);
+        controller.onPosition(decodeURIComponent(posMatch[1]), Number(body.gen) || 0, Number(body.positionSec) || 0);
+        return send(res, 200, { ok: true });
+      }
+
       const uploadMatch = req.method === 'POST' && url.match(/^\/api\/channels\/([^/]+)\/upload$/);
       if (uploadMatch && uploadMatch[1]) {
         const rawName = req.headers['x-file-name'];
         const filename = typeof rawName === 'string' && rawName ? decodeURIComponent(rawName) : 'audio.bin';
         const chunks: Buffer[] = [];
         let total = 0;
-        const maxBytes = 250 * 1024 * 1024; // 250 MB para FLACs grandes
+        const maxBytes = 250 * 1024 * 1024;
         for await (const chunk of req) {
           const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
           total += buf.length;
