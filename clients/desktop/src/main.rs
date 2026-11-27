@@ -22,7 +22,6 @@ use crate::os::remote_control::{RemoteControlState, PANIC_HOTKEY};
 use crate::os::updater::{self, UpdateCheckState};
 
 const MENU_OPEN: &str = "open";
-const MENU_DESKTOP_SETTINGS: &str = "desktop_settings";
 const MENU_TOGGLE_OVERLAY: &str = "toggle_overlay";
 const MENU_SWITCH_INSTANCE: &str = "switch_instance";
 const MENU_RELOAD: &str = "reload";
@@ -308,13 +307,6 @@ fn spawn_background_updater(app: AppHandle) {
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let open_item = MenuItem::with_id(app, MENU_OPEN, "Abrir Balacopapo", true, None::<&str>)?;
-    let settings_item = MenuItem::with_id(
-        app,
-        MENU_DESKTOP_SETTINGS,
-        "Configurações do Desktop...",
-        true,
-        None::<&str>,
-    )?;
     let overlay_item = MenuItem::with_id(
         app,
         MENU_TOGGLE_OVERLAY,
@@ -353,7 +345,6 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         app,
         &[
             &open_item,
-            &settings_item,
             &overlay_item,
             &switch_item,
             &reload_item,
@@ -381,12 +372,6 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(move |app, event| match event.id.as_ref() {
             MENU_OPEN => focus_main_window(app),
-            MENU_DESKTOP_SETTINGS => {
-                let handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = commands::open_desktop_settings(handle).await;
-                });
-            }
             MENU_TOGGLE_OVERLAY => {
                 let handle = app.clone();
                 tauri::async_runtime::spawn(async move {

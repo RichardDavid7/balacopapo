@@ -4,7 +4,14 @@
   "description": "Permissões padrão do Balacopapo Desktop para o launcher local e instâncias self-hosted.",
   "windows": ["main", "overlay", "settings"],
   "remote": {
-    "urls": ["https://*", "http://*"]
+    "urls": [
+      "https://*",
+      "https://*/*",
+      "https://*:*/*",
+      "http://*",
+      "http://*/*",
+      "http://*:*/*"
+    ]
   },
   "permissions": [
     "core:default",

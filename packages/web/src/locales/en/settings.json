@@ -440,6 +440,42 @@
     "instance": {
       "current": "Currently connected instance",
       "change": "Change Instance"
+    },
+    "overlay": {
+      "title": "In-Game Overlay",
+      "description": "Click-through transparent overlay excluded from screen capture (no DLL injection).",
+      "enabled": "Enable In-Game Overlay",
+      "enabledDesc": "Saves automatically. Uses 0 MB RAM when turned off.",
+      "pointers": "Click & Point on stream",
+      "pointersDesc": "Shows on your screen where friends clicked on your stream.",
+      "speakers": "Voice activity indicator",
+      "speakersDesc": "Compact list showing who is currently speaking.",
+      "toasts": "Discreet notifications",
+      "toastsDesc": "Lightweight notices without stealing game focus.",
+      "corner": "Indicator position",
+      "corners": {
+        "top-left": "Top Left",
+        "top-right": "Top Right",
+        "bottom-left": "Bottom Left",
+        "bottom-right": "Bottom Right"
+      },
+      "opacity": "Opacity ({{value}}%)",
+      "testPointer": "Test Click & Point",
+      "testSpeakers": "Test Speakers (4s)"
+    },
+    "gamePresence": {
+      "title": "Game Presence",
+      "enabled": "Detect running games automatically",
+      "detected": "Playing now: {{name}}",
+      "none": "No game detected right now.",
+      "ignoredLabel": "Ignored games (comma-separated)",
+      "ignoredPlaceholder": "e.g. cs2, valorant",
+      "save": "Save"
+    },
+    "remoteControl": {
+      "title": "Safe Remote Control",
+      "description": "Explicit consent required. Global panic hotkey: Ctrl+Alt+Escape.",
+      "revoke": "Revoke Now"
     }
   },
   "desktopDownload": {

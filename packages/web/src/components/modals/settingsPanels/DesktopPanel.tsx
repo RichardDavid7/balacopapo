@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Toggle } from '../../ui/Toggle';
 import { useUpdateStore } from '../../../stores/updateStore';
 import { useFormatters, type Formatters } from '../../../i18n/formatters';
-import { desktopBridge, isBalacopapoDesktop } from '../../../utils/desktopBridge';
+import {
+  desktopBridge,
+  isBalacopapoDesktop,
+  type OverlayConfig,
+  type OverlayCorner,
+} from '../../../utils/desktopBridge';
 
 function AutoLaunchSettings() {
   const { t } = useTranslation('settings');
@@ -231,6 +236,19 @@ export function DesktopPanel() {
   const [nativeAutostart, setNativeAutostart] = useState(false);
   const [nativeVersion, setNativeVersion] = useState<string | null>(null);
   const [nativeUpdateState, setNativeUpdateState] = useState<'idle' | 'checking' | 'ready' | 'upToDate'>('idle');
+  const [overlayCfg, setOverlayCfg] = useState<OverlayConfig>({
+    enabled: false,
+    showPointers: true,
+    showSpeakers: true,
+    showToasts: true,
+    corner: 'top-left',
+    opacity: 0.92,
+    monitorIndex: null,
+  });
+  const [gamePresenceEnabled, setGamePresenceEnabled] = useState(true);
+  const [ignoredGamesText, setIgnoredGamesText] = useState('');
+  const [detectedGameName, setDetectedGameName] = useState<string | null>(null);
+  const speakersTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (nativeDesktop) {
@@ -239,7 +257,20 @@ export function DesktopPanel() {
         setNativeAutostart(Boolean(info.autostartEnabled));
         setNativeVersion(info.buildSha ? `${info.version} (${info.buildSha})` : info.version);
       }).catch(() => {});
-      return;
+      desktopBridge.getOverlayConfig().then((cfg) => {
+        if (cfg) setOverlayCfg(cfg);
+      }).catch(() => {});
+      desktopBridge.getGamePresenceConfig().then((gp) => {
+        if (!gp) return;
+        setGamePresenceEnabled(Boolean(gp.enabled));
+        setIgnoredGamesText((gp.ignoredGames ?? []).join(', '));
+      }).catch(() => {});
+      desktopBridge.getCurrentGamePresence().then((g) => {
+        setDetectedGameName(g?.displayName ?? null);
+      }).catch(() => {});
+      return () => {
+        if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
+      };
     }
     return initialize();
   }, [initialize, nativeDesktop]);
@@ -279,10 +310,61 @@ export function DesktopPanel() {
       );
     };
 
+    const patchOverlay = async (patch: Partial<OverlayConfig>) => {
+      const next: OverlayConfig = { ...overlayCfg, ...patch };
+      setOverlayCfg(next);
+      const saved = await desktopBridge.updateOverlayConfig(next);
+      if (saved) setOverlayCfg(saved);
+    };
+
+    const handleTestPointer = async () => {
+      const wasEnabled = overlayCfg.enabled;
+      if (!wasEnabled) {
+        await patchOverlay({ enabled: true });
+        await new Promise((r) => window.setTimeout(r, 400));
+      }
+      await desktopBridge.pushOverlayPointer({
+        senderName: t('desktop.overlay.pointers'),
+        x: 0.35 + Math.random() * 0.3,
+        y: 0.35 + Math.random() * 0.3,
+        color: '#5865f2',
+        mode: 'ping',
+      });
+    };
+
+    const handleTestSpeakers = async () => {
+      const wasEnabled = overlayCfg.enabled;
+      if (!wasEnabled) {
+        await patchOverlay({ enabled: true });
+        await new Promise((r) => window.setTimeout(r, 400));
+      }
+      await desktopBridge.setOverlaySpeakers([
+        { identity: 'preview-1', name: t('desktop.updates.appName'), speaking: true, muted: false, avatarColor: '#3ba55d' },
+      ]);
+      if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
+      speakersTimerRef.current = window.setTimeout(() => {
+        void desktopBridge.setOverlaySpeakers([]);
+      }, 4000);
+    };
+
+    const saveGamePresence = async (nextEnabled: boolean, nextIgnoredText: string) => {
+      setGamePresenceEnabled(nextEnabled);
+      setIgnoredGamesText(nextIgnoredText);
+      const ignoredGames = nextIgnoredText.split(',').map((s) => s.trim()).filter(Boolean);
+      await desktopBridge.setGamePresenceConfig({
+        enabled: nextEnabled,
+        ignoredGames,
+        manualOverride: null,
+      });
+    };
+
+    const opacityPercent = Math.round((overlayCfg.opacity ?? 0.92) * 100);
+
     return (
       <div className="space-y-5">
         <h2 className="text-lg font-semibold text-txt-primary mb-6">{t('desktop.title')}</h2>
 
+        {/* Sistema, atualizações e instância */}
         <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
           <div className="flex items-center justify-between py-1">
             <div className="flex-1 mr-4">
@@ -332,21 +414,6 @@ export function DesktopPanel() {
 
           <div className="border-t border-white/[0.04]" />
 
-          <div className="flex items-center justify-between py-1">
-            <div>
-              <div className="text-sm text-txt-primary font-medium">{t('desktop.title')}</div>
-              <div className="text-xs text-txt-tertiary mt-0.5">{t('nav.appSettings')}</div>
-            </div>
-            <button
-              onClick={() => void desktopBridge.openDesktopSettings()}
-              className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-            >
-              {t('desktop.title')}
-            </button>
-          </div>
-
-          <div className="border-t border-white/[0.04]" />
-
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-txt-primary font-medium">{window.location.origin}</div>
@@ -357,6 +424,143 @@ export function DesktopPanel() {
               className="px-3 py-1.5 text-sm text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
             >
               {t('desktop.instance.change')}
+            </button>
+          </div>
+        </div>
+
+        {/* Sobreposição em Jogo (Overlay) — embutida direto nas configurações do app */}
+        <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
+          <div>
+            <div className="text-sm font-semibold text-txt-primary">{t('desktop.overlay.title')}</div>
+            <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.description')}</div>
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm text-txt-primary">{t('desktop.overlay.enabled')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.enabledDesc')}</div>
+            </div>
+            <Toggle enabled={overlayCfg.enabled} onChange={(v) => void patchOverlay({ enabled: v })} />
+          </div>
+
+          <div className="border-t border-white/[0.04]" />
+
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm text-txt-primary">{t('desktop.overlay.pointers')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.pointersDesc')}</div>
+            </div>
+            <Toggle enabled={overlayCfg.showPointers} onChange={(v) => void patchOverlay({ showPointers: v })} />
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm text-txt-primary">{t('desktop.overlay.speakers')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.speakersDesc')}</div>
+            </div>
+            <Toggle enabled={overlayCfg.showSpeakers} onChange={(v) => void patchOverlay({ showSpeakers: v })} />
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm text-txt-primary">{t('desktop.overlay.toasts')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.toastsDesc')}</div>
+            </div>
+            <Toggle enabled={overlayCfg.showToasts} onChange={(v) => void patchOverlay({ showToasts: v })} />
+          </div>
+
+          <div className="border-t border-white/[0.04]" />
+
+          <div className="flex items-center justify-between py-1 gap-4">
+            <div className="text-sm text-txt-primary">{t('desktop.overlay.corner')}</div>
+            <select
+              value={overlayCfg.corner}
+              onChange={(e) => void patchOverlay({ corner: e.target.value as OverlayCorner })}
+              className="rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
+            >
+              <option value="top-left">{t('desktop.overlay.corners.top-left')}</option>
+              <option value="top-right">{t('desktop.overlay.corners.top-right')}</option>
+              <option value="bottom-left">{t('desktop.overlay.corners.bottom-left')}</option>
+              <option value="bottom-right">{t('desktop.overlay.corners.bottom-right')}</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between py-1 gap-4">
+            <div className="text-sm text-txt-primary">{t('desktop.overlay.opacity', { value: opacityPercent })}</div>
+            <input
+              type="range"
+              min={30}
+              max={100}
+              value={opacityPercent}
+              onChange={(e) => void patchOverlay({ opacity: Number(e.target.value) / 100 })}
+              className="w-40 accent-accent-primary"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={() => void handleTestPointer()}
+              className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+            >
+              {t('desktop.overlay.testPointer')}
+            </button>
+            <button
+              onClick={() => void handleTestSpeakers()}
+              className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+            >
+              {t('desktop.overlay.testSpeakers')}
+            </button>
+          </div>
+        </div>
+
+        {/* Presença de Jogos & Controle Remoto Seguro */}
+        <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm font-semibold text-txt-primary">{t('desktop.gamePresence.title')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">
+                {detectedGameName
+                  ? t('desktop.gamePresence.detected', { name: detectedGameName })
+                  : t('desktop.gamePresence.none')}
+              </div>
+            </div>
+            <Toggle
+              enabled={gamePresenceEnabled}
+              onChange={(v) => void saveGamePresence(v, ignoredGamesText)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="text-xs text-txt-secondary">{t('desktop.gamePresence.ignoredLabel')}</div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={ignoredGamesText}
+                onChange={(e) => setIgnoredGamesText(e.target.value)}
+                placeholder={t('desktop.gamePresence.ignoredPlaceholder')}
+                className="w-44 rounded-lg bg-black/40 border border-white/10 px-2.5 py-1 text-xs text-txt-primary outline-none"
+              />
+              <button
+                onClick={() => void saveGamePresence(gamePresenceEnabled, ignoredGamesText)}
+                className="px-2.5 py-1 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
+              >
+                {t('desktop.gamePresence.save')}
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-white/[0.04]" />
+
+          <div className="flex items-center justify-between py-1">
+            <div className="flex-1 mr-4">
+              <div className="text-sm font-semibold text-txt-primary">{t('desktop.remoteControl.title')}</div>
+              <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.remoteControl.description')}</div>
+            </div>
+            <button
+              onClick={() => void desktopBridge.revokeRemoteControl()}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-accent-rose/80 hover:bg-accent-rose rounded-lg transition-colors"
+            >
+              {t('desktop.remoteControl.revoke')}
             </button>
           </div>
         </div>

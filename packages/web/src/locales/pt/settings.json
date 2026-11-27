@@ -441,6 +441,42 @@
     "instance": {
       "current": "Instância conectada no momento",
       "change": "Trocar instância"
+    },
+    "overlay": {
+      "title": "Sobreposição em Jogo (Overlay)",
+      "description": "Sobreposição transparente click-through invisível na transmissão (sem injeção de DLL).",
+      "enabled": "Ativar sobreposição em jogo",
+      "enabledDesc": "Salva automaticamente. Consome 0 MB de RAM quando desligada.",
+      "pointers": "Clicar e apontar na transmissão",
+      "pointersDesc": "Mostra na sua tela exatamente onde seus amigos clicaram.",
+      "speakers": "Indicador de quem está falando",
+      "speakersDesc": "Lista compacta no canto da tela com destaque verde ao falar.",
+      "toasts": "Avisos discretos",
+      "toastsDesc": "Notificações leves sem roubar o foco do jogo.",
+      "corner": "Posição do indicador",
+      "corners": {
+        "top-left": "Superior esquerdo",
+        "top-right": "Superior direito",
+        "bottom-left": "Inferior esquerdo",
+        "bottom-right": "Inferior direito"
+      },
+      "opacity": "Opacidade ({{value}}%)",
+      "testPointer": "Testar Clicar e Apontar",
+      "testSpeakers": "Testar Quem está falando (4s)"
+    },
+    "gamePresence": {
+      "title": "Presença de Jogos",
+      "enabled": "Detectar jogos automaticamente",
+      "detected": "Jogando agora: {{name}}",
+      "none": "Nenhum jogo detectado no momento.",
+      "ignoredLabel": "Jogos ignorados (separados por vírgula)",
+      "ignoredPlaceholder": "ex: cs2, valorant",
+      "save": "Salvar"
+    },
+    "remoteControl": {
+      "title": "Controle Remoto Seguro",
+      "description": "Exige consentimento explícito. Atalho de pânico global: Ctrl+Alt+Escape.",
+      "revoke": "Cortar agora"
     }
   },
   "desktopDownload": {

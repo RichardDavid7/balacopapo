@@ -269,38 +269,6 @@ export function ScreenShareSetup() {
     return () => { cancelled = true; };
   }, [isOpen, electron, api]);
 
-  // Native Balacopapo Desktop (Tauri v2): list monitors, windows & isolated audio targets up front
-  useEffect(() => {
-    if (!isOpen || !nativeDesktop) return;
-    let cancelled = false;
-    setLoadingSources(true);
-    setNativeStatusMsg(null);
-    Promise.all([desktopBridge.listCaptureSources(), desktopBridge.listAudioTargets()])
-      .then(([capSources, audioTargets]) => {
-        if (cancelled) return;
-        const mapped: ElectronScreenSource[] = (capSources ?? []).map((s) => ({
-          id: s.id,
-          name: s.kind === 'monitor' && s.width > 0 ? `${s.name} (${s.width}×${s.height})` : s.name,
-          thumbnailDataUrl: s.kind === 'monitor' ? MONITOR_THUMB_SVG : WINDOW_THUMB_SVG,
-          appIconDataUrl: null,
-          isScreen: s.kind === 'monitor',
-        }));
-        setSources(mapped);
-        setNativeAudioTargets(audioTargets ?? []);
-        if (mapped.length > 0 && !selectedId) {
-          setSelectedId(mapped[0]!.id);
-        }
-      })
-      .catch((err) => {
-        console.error('[ScreenShareSetup] native desktop source scan failed:', err);
-        if (!cancelled) setSources([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingSources(false);
-      });
-    return () => { cancelled = true; };
-  }, [isOpen, nativeDesktop, sourcesNonce]);
-
   // Electron: list sources up front when we can. `sourcesNonce` is what the
   // empty state's "Try again" bumps — an enumeration that came back empty
   // (macOS without the Screen Recording grant) is worth retrying by hand once
@@ -353,6 +321,42 @@ export function ScreenShareSetup() {
     markPromptInFlight(false);
     pendingPromptIdRef.current = null;
   }, [isOpen, replaceStaged, markPromptInFlight]);
+
+  // Native Balacopapo Desktop (Tauri v2): list monitors, windows & isolated audio targets
+  // Runs AFTER the reset effect above so setSources([]) never wipes the freshly fetched list.
+  useEffect(() => {
+    if (!isOpen || !nativeDesktop) return;
+    let cancelled = false;
+    setLoadingSources(true);
+    setNativeStatusMsg(null);
+    Promise.all([desktopBridge.listCaptureSources(), desktopBridge.listAudioTargets()])
+      .then(([capSources, audioTargets]) => {
+        if (cancelled) return;
+        const mapped: ElectronScreenSource[] = (capSources ?? []).map((s) => ({
+          id: s.id,
+          name: s.kind === 'monitor' && s.width > 0 ? `${s.name} (${s.width}×${s.height})` : s.name,
+          thumbnailDataUrl: s.kind === 'monitor' ? MONITOR_THUMB_SVG : WINDOW_THUMB_SVG,
+          appIconDataUrl: null,
+          isScreen: s.kind === 'monitor',
+        }));
+        setSources(mapped);
+        setNativeAudioTargets(audioTargets ?? []);
+        if (mapped.length > 0) {
+          setSelectedId((prev) => prev ?? mapped[0]!.id);
+        }
+      })
+      .catch((err) => {
+        console.error('[ScreenShareSetup] native desktop source scan failed:', err);
+        if (!cancelled) {
+          setSources([]);
+          setNativeStatusMsg(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSources(false);
+      });
+    return () => { cancelled = true; };
+  }, [isOpen, nativeDesktop, sourcesNonce]);
 
   // Stage the remembered source (or a lone screen) so the common case needs a
   // single click on Start

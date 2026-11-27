@@ -440,6 +440,42 @@
     "instance": {
       "current": "Aktuell verbundene Instanz",
       "change": "Instanz wechseln"
+    },
+    "overlay": {
+      "title": "In-Game-Overlay",
+      "description": "Transparentes Click-Through-Overlay, von der Bildschirmaufnahme ausgeschlossen (keine DLL-Injektion).",
+      "enabled": "In-Game-Overlay aktivieren",
+      "enabledDesc": "Wird automatisch gespeichert. 0 MB RAM im ausgeschalteten Zustand.",
+      "pointers": "Klicken & Zeigen im Stream",
+      "pointersDesc": "Zeigt auf deinem Bildschirm, wohin Freunde geklickt haben.",
+      "speakers": "Sprachaktivitätsanzeige",
+      "speakersDesc": "Kompakte Liste der aktuell sprechenden Personen.",
+      "toasts": "Dezente Hinweise",
+      "toastsDesc": "Kurze Benachrichtigungen ohne Fokusverlust im Spiel.",
+      "corner": "Position der Anzeige",
+      "corners": {
+        "top-left": "Oben links",
+        "top-right": "Oben rechts",
+        "bottom-left": "Unten links",
+        "bottom-right": "Unten rechts"
+      },
+      "opacity": "Deckkraft ({{value}}%)",
+      "testPointer": "Klicken & Zeigen testen",
+      "testSpeakers": "Sprecher testen (4s)"
+    },
+    "gamePresence": {
+      "title": "Spielpräsenz",
+      "enabled": "Laufende Spiele automatisch erkennen",
+      "detected": "Spielt gerade: {{name}}",
+      "none": "Derzeit kein Spiel erkannt.",
+      "ignoredLabel": "Ignorierte Spiele (kommagetrennt)",
+      "ignoredPlaceholder": "z. B. cs2, valorant",
+      "save": "Speichern"
+    },
+    "remoteControl": {
+      "title": "Sichere Fernsteuerung",
+      "description": "Ausdrückliche Zustimmung erforderlich. Globaler Notfall-Hotkey: Ctrl+Alt+Escape.",
+      "revoke": "Jetzt trennen"
     }
   },
   "desktopDownload": {

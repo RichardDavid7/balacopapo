@@ -439,6 +439,42 @@
     "instance": {
       "current": "当前连接的实例",
       "change": "切换实例"
+    },
+    "overlay": {
+      "title": "游戏内覆盖层",
+      "description": "鼠标穿透透明覆盖层，不出现在屏幕共享中（无需 DLL 注入）。",
+      "enabled": "启用游戏内覆盖层",
+      "enabledDesc": "自动保存。关闭时占用 0 MB 内存。",
+      "pointers": "共享画面点击指示",
+      "pointersDesc": "在屏幕上直接显示好友点击的位置。",
+      "speakers": "发言状态指示器",
+      "speakersDesc": "在屏幕角落显示正在说话的成员。",
+      "toasts": "轻量提示",
+      "toastsDesc": "不抢占游戏焦点的简洁通知。",
+      "corner": "指示器位置",
+      "corners": {
+        "top-left": "左上角",
+        "top-right": "右上角",
+        "bottom-left": "左下角",
+        "bottom-right": "右下角"
+      },
+      "opacity": "不透明度 ({{value}}%)",
+      "testPointer": "测试点击指示",
+      "testSpeakers": "测试发言显示 (4秒)"
+    },
+    "gamePresence": {
+      "title": "游戏状态检测",
+      "enabled": "自动检测正在运行的游戏",
+      "detected": "正在游玩：{{name}}",
+      "none": "当前未检测到游戏。",
+      "ignoredLabel": "忽略的游戏（用逗号分隔）",
+      "ignoredPlaceholder": "例如 cs2, valorant",
+      "save": "保存"
+    },
+    "remoteControl": {
+      "title": "安全远程控制",
+      "description": "需明确授权。全局紧急断开快捷键：Ctrl+Alt+Escape。",
+      "revoke": "立即断开"
     }
   },
   "desktopDownload": {
