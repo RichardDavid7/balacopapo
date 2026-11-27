@@ -155,7 +155,7 @@ fn spawn_game_presence_scanner(app: AppHandle) {
         loop {
             let (enabled, ignored, manual_override) = {
                 let state = app.state::<DesktopState>();
-                if let Ok(cfg) = state.config.lock() {
+                let res = if let Ok(cfg) = state.config.lock() {
                     (
                         cfg.game_presence_enabled,
                         cfg.ignored_games.clone(),
@@ -163,7 +163,8 @@ fn spawn_game_presence_scanner(app: AppHandle) {
                     )
                 } else {
                     (false, Vec::new(), None)
-                }
+                };
+                res
             };
 
             let detected = if !enabled {
@@ -179,7 +180,7 @@ fn spawn_game_presence_scanner(app: AppHandle) {
 
             let changed = {
                 let state = app.state::<DesktopState>();
-                if let Ok(mut guard) = state.last_detected_game.lock() {
+                let res = if let Ok(mut guard) = state.last_detected_game.lock() {
                     if *guard != detected {
                         *guard = detected.clone();
                         true
@@ -188,7 +189,8 @@ fn spawn_game_presence_scanner(app: AppHandle) {
                     }
                 } else {
                     false
-                }
+                };
+                res
             };
 
             if changed {
@@ -205,13 +207,14 @@ fn handle_global_shortcut_pressed(app: &AppHandle, shortcut: &Shortcut) {
     if PANIC_HOTKEY.parse::<Shortcut>().ok().as_ref() == Some(shortcut) {
         let was_active = {
             let state = app.state::<DesktopState>();
-            if let Ok(mut guard) = state.remote_control.lock() {
+            let res = if let Ok(mut guard) = state.remote_control.lock() {
                 let active = !matches!(*guard, RemoteControlState::Idle);
                 guard.panic_revoke();
                 active
             } else {
                 false
-            }
+            };
+            res
         };
         if was_active {
             let _ = app.emit("balacopapo://remote-control-state", RemoteControlState::Idle);
