@@ -363,15 +363,33 @@ mod win_impl {
         PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
         WAVEFORMATEX,
     };
-    use windows::Win32::Media::KernelStreaming::WAVE_FORMAT_IEEE_FLOAT;
-    use windows::Win32::System::Com::StructuredStorage::{PROPVARIANT, PROPVARIANT_0, PROPVARIANT_0_0, PROPVARIANT_0_0_0};
-    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, BLOB, COINIT_MULTITHREADED};
+    use windows::Win32::System::Com::{
+        CoInitializeEx, CoUninitialize, IAgileObject, IAgileObject_Impl, COINIT_MULTITHREADED,
+    };
     use windows::Win32::System::Threading::{CreateEventW, SetEvent, WaitForSingleObject};
-    use windows::Win32::System::Variant::VT_BLOB;
     use windows::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
         IsWindowVisible,
     };
+
+    /// Constante padrão Win32 (`mmreg.h`): IEEE 32-bit float PCM.
+    const WAVE_FORMAT_IEEE_FLOAT: u16 = 0x0003;
+    /// Constante padrão COM (`wtypes.h`): `VT_BLOB`.
+    const VT_BLOB_TAG: u16 = 65;
+
+    /// Layout ABI exato de `PROPVARIANT` contendo `VT_BLOB` em x86_64 Windows (24 bytes),
+    /// sem depender de nomes internos privados nem acionar `PropVariantClear` sobre memória da stack.
+    #[repr(C)]
+    struct RawPropVariantBlob {
+        vt: u16,
+        reserved1: u16,
+        reserved2: u16,
+        reserved3: u16,
+        cb_size: u32,
+        #[cfg(target_pointer_width = "64")]
+        _pad: u32,
+        p_blob_data: *mut u8,
+    }
 
     struct EnumState {
         self_pid: u32,
@@ -449,10 +467,12 @@ mod win_impl {
         list
     }
 
-    #[implement(IActivateAudioInterfaceCompletionHandler)]
+    #[implement(IActivateAudioInterfaceCompletionHandler, IAgileObject)]
     struct ActivationHandler {
         event: HANDLE,
     }
+
+    impl IAgileObject_Impl for ActivationHandler_Impl {}
 
     impl IActivateAudioInterfaceCompletionHandler_Impl for ActivationHandler_Impl {
         fn ActivateCompleted(
@@ -515,22 +535,15 @@ mod win_impl {
             },
         };
 
-        let prop_variant = PROPVARIANT {
-            Anonymous: PROPVARIANT_0 {
-                Anonymous: std::mem::ManuallyDrop::new(PROPVARIANT_0_0 {
-                    vt: VT_BLOB,
-                    wReserved1: 0,
-                    wReserved2: 0,
-                    wReserved3: 0,
-                    Anonymous: PROPVARIANT_0_0_0 {
-                        blob: BLOB {
-                            cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
-                            pBlobData: (&mut activation_params as *mut AUDIOCLIENT_ACTIVATION_PARAMS)
-                                as *mut u8,
-                        },
-                    },
-                }),
-            },
+        let raw_prop = RawPropVariantBlob {
+            vt: VT_BLOB_TAG,
+            reserved1: 0,
+            reserved2: 0,
+            reserved3: 0,
+            cb_size: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
+            #[cfg(target_pointer_width = "64")]
+            _pad: 0,
+            p_blob_data: (&mut activation_params as *mut AUDIOCLIENT_ACTIVATION_PARAMS) as *mut u8,
         };
 
         let activate_event = unsafe {
@@ -545,7 +558,7 @@ mod win_impl {
             ActivateAudioInterfaceAsync(
                 VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
                 &IAudioClient::IID,
-                Some(&prop_variant),
+                Some((&raw_prop as *const RawPropVariantBlob).cast()),
                 &handler,
             )
             .map_err(|e| {
@@ -555,9 +568,6 @@ mod win_impl {
                 )
             })?
         };
-
-        // Impede PROPVARIANT::drop de tentar liberar ponteiro da stack em `blob`.
-        std::mem::forget(prop_variant);
 
         unsafe {
             let _ = WaitForSingleObject(activate_event, 5_000);
@@ -583,7 +593,7 @@ mod win_impl {
         let bits_per_sample: u16 = 32;
         let block_align = CAPTURE_CHANNELS * (bits_per_sample / 8);
         let format = WAVEFORMATEX {
-            wFormatTag: WAVE_FORMAT_IEEE_FLOAT as u16,
+            wFormatTag: WAVE_FORMAT_IEEE_FLOAT,
             nChannels: CAPTURE_CHANNELS,
             nSamplesPerSec: CAPTURE_SAMPLE_RATE,
             nAvgBytesPerSec: CAPTURE_SAMPLE_RATE * u32::from(block_align),
