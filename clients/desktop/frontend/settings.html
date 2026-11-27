@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configurações do Balacopapo Desktop</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1015;
+      --sidebar: #13161e;
+      --card: rgba(24, 28, 38, 0.88);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #eef1f7;
+      --muted: #98a2b3;
+      --accent: #5865f2;
+      --accent-hover: #6c77f6;
+      --mint: #3ba55d;
+      --danger: #f04747;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      height: 100vh;
+      display: flex;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    aside {
+      width: 230px;
+      flex-shrink: 0;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      padding: 18px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .brand {
+      padding: 6px 10px 14px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .brand h1 { font-size: 16px; font-weight: 700; }
+    .brand p { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+    .nav-btn {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #c5ccd8;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+
+    .nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+    .nav-btn.active {
+      background: rgba(88, 101, 242, 0.18);
+      border-color: rgba(88, 101, 242, 0.35);
+      color: #fff;
+    }
+
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+    }
+
+    .tab-panel { display: none; max-width: 720px; }
+    .tab-panel.active { display: block; }
+
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.45; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 8px 0;
+    }
+
+    .row + .row { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+
+    .row-title { font-size: 13.5px; font-weight: 600; }
+    .row-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    button.btn {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.btn:hover { background: var(--accent-hover); }
+    button.btn.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+    }
+    button.btn.secondary:hover { background: rgba(255, 255, 255, 0.13); }
+    button.btn.danger { background: rgba(240, 71, 71, 0.85); }
+    button.btn.danger:hover { background: var(--danger); }
+    button.btn.mint { background: rgba(59, 165, 93, 0.85); }
+
+    select, input[type="text"] {
+      background: rgba(10, 12, 17, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text);
+      border-radius: 9px;
+      padding: 7px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+
+    .meter-wrap {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3ba55d, #fbbf24, #f04747);
+      transition: width 0.08s linear;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.07);
+      color: #d6dce8;
+      margin: 4px 6px 0 0;
+    }
+
+    .pill.hw {
+      background: rgba(59, 165, 93, 0.18);
+      border: 1px solid rgba(59, 165, 93, 0.35);
+      color: #8ce9ab;
+    }
+
+    .status-line {
+      font-size: 12.5px;
+      color: #b7c2d6;
+      margin-top: 8px;
+      line-height: 1.45;
+    }
+
+    .list-box {
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 11px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 12.5px;
+    }
+  </style>
+</head>
+<body>
+  <aside>
+    <div class="brand">
+      <h1>Balacopapo Desktop</h1>
+      <p id="app-meta">Carregando...</p>
+    </div>
+    <button class="nav-btn active" data-tab="overlay">Overlay In-Game</button>
+    <button class="nav-btn" data-tab="audio">Áudio Isolado</button>
+    <button class="nav-btn" data-tab="capture">Captura 1080p120</button>
+    <button class="nav-btn" data-tab="keybinds">Atalhos & Jogos</button>
+    <button class="nav-btn" data-tab="system">Controle Remoto & SO</button>
+  </aside>
+
+  <main>
+    <!-- ABA 1: OVERLAY IN-GAME -->
+    <section id="tab-overlay" class="tab-panel active">
+      <h2>Overlay In-Game (Click-Through)</h2>
+      <p class="subtitle">
+        Sobreposição transparente sem injeção de DLL (zero risco de Anti-Cheat) e invisível na transmissão de tela (<code>WDA_EXCLUDEFROMCAPTURE</code>).
+      </p>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="row-title">Ativar Overlay In-Game</div>
+            <div class="row-desc">Criado sob demanda e destruído ao desligar (0 MB de RAM quando inativo).</div>
+          </div>
+          <input id="ov-enabled" type="checkbox" />
+        </div>
+        <div class="row">
+          <div>
+            <div class="row-title">Clicar & Apontar na transmissão</div>
+            <div class="row-desc">Exibe os cliques/pings dos amigos exatamente onde eles apontaram.</div>
+          </div>
+          <input id="ov-pointers" type="checkbox" checked />
+        </div>
+        <div class="row">
+          <div>
+            <div class="row-title">Indicador de Voz (Quem está falando)</div>
+            <div class="row-desc">Lista compacta no canto da tela com destaque verde ao falar.</div>
+          </div>
+          <input id="ov-speakers" type="checkbox" checked />
+        </div>
+        <div class="row">
+          <div>
+            <div class="row-title">Toasts discretos</div>
+            <div class="row-desc">Avisos rápidos sem atrapalhar o jogo.</div>
+          </div>
+          <input id="ov-toasts" type="checkbox" checked />
+        </div>
+        <div class="row">
+          <div class="row-title">Canto do indicador de voz</div>
+          <select id="ov-corner">
+            <option value="top-left">Superior Esquerdo</option>
+            <option value="top-right">Superior Direito</option>
+            <option value="bottom-left">Inferior Esquerdo</option>
+            <option value="bottom-right">Inferior Direito</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="row-title">Opacidade (<span id="ov-opacity-val">92%</span>)</div>
+          <input id="ov-opacity" type="range" min="30" max="100" value="92" />
+        </div>
+        <div class="actions">
+          <button id="ov-save-btn" class="btn">Aplicar Overlay</button>
+          <button id="ov-test-pointer" class="btn secondary">Testar Clique & Apontar</button>
+          <button id="ov-test-speakers" class="btn secondary">Testar Quem está falando</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABA 2: ÁUDIO ISOLADO -->
+    <section id="tab-audio" class="tab-panel">
+      <h2>Áudio Isolado por Janela / Processo</h2>
+      <p class="subtitle">
+        Captura apenas o áudio do jogo/janela escolhida (Windows WASAPI Process Loopback / Linux PipeWire), sem misturar outros apps e sem eco das vozes do Balacopapo.
+      </p>
+
+      <div class="card">
+        <div class="row">
+          <div class="row-title">Alvo de captura de áudio</div>
+          <button id="audio-refresh-btn" class="btn secondary">Atualizar janelas</button>
+        </div>
+        <select id="audio-target-select" style="width: 100%; margin-top: 8px;"></select>
+        <div class="actions">
+          <button id="audio-start-btn" class="btn mint">Iniciar captura isolada</button>
+          <button id="audio-stop-btn" class="btn danger">Parar captura</button>
+        </div>
+        <div class="meter-wrap"><div id="audio-meter" class="meter-fill"></div></div>
+        <div id="audio-status" class="status-line">Inativo.</div>
+      </div>
+    </section>
+
+    <!-- ABA 3: CAPTURA PIXEL-PERFECT -->
+    <section id="tab-capture" class="tab-panel">
+      <h2>Captura Pixel-Perfect 1080p 120fps (até 150 Mbps)</h2>
+      <p class="subtitle">
+        Captura nativa com codificação por hardware (GPU) para manter texto e pixels nítidos sem borramento e sem sobrecarregar a CPU.
+      </p>
+
+      <div class="card">
+        <div class="row-title">Encoders de Hardware detectados</div>
+        <div id="hw-encoders-list" style="margin-top: 8px;">Detectando...</div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="row-title">Monitores e Janelas disponíveis</div>
+          <button id="cap-refresh-btn" class="btn secondary">Atualizar fontes</button>
+        </div>
+        <select id="cap-source-select" style="width: 100%; margin-top: 8px;"></select>
+
+        <div class="row" style="margin-top: 10px;">
+          <div class="row-title">Perfil de Qualidade</div>
+          <select id="cap-profile-select">
+            <option value="pixelPerfect444">Pixel-Perfect 4:4:4 · 1080p 120fps (150 Mbps)</option>
+            <option value="highClarity120">Alta Nitidez 4:2:0 · 1080p 120fps (150 Mbps)</option>
+            <option value="ultraCrisp60">Ultra Crisp · 1440p 60fps (80 Mbps)</option>
+            <option value="balanced60">Equilibrado · 1080p 60fps (25 Mbps)</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button id="cap-start-btn" class="btn mint">Testar Captura Nativa</button>
+          <button id="cap-stop-btn" class="btn danger">Parar Captura</button>
+        </div>
+        <div id="cap-status" class="status-line">Inativo.</div>
+      </div>
+    </section>
+
+    <!-- ABA 4: ATALHOS & PRESENÇA DE JOGOS -->
+    <section id="tab-keybinds" class="tab-panel">
+      <h2>Atalhos Globais em Jogos & Presença</h2>
+      <p class="subtitle">
+        Funcionam sem Alt+Tab enquanto você joga. O atalho de pânico <code>Ctrl+Alt+Escape</code> está sempre reservado para cortar Controle Remoto.
+      </p>
+
+      <div class="card">
+        <div class="row-title">Atalhos ativos</div>
+        <div id="keybinds-list" class="list-box"></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="row-title">Detectar jogos automaticamente</div>
+            <div class="row-desc" id="game-detected-label">Nenhum jogo detectado no momento.</div>
+          </div>
+          <input id="gp-enabled" type="checkbox" checked />
+        </div>
+        <div class="row">
+          <div class="row-title">Jogos ignorados (separados por vírgula)</div>
+          <input id="gp-ignored" type="text" placeholder="ex: cs2, valorant" style="width: 240px;" />
+        </div>
+        <div class="actions">
+          <button id="gp-save-btn" class="btn">Salvar Presença</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ABA 5: CONTROLE REMOTO & SISTEMA -->
+    <section id="tab-system" class="tab-panel">
+      <h2>Controle Remoto Seguro & Sistema</h2>
+      <p class="subtitle">
+        Consentimento explícito obrigatório antes de aceitar mouse/teclado remoto, com corte instantâneo via <code>Ctrl+Alt+Escape</code>.
+      </p>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="row-title">Estado do Controle Remoto</div>
+            <div id="rc-status" class="row-desc">Inativo (nenhuma sessão ativa).</div>
+          </div>
+          <button id="rc-panic-btn" class="btn danger">Cortar Agora (Pânico)</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="row-title">Iniciar com o sistema</div>
+            <div class="row-desc">Abre o Balacopapo automaticamente ao ligar o PC.</div>
+          </div>
+          <input id="sys-autostart" type="checkbox" />
+        </div>
+        <div class="actions">
+          <button id="sys-update-btn" class="btn secondary">Verificar atualizações</button>
+          <button id="sys-apply-update-btn" class="btn mint" style="display:none;">Reiniciar e atualizar</button>
+        </div>
+        <div id="sys-status" class="status-line"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const invoke = window.__TAURI__?.core?.invoke;
+
+    // Navegação por abas
+    document.querySelectorAll(".nav-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
+      });
+    });
+
+    const ovEnabled = document.getElementById("ov-enabled");
+    const ovPointers = document.getElementById("ov-pointers");
+    const ovSpeakers = document.getElementById("ov-speakers");
+    const ovToasts = document.getElementById("ov-toasts");
+    const ovCorner = document.getElementById("ov-corner");
+    const ovOpacity = document.getElementById("ov-opacity");
+    const ovOpacityVal = document.getElementById("ov-opacity-val");
+
+    ovOpacity.addEventListener("input", () => {
+      ovOpacityVal.textContent = `${ovOpacity.value}%`;
+    });
+
+    function readOverlayForm() {
+      return {
+        enabled: ovEnabled.checked,
+        showPointers: ovPointers.checked,
+        showSpeakers: ovSpeakers.checked,
+        showToasts: ovToasts.checked,
+        corner: ovCorner.value,
+        opacity: Number(ovOpacity.value) / 100,
+        monitorIndex: null,
+      };
+    }
+
+    document.getElementById("ov-save-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      await invoke("update_overlay_config", { config: readOverlayForm() });
+    });
+
+    document.getElementById("ov-test-pointer").addEventListener("click", async () => {
+      if (!invoke) return;
+      ovEnabled.checked = true;
+      await invoke("update_overlay_config", { config: readOverlayForm() });
+      await invoke("push_overlay_pointer", {
+        pointer: {
+          senderName: "Teste Clicar & Apontar",
+          x: 0.35 + Math.random() * 0.3,
+          y: 0.35 + Math.random() * 0.3,
+          color: "#5865f2",
+          mode: "ping",
+        },
+      });
+    });
+
+    document.getElementById("ov-test-speakers").addEventListener("click", async () => {
+      if (!invoke) return;
+      ovEnabled.checked = true;
+      await invoke("update_overlay_config", { config: readOverlayForm() });
+      await invoke("set_overlay_speakers", {
+        speakers: [
+          { identity: "u1", name: "Você", speaking: true, muted: false, avatarColor: "#3ba55d" },
+          { identity: "u2", name: "Amigo na call", speaking: false, muted: false, avatarColor: "#5865f2" },
+        ],
+      });
+    });
+
+    // Áudio isolado
+    let audioTargets = [];
+    async function refreshAudioTargets() {
+      if (!invoke) return;
+      audioTargets = await invoke("list_audio_targets");
+      const sel = document.getElementById("audio-target-select");
+      sel.textContent = "";
+      for (const t of audioTargets) {
+        const opt = document.createElement("option");
+        opt.value = JSON.stringify(t);
+        opt.textContent = t.isSystemDefault
+          ? t.windowTitle
+          : `${t.windowTitle} (${t.processName} · PID ${t.pid})`;
+        sel.appendChild(opt);
+      }
+    }
+
+    document.getElementById("audio-refresh-btn").addEventListener("click", refreshAudioTargets);
+
+    document.getElementById("audio-start-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      const sel = document.getElementById("audio-target-select");
+      if (!sel.value) return;
+      const target = JSON.parse(sel.value);
+      const mode = target.isSystemDefault
+        ? { kind: "excludeSelf" }
+        : {
+            kind: "includeProcessTree",
+            pid: target.pid,
+            pipewireNodeId: target.pipewireNodeId ?? null,
+            label: target.windowTitle,
+          };
+      const st = await invoke("start_isolated_audio", { mode });
+      renderAudioStatus(st);
+    });
+
+    document.getElementById("audio-stop-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      const st = await invoke("stop_isolated_audio");
+      renderAudioStatus(st);
+    });
+
+    function renderAudioStatus(st) {
+      const meter = document.getElementById("audio-meter");
+      const label = document.getElementById("audio-status");
+      if (!st) return;
+      meter.style.width = `${Math.round((st.peakLevel || 0) * 100)}%`;
+      if (st.error) {
+        label.textContent = `Erro: ${st.error}`;
+      } else if (st.active) {
+        label.textContent = `Ativo (${st.backend}) · Alvo: ${st.targetLabel} · ${st.sampleRate} Hz · ${st.capturedFrames} frames`;
+      } else {
+        label.textContent = `Inativo (${st.backend}).`;
+      }
+    }
+
+    // Captura 1080p120
+    async function refreshCaptureData() {
+      if (!invoke) return;
+      const encoders = await invoke("detect_hardware_encoders");
+      const encEl = document.getElementById("hw-encoders-list");
+      encEl.textContent = "";
+      if (!encoders || encoders.length === 0) {
+        encEl.textContent = "Nenhum encoder hardware detectado (instale ffmpeg com NVENC/AMF/QSV/VAAPI).";
+      } else {
+        for (const e of encoders) {
+          const pill = document.createElement("span");
+          pill.className = `pill${e.hardwareAccelerated ? " hw" : ""}`;
+          pill.textContent = `${e.name} · ${e.vendor}${e.supports444 ? " · 4:4:4" : ""}`;
+          encEl.appendChild(pill);
+        }
+      }
+
+      const sources = await invoke("list_capture_sources");
+      const sel = document.getElementById("cap-source-select");
+      sel.textContent = "";
+      for (const s of sources || []) {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.kind === "monitor"
+          ? `[Monitor] ${s.name} (${s.width}x${s.height})`
+          : `[Janela] ${s.name}`;
+        sel.appendChild(opt);
+      }
+    }
+
+    document.getElementById("cap-refresh-btn").addEventListener("click", refreshCaptureData);
+
+    document.getElementById("cap-start-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      const sourceId = document.getElementById("cap-source-select").value || "monitor:0";
+      const profile = document.getElementById("cap-profile-select").value;
+      const st = await invoke("start_native_screen_share", {
+        config: { sourceId, profile },
+      });
+      renderCaptureStatus(st);
+    });
+
+    document.getElementById("cap-stop-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      const st = await invoke("stop_native_screen_share");
+      renderCaptureStatus(st);
+    });
+
+    function renderCaptureStatus(st) {
+      const el = document.getElementById("cap-status");
+      if (!st) return;
+      if (st.error) {
+        el.textContent = `Erro: ${st.error}`;
+      } else if (st.active && st.params) {
+        el.textContent = `Ativo · ${st.params.width}x${st.params.height} @ ${st.params.fps}fps · ${st.params.encoder} (${st.params.chroma}) · ${st.currentBitrateMbps.toFixed(1)} Mbps`;
+      } else {
+        el.textContent = `Inativo (${st.captureBackend}).`;
+      }
+    }
+
+    // Presença & Atalhos
+    document.getElementById("gp-save-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      const enabled = document.getElementById("gp-enabled").checked;
+      const ignoredGames = document
+        .getElementById("gp-ignored")
+        .value.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await invoke("set_game_presence_config", {
+        config: { enabled, ignoredGames, manualOverride: null },
+      });
+    });
+
+    // Controle remoto & Sistema
+    document.getElementById("rc-panic-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      await invoke("revoke_remote_control");
+      document.getElementById("rc-status").textContent = "Inativo (revogado com segurança).";
+    });
+
+    document.getElementById("sys-autostart").addEventListener("change", async (ev) => {
+      if (!invoke) return;
+      await invoke("set_autostart", { enabled: ev.target.checked });
+    });
+
+    document.getElementById("sys-update-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      const st = document.getElementById("sys-status");
+      st.textContent = "Verificando atualizações...";
+      const res = await invoke("check_updates_now");
+      if (res?.kind === "readyToRestart") {
+        st.textContent = `Atualização ${res.version} pronta para instalar!`;
+        document.getElementById("sys-apply-update-btn").style.display = "inline-block";
+      } else if (res?.kind === "upToDate") {
+        st.textContent = "Você já está na versão mais recente.";
+      } else {
+        st.textContent = `Status: ${res?.kind || "desconhecido"} ${res?.message || ""}`;
+      }
+    });
+
+    document.getElementById("sys-apply-update-btn").addEventListener("click", async () => {
+      if (!invoke) return;
+      await invoke("apply_update_and_restart");
+    });
+
+    async function bootstrap() {
+      if (!invoke) return;
+      const info = await invoke("get_desktop_info");
+      document.getElementById("app-meta").textContent =
+        `v${info.version}${info.buildSha ? " · " + info.buildSha : ""} (${info.platform})`;
+      document.getElementById("sys-autostart").checked = Boolean(info.autostartEnabled);
+
+      const ovCfg = await invoke("get_overlay_config");
+      ovEnabled.checked = Boolean(ovCfg.enabled);
+      ovPointers.checked = Boolean(ovCfg.showPointers);
+      ovSpeakers.checked = Boolean(ovCfg.showSpeakers);
+      ovToasts.checked = Boolean(ovCfg.showToasts);
+      ovCorner.value = ovCfg.corner || "top-left";
+      ovOpacity.value = String(Math.round((ovCfg.opacity ?? 0.92) * 100));
+      ovOpacityVal.textContent = `${ovOpacity.value}%`;
+
+      const gpCfg = await invoke("get_game_presence_config");
+      document.getElementById("gp-enabled").checked = Boolean(gpCfg.enabled);
+      document.getElementById("gp-ignored").value = (gpCfg.ignoredGames || []).join(", ");
+
+      const curGame = await invoke("get_current_game_presence");
+      if (curGame) {
+        document.getElementById("game-detected-label").textContent =
+          `Jogando agora: ${curGame.displayName} (${curGame.processName})`;
+      }
+
+      const keybinds = await invoke("get_keybinds");
+      const kbBox = document.getElementById("keybinds-list");
+      kbBox.textContent = "";
+      for (const kb of keybinds || []) {
+        const item = document.createElement("div");
+        item.className = "list-item";
+        const name = typeof kb.action === "string" ? kb.action : JSON.stringify(kb.action);
+        item.innerHTML = `<span>${name}</span><code>${kb.shortcut}</code>`;
+        kbBox.appendChild(item);
+      }
+
+      await Promise.all([refreshAudioTargets(), refreshCaptureData()]);
+
+      // Polling leve apenas enquanto o painel de configurações estiver aberto
+      setInterval(async () => {
+        const [aSt, cSt] = await Promise.all([
+          invoke("get_isolated_audio_status"),
+          invoke("get_native_screen_share_status"),
+        ]);
+        renderAudioStatus(aSt);
+        renderCaptureStatus(cSt);
+      }, 250);
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>

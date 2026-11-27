@@ -252,6 +252,7 @@ export const desktopBridge = {
     tauriInvoke<{ processName: string; displayName: string } | null>('get_current_game_presence'),
   sendNativeNotification: (title: string, body: string) =>
     tauriInvoke<void>('send_native_notification', { title, body }),
+  openDesktopSettings: () => tauriInvoke<void>('open_desktop_settings'),
 
   // Atalhos Globais em Jogos (Etapa 4)
   getKeybinds: () => tauriInvoke<KeybindEntry[]>('get_keybinds'),

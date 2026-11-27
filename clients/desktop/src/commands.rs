@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::core::config::{normalize_instance_url, AppConfig};
@@ -538,6 +538,27 @@ pub fn revoke_remote_control(
     }
     let _ = app.emit("balacopapo://remote-control-state", RemoteControlState::Idle);
     RemoteControlState::Idle
+}
+
+#[tauri::command]
+pub fn open_desktop_settings(app: AppHandle) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window("settings") {
+        let _ = existing.show();
+        let _ = existing.unminimize();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    tauri::WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
+        .title("Configurações do Balacopapo Desktop")
+        .inner_size(940.0, 640.0)
+        .min_inner_size(760.0, 520.0)
+        .resizable(true)
+        .background_color(tauri::window::Color(14, 16, 21, 255))
+        .build()
+        .map_err(|e| format!("Falha ao abrir configurações do desktop: {e}"))?;
+
+    Ok(())
 }
 
 #[tauri::command]

@@ -22,6 +22,7 @@ use crate::os::remote_control::{RemoteControlState, PANIC_HOTKEY};
 use crate::os::updater::{self, UpdateCheckState};
 
 const MENU_OPEN: &str = "open";
+const MENU_DESKTOP_SETTINGS: &str = "desktop_settings";
 const MENU_TOGGLE_OVERLAY: &str = "toggle_overlay";
 const MENU_SWITCH_INSTANCE: &str = "switch_instance";
 const MENU_RELOAD: &str = "reload";
@@ -133,6 +134,15 @@ fn build_init_script() -> String {
               document.documentElement.classList.toggle("bp-bg-paused", ev.payload === false);
             }});
           }}
+
+          window.addEventListener("keydown", function(ev) {{
+            if (ev.ctrlKey && ev.altKey && (ev.key === "," || ev.code === "Comma")) {{
+              ev.preventDefault();
+              if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {{
+                window.__TAURI__.core.invoke("open_desktop_settings");
+              }}
+            }}
+          }});
         }})();
         "#
     )
@@ -295,6 +305,13 @@ fn spawn_background_updater(app: AppHandle) {
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let open_item = MenuItem::with_id(app, MENU_OPEN, "Abrir Balacopapo", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(
+        app,
+        MENU_DESKTOP_SETTINGS,
+        "Configurações do Desktop...",
+        true,
+        None::<&str>,
+    )?;
     let overlay_item = MenuItem::with_id(
         app,
         MENU_TOGGLE_OVERLAY,
@@ -333,6 +350,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         app,
         &[
             &open_item,
+            &settings_item,
             &overlay_item,
             &switch_item,
             &reload_item,
@@ -360,6 +378,9 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(move |app, event| match event.id.as_ref() {
             MENU_OPEN => focus_main_window(app),
+            MENU_DESKTOP_SETTINGS => {
+                let _ = commands::open_desktop_settings(app.clone());
+            }
             MENU_TOGGLE_OVERLAY => {
                 if os::overlay::is_overlay_active(app) {
                     os::overlay::destroy_overlay_window(app);
@@ -504,6 +525,7 @@ fn main() {
             commands::approve_remote_control,
             commands::revoke_remote_control,
             commands::inject_remote_input,
+            commands::open_desktop_settings,
         ])
         .setup(move |app| {
             setup_tray(app.handle())?;
