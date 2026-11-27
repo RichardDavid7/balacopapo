@@ -1775,6 +1775,60 @@ export function useLiveKit() {
   }, [room, screenShareConfig, streamHostLimits, isScreenSharing, isCameraOn]);
 
   useEffect(() => {
+    const dispatchOverlay = window.backspace?.dispatchOverlayEvent;
+    if (typeof dispatchOverlay !== 'function') return;
+
+    const NAMED_AVATAR_HEX: Record<string, string> = {
+      lavender: '#a78bfa',
+      mint: '#34d399',
+      rose: '#fb7185',
+      amber: '#fbbf24',
+      sky: '#38bdf8',
+      indigo: '#818cf8',
+      emerald: '#10b981',
+      coral: '#f97316',
+    };
+
+    const resolveSpeakerColor = (raw?: string | null): string | undefined => {
+      if (!raw) return undefined;
+      if (/^#[0-9a-fA-F]{3,8}$/.test(raw)) return raw;
+      return NAMED_AVATAR_HEX[raw.toLowerCase()];
+    };
+
+    let lastSentSig = '';
+
+    const syncOverlaySpeakers = (state: ReturnType<typeof useVoiceStore.getState>) => {
+      const speakers = !state.isLiveKitConnected || state.speakingParticipantIds.size === 0
+        ? []
+        : state.participants
+            .filter((p) => state.speakingParticipantIds.has(p.identity))
+            .map((p) => ({
+              id: p.userId,
+              name: p.cachedUser?.displayName || p.cachedUser?.username || p.username,
+              avatarColor: resolveSpeakerColor(p.cachedUser?.accentColor ?? p.cachedUser?.avatarColor),
+              muted: p.isMuted,
+              deafened: p.isDeafened,
+            }));
+
+      const nextSig = speakers.length === 0 ? '' : JSON.stringify(speakers);
+      if (nextSig === lastSentSig) return;
+      lastSentSig = nextSig;
+      dispatchOverlay({ kind: 'speaking_update', speakers });
+    };
+
+    syncOverlaySpeakers(useVoiceStore.getState());
+    const unsubscribe = useVoiceStore.subscribe(syncOverlaySpeakers);
+
+    return () => {
+      unsubscribe();
+      if (lastSentSig !== '') {
+        lastSentSig = '';
+        dispatchOverlay({ kind: 'speaking_update', speakers: [] });
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       _connectGeneration++;
       SpeakingDetector.getInstance().clear();

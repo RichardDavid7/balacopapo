@@ -109,6 +109,10 @@ contextBridge.exposeInMainWorld('backspace', {
     ipcRenderer.invoke('get-system-audio-capability', usesAppSource === true),
   startSystemAudio: (opts?: { targetAppName?: string }) => ipcRenderer.invoke('system-audio-start', opts),
   stopSystemAudio: () => ipcRenderer.invoke('system-audio-stop'),
+  startWindowsProcessAudio: (opts?: { sourceId?: string | null; excludeSelf?: boolean }) =>
+    ipcRenderer.invoke('win-process-audio-start', opts),
+  stopWindowsProcessAudio: () => ipcRenderer.invoke('win-process-audio-stop'),
+  isWindowsProcessAudioAvailable: () => ipcRenderer.invoke('win-process-audio-available'),
   setScreenShareAudioPreference: (shareAudio: boolean) => {
     ipcRenderer.send('screen-share-audio-preference', shareAudio);
   },

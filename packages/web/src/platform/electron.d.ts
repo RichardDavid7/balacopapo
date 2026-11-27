@@ -156,6 +156,16 @@ interface BackspaceElectronAPI {
     | { ok: false; reason: 'unsupported-platform' | 'sandboxed' | 'module-missing' | 'no-pipewire' | 'link-failed' }
   >;
   stopSystemAudio?: () => Promise<void>;
+  /**
+   * Windows 10 20348+ / 11: WASAPI Process Loopback native addon for per-window
+   * or app-excluded audio capture exposed as a localhost PCM stream.
+   */
+  startWindowsProcessAudio?: (opts?: { sourceId?: string | null; excludeSelf?: boolean }) => Promise<
+    | { ok: true; url: string }
+    | { ok: false; reason: string }
+  >;
+  stopWindowsProcessAudio?: () => Promise<void>;
+  isWindowsProcessAudioAvailable?: () => Promise<boolean>;
 
   // Instance URL management
   getInstanceUrl: () => Promise<string | null>;

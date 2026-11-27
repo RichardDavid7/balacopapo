@@ -52,6 +52,33 @@ jobs:
       - name: TypeScript build
         run: pnpm --filter @backspace/desktop build:ts
 
+      - name: Setup Rust toolchain (Windows WASAPI addon)
+        if: matrix.target == 'windows-x64'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Rust build (Windows WASAPI addon)
+        if: matrix.target == 'windows-x64'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop/native/wasapi-loopback
+
+      - name: Lint, test, and build Windows WASAPI Process Loopback addon
+        if: matrix.target == 'windows-x64'
+        working-directory: packages/desktop/native/wasapi-loopback
+        run: |
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+          cargo build --release
+
+      - name: Stage Windows WASAPI addon for electron-builder
+        if: matrix.target == 'windows-x64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path packages/desktop/resources | Out-Null
+          Copy-Item -Force packages/desktop/native/wasapi-loopback/target/release/wasapi_loopback.dll packages/desktop/resources/wasapi_loopback.node
+
       - name: Package installer (${{ matrix.target }})
         working-directory: packages/desktop
         run: pnpm exec electron-builder ${{ matrix.flag }} --publish never

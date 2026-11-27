@@ -29,6 +29,7 @@ import {
 import { getUpdateCapability, isSandboxed } from './updateCapability';
 import { ownAudioInSystemAudio } from './systemAudioCapability';
 import { createSystemAudioController, withSystemAudioSource, type PatchBayModule } from './systemAudio';
+import { createWinProcessAudioController } from './winProcessAudio';
 import { loadDismissedVersion, setDismissedVersion } from './updateDismissal';
 import { purgeUpdaterCache } from './updaterCache';
 import {
@@ -463,14 +464,18 @@ function createWindow(): void {
   // download, and the page that keeps running may be sharing. `did-navigate` fires for a
   // committed cross-document main-frame load; `did-fail-load` for the main frame is the error
   // page that replaced it (-3, ERR_ABORTED, is a cancelled navigation that replaced nothing).
-  mainWindow.webContents.on('render-process-gone', () => systemAudio.stop());
-  mainWindow.webContents.on('did-navigate', () => systemAudio.stop());
+  mainWindow.webContents.on('render-process-gone', () => { systemAudio.stop(); winProcessAudio.stop(); });
+  mainWindow.webContents.on('did-navigate', () => { systemAudio.stop(); winProcessAudio.stop(); });
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
-    if (isMainFrame && errorCode !== -3) systemAudio.stop();
+    if (isMainFrame && errorCode !== -3) {
+      systemAudio.stop();
+      winProcessAudio.stop();
+    }
   });
 
   mainWindow.on('closed', () => {
     systemAudio.stop();
+    winProcessAudio.stop();
     setMainWindow(null);
     mainWindow = null;
     // Clear recovery state so macOS dock-activate (which calls createWindow again)
@@ -599,6 +604,8 @@ const systemAudio = createSystemAudioController({
   isSandboxed,
   log: (message, ...args) => console.warn('[Main:SystemAudio]', message, ...args),
 });
+// Windows: optional native WASAPI Process Loopback addon (per-window / app-excluded audio).
+const winProcessAudio = createWinProcessAudioController();
 /** Last enumeration, so a preselected id resolves to its DesktopCapturerSource without a second scan. */
 let lastScreenSources: Electron.DesktopCapturerSource[] = [];
 /** Last list handed to the renderer, and when: what a throttled or unfocused caller gets back. */
@@ -840,6 +847,20 @@ function registerIpcHandlers(): void {
   ipcMain.handle('system-audio-stop', (event) => {
     if (event.sender !== mainWindow?.webContents) return;
     systemAudio.stop();
+  });
+  ipcMain.handle('win-process-audio-available', (event) => {
+    if (event.sender !== mainWindow?.webContents) return false;
+    return winProcessAudio.isAvailable();
+  });
+  ipcMain.handle('win-process-audio-start', (event, opts?: { sourceId?: string | null; excludeSelf?: boolean }) => {
+    if (event.sender !== mainWindow?.webContents) return { ok: false, reason: 'unauthorized' };
+    const sourceId = typeof opts?.sourceId === 'string' ? opts.sourceId.slice(0, 128) : null;
+    const excludeSelf = opts?.excludeSelf !== false;
+    return winProcessAudio.start({ sourceId, excludeSelf });
+  });
+  ipcMain.handle('win-process-audio-stop', (event) => {
+    if (event.sender !== mainWindow?.webContents) return;
+    winProcessAudio.stop();
   });
   // handle, not on: the renderer awaits this before calling getDisplayMedia(),
   // so the selection is guaranteed to be armed when the display-media handler
@@ -1567,6 +1588,7 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     systemAudio.stop();
+    winProcessAudio.stop();
     overlayManager.destroy();
     isQuitting = true;
     stopActivityDetection();

@@ -57,9 +57,163 @@ type StartResult = Awaited<ReturnType<NonNullable<NonNullable<ReturnType<typeof 
 let holders = 0;
 let starting: Promise<StartResult> | null = null;
 
-/** `null` when the desktop app has no such source (or this is a browser): the caller keeps the loopback capture. */
-export async function acquireAppExcludedSystemAudio(opts?: { targetAppName?: string }): Promise<MediaStreamTrack | null> {
+const WIN_PCM_SAMPLE_RATE = 48000;
+const WIN_PCM_CHANNELS = 2;
+const WIN_PCM_BYTES_PER_SAMPLE = 4; // float32 little-endian
+const WIN_PCM_BYTES_PER_FRAME = WIN_PCM_CHANNELS * WIN_PCM_BYTES_PER_SAMPLE; // 8 bytes
+
+/**
+ * Windows 10 20348+ / 11: acquires per-window or app-excluded audio via the
+ * optional native WASAPI Process Loopback addon (`wasapi_loopback.node`),
+ * reading its raw 48 kHz stereo f32le PCM HTTP stream into a Web Audio
+ * `MediaStreamAudioDestinationNode`. Returns `null` on any failure so the
+ * caller falls back gracefully to Chromium's loopback capture.
+ */
+async function acquireWindowsProcessAudio(opts?: {
+  sourceId?: string | null;
+  excludeSelf?: boolean;
+}): Promise<MediaStreamTrack | null> {
   const api = getElectronAPI();
+  if (api?.platform !== 'win32') return null;
+  if (typeof api.startWindowsProcessAudio !== 'function' || typeof api.stopWindowsProcessAudio !== 'function') {
+    return null;
+  }
+
+  let started = false;
+  let ctx: AudioContext | null = null;
+  let abort: AbortController | null = null;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let cleaned = false;
+
+  const cleanup = (): void => {
+    if (cleaned) return;
+    cleaned = true;
+    try { abort?.abort(); } catch { /* ignore */ }
+    if (reader) {
+      void reader.cancel().catch(() => undefined);
+      reader = null;
+    }
+    if (ctx) {
+      void ctx.close().catch(() => undefined);
+      ctx = null;
+    }
+    if (started) {
+      started = false;
+      void api.stopWindowsProcessAudio?.().catch(() => undefined);
+    }
+  };
+
+  try {
+    const res = await api.startWindowsProcessAudio({
+      sourceId: opts?.sourceId ?? null,
+      excludeSelf: opts?.excludeSelf ?? true,
+    });
+    if (!res.ok) return null;
+    started = true;
+
+    abort = new AbortController();
+    const response = await fetch(res.url, { signal: abort.signal });
+    if (!response.ok || !response.body) {
+      cleanup();
+      return null;
+    }
+
+    ctx = new AudioContext({ sampleRate: WIN_PCM_SAMPLE_RATE });
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    const dest = ctx.createMediaStreamDestination();
+    const track = dest.stream.getAudioTracks()[0];
+    if (!track) {
+      cleanup();
+      return null;
+    }
+
+    reader = response.body.getReader();
+    const activeCtx = ctx;
+    const activeReader = reader;
+
+    // Pump raw interleaved f32le stereo PCM frames into scheduled AudioBuffers.
+    void (async () => {
+      let leftover = new Uint8Array(0);
+      let nextPlayTime = 0;
+      try {
+        for (;;) {
+          const { done, value } = await activeReader.read();
+          if (done || cleaned) break;
+          if (!value || value.byteLength === 0) continue;
+
+          let chunk: Uint8Array;
+          if (leftover.byteLength > 0) {
+            chunk = new Uint8Array(leftover.byteLength + value.byteLength);
+            chunk.set(leftover, 0);
+            chunk.set(value, leftover.byteLength);
+          } else {
+            chunk = value;
+          }
+
+          const frameCount = Math.floor(chunk.byteLength / WIN_PCM_BYTES_PER_FRAME);
+          const usableBytes = frameCount * WIN_PCM_BYTES_PER_FRAME;
+          leftover = usableBytes < chunk.byteLength ? chunk.slice(usableBytes) : new Uint8Array(0);
+
+          if (frameCount === 0 || activeCtx.state === 'closed') continue;
+
+          const audioBuffer = activeCtx.createBuffer(WIN_PCM_CHANNELS, frameCount, WIN_PCM_SAMPLE_RATE);
+          const left = audioBuffer.getChannelData(0);
+          const right = audioBuffer.getChannelData(1);
+          const view = new DataView(chunk.buffer, chunk.byteOffset, usableBytes);
+          for (let i = 0; i < frameCount; i++) {
+            const offset = i * WIN_PCM_BYTES_PER_FRAME;
+            left[i] = view.getFloat32(offset, true);
+            right[i] = view.getFloat32(offset + 4, true);
+          }
+
+          const now = activeCtx.currentTime;
+          if (nextPlayTime < now + 0.01 || nextPlayTime > now + 0.35) {
+            nextPlayTime = now + 0.04;
+          }
+
+          const sourceNode = activeCtx.createBufferSource();
+          sourceNode.buffer = audioBuffer;
+          sourceNode.connect(dest);
+          sourceNode.start(nextPlayTime);
+          nextPlayTime += audioBuffer.duration;
+        }
+      } catch (err) {
+        if (!cleaned) {
+          console.warn('[ScreenShare] Windows process audio PCM stream ended:', err);
+        }
+      }
+    })();
+
+    const stopTrack = track.stop.bind(track);
+    track.stop = (): void => {
+      stopTrack();
+      cleanup();
+    };
+    track.addEventListener('ended', cleanup, { once: true });
+    return track;
+  } catch (err) {
+    console.warn('[ScreenShare] Windows process audio could not be started:', err);
+    cleanup();
+    return null;
+  }
+}
+
+/** `null` when the desktop app has no such source (or this is a browser): the caller keeps the loopback capture. */
+export async function acquireAppExcludedSystemAudio(opts?: {
+  targetAppName?: string;
+  sourceId?: string | null;
+  excludeSelf?: boolean;
+}): Promise<MediaStreamTrack | null> {
+  const api = getElectronAPI();
+  if (api?.platform === 'win32' && typeof api.startWindowsProcessAudio === 'function') {
+    const winTrack = await acquireWindowsProcessAudio({
+      sourceId: opts?.sourceId ?? null,
+      excludeSelf: opts?.excludeSelf ?? true,
+    });
+    if (winTrack) return winTrack;
+  }
   if (!api?.startSystemAudio || !api.stopSystemAudio) return null;
 
   holders++;
