@@ -1,67 +1,47 @@
-# AGENTS.md — Balacopapo Desktop (100% Nativo Rust, Zero WebView)
+# AGENTS.md — Balacopapo Desktop (**Tauri v2 Híbrido: UI `packages/web` + Motor Nativo Rust**)
 
 Guia rápido para qualquer IA manter e evoluir `clients/desktop/` sem burocracia.
 
-> Roadmap geral: `../../ROADMAP.md` · Roadmap nativo: `../../packages/desktop/ROADMAP.md`
+> Arquitetura completa: `./ARCHITECTURE.md` · Roadmap geral: `../../ROADMAP.md` · Roadmap nativo: `../../packages/desktop/ROADMAP.md`
 
 ---
 
-## 1. Premissas Inegociáveis ("Zero-Stutter Budget")
+## 1. Premissas Inegociáveis
 
-1. **ZERO WebView / ZERO Chromium / ZERO Node.js / ZERO JVM:** processo único nativo em Rust (`Iced` + `wgpu` + `cosmic-text`).
-2. **Baixa interrupção de CPU em jogos (alvo principal):**
-   - **Zero Garbage Collector** (sem travadinhas de V8/JVM).
-   - **0% de GPU quando ocioso:** nunca crie timers/animações em loop quando não há mudança real na tela; `Subscription::none()` é o padrão.
-   - **Áudio Lock-Free (`rtrb` + MMCSS `Pro Audio`):** thread de áudio isolada sem *locks* nem alocações na heap (Marco 3).
-   - **Overlay sob demanda:** redesenha apenas em eventos de fala/toast/pointer, nunca a 60fps constantes (Marco 6).
-3. **Terminologia PT-BR:** use sempre **Grupo / Grupos** (antigo *Espaço*) e **Grupo Direto** (antigo *DM em grupo*).
+1. **Arquitetura Tauri v2 Híbrido (1 único executável):**
+   - **UI:** sempre o próprio `packages/web` (React + Tailwind) dentro da WebView do SO (WebView2 no Windows / WebKitGTK no Linux — **zero Electron / zero Chromium embutido**). **Não** reescreva telas de chat/perfil/configurações em toolkits Rust (`Iced`, `egui`, etc.).
+   - **Backend / Mídia / SO:** 100% **Rust nativo** dentro do mesmo binário (sem Garbage Collector, baixa interrupção de CPU).
+2. **Orçamento para PC fraco ("calculadora de 1 real"):**
+   - **RAM < 400 MB** mesmo em call + stream; fora de call, destruir a janela de Overlay (`0 MB`).
+   - **~0% CPU/GPU no WebView em jogo:** pausar timers/animações quando minimizado ou sem foco.
+   - **Zero injeção de DLL em jogos:** Overlay funciona em *Borderless Fullscreen* / *Janela* via janela nativa *click-through* para nunca conflitar com Anti-Cheat.
+3. **Overlay & Áudio Isolado:**
+   - No Windows, a janela de Overlay **sempre** usa `WDA_EXCLUDEFROMCAPTURE` + `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOPMOST` e mapeia coordenadas `(0..1)` com escala DPI real.
+   - Áudio isolado por janela usa **WASAPI Process Loopback** (`INCLUDE_TARGET_PROCESS_TREE` / `EXCLUDE_TARGET_PROCESS_TREE` para excluir o PID do próprio Balacopapo) no Windows e **PipeWire por aplicativo** no Linux.
+4. **Terminologia PT-BR & Guardrails:**
+   - Use sempre **Grupo / Grupos** (antigo *Espaço*) e **Grupo Direto** (antigo *DM em grupo*).
+   - **Vote-Skip %** do bot de música é campo livre (`1` a `100`) nas Configurações do Grupo (nunca no mini-player).
+   - **Jitter Buffer** sempre **Automático** por padrão (override manual apenas no Solucionador).
 
 ---
 
-## 2. Mapa de Arquivos (1 Arquivo = 1 Assunto)
+## 2. Módulos Rust Reaproveitados no Backend
 
-| Preciso mexer em... | Arquivo |
+| Assunto | Módulo |
 | :--- | :--- |
-| Entrada `Iced` + configuração de janela | `src/main.rs` |
-| Máquina de estados Elm principal (`Message` + `update` + `view`) | `src/app.rs` |
-| Config local JSON + validação de URL | `src/core/config.rs` |
-| Parser `balacopapo://` (OIDC callback + convites) | `src/core/deep_link.rs` |
-| 23 `PermissionBits` (espelho de `packages/shared/src/permissions.ts`) | `src/core/permissions.rs` |
-| Política Opus 5 níveis (`Instância → Grupo → Categoria → Canal → Usuário`) | `src/core/audio_policy.rs` |
-| DTOs REST/WS | `src/core/models.rs` |
-| Cliente HTTP (`reqwest` + `rustls`, sem OpenSSL) | `src/net/client.rs` |
-| Cliente WebSocket 100% event-driven (`tokio-tungstenite` + reconexão) | `src/net/ws.rs` |
-| Verificador SemVer GitHub Releases | `src/os/updater.rs` |
-| Design System **Aether Drift** (`Iced` styles + tokens) | `src/ui/aether_drift.rs` |
-| Tela de login / instância / OIDC | `src/features/auth/mod.rs` (+ `MODULE.md`) |
-| Chat ao vivo (histórico paginado, envio, exclusão, filtro) | `src/features/chat/mod.rs` (+ `MODULE.md`) |
-| Painel de Voz nativo (dispositivos, RNNoise, loopback, Opus, Jitter) | `src/features/voice/mod.rs` (+ `MODULE.md`) |
-| Soundboard & Editor WAV em Canvas GPU | `src/features/soundboard/mod.rs` (+ `MODULE.md`) |
-| Palco de Stream GPU (Zoom/Pan 1x–6x, Apontar, Áudio da Janela) | `src/features/stream/mod.rs` (+ `MODULE.md`) |
-| Malha P2P Híbrida (Grafo GPU, Sobrevivência, Consentimento) | `src/features/p2p/mod.rs`, `src/core/p2p_mesh.rs` |
-| Overlay In-Game (3 camadas), Atalhos Globais & Presença de Jogos | `src/features/overlay/mod.rs`, `src/os/keybinds.rs`, `src/os/activity.rs` |
-| DMs & Grupos Diretos | `src/features/dm/mod.rs` (+ `MODULE.md`) |
-| Mini-Player de Música limpo (sem config de Vote-Skip) | `src/features/music/mod.rs` (+ `MODULE.md`) |
-| Configurações (Usuário, Grupo com Vote-Skip livre %, API Keys, Admin) | `src/features/settings/mod.rs` (+ `MODULE.md`) |
-| Controle Remoto Seguro (`Ctrl+Alt+Esc`), Temas & 6 Idiomas/12h-24h | `src/os/remote_control.rs`, `src/core/i18n.rs`, `src/ui/aether_drift.rs` |
-| Protocolo `stream_pointer` & orçamento dinâmico de upload | `src/core/stream_pointer.rs`, `src/media/screen_share.rs` |
-| Motor de áudio lock-free (`cpal` + `rtrb` + `nnnoiseless`) e WAV DSP | `src/media/audio_engine.rs`, `src/media/wav_dsp.rs` |
-| Workspace de Grupos, Categorias, Canais & Seletor de Status | `src/features/shell/mod.rs` (+ `MODULE.md`) |
-| Guardião automático de paridade (`PermissionBits`) | `../../scripts/check-desktop-parity.mjs` |
-| CI automático Windows + Linux | `../../.github/workflows/desktop-native-ci.yml` |
+| Permissões (espelho de `packages/shared/src/permissions.ts`) | `core/permissions.rs` (validar com `node ../../scripts/check-desktop-parity.mjs`) |
+| Deep links `balacopapo://` (OIDC + convites) | `core/deep_link.rs`, `os/protocol.rs` |
+| Auto-updater silencioso (`desktop-edge`) & Autostart | `os/updater.rs`, `os/autostart.rs` |
+| Notificações nativas, Atalhos globais, Presença de jogos, Controle remoto | `os/notifications.rs`, `os/keybinds.rs`, `os/activity.rs`, `os/remote_control.rs` |
+| Áudio lock-free (`cpal` + `rtrb` + RNNoise), LiveKit Rust & DSP WAV | `media/audio_engine.rs`, `media/livekit_session.rs`, `media/wav_dsp.rs` |
+| Protocolo `stream_pointer`, política Opus & orçamento dinâmico | `core/stream_pointer.rs`, `core/audio_policy.rs`, `media/screen_share.rs` |
 
 ---
 
-## 3. Receita: Adicionar 1 Nova Feature sem Novela
+## 3. Validação Obrigatória
 
-1. Crie `src/features/<nome>/mod.rs` (com `State`, `enum Message`, `view()`) + `MODULE.md` de ~20 linhas.
-2. Registre `pub mod <nome>;` em `src/features/mod.rs` e conecte no `app.rs`.
-3. Se mexer em permissões, valide a paridade com o servidor:
-   ```bash
-   node ../../scripts/check-desktop-parity.mjs
-   ```
-4. Valide o Rust (localmente ou via GitHub Actions):
-   ```bash
-   cargo clippy --all-targets -- -D warnings
-   cargo test
-   ```
+```bash
+node ../../scripts/check-desktop-parity.mjs
+cargo clippy --all-targets -- -D warnings
+cargo test
+```

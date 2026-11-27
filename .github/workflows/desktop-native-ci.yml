@@ -1,4 +1,4 @@
-name: Desktop Native CI & Edge Release (Rust + Iced — Win & Linux)
+name: Desktop CI & Edge Release (Tauri v2 Híbrido — Win & Linux)
 
 on:
   push:
@@ -50,11 +50,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Linux graphics/audio dependencies & Clang 21 (Zero WebView)
+      - name: Install Linux Tauri v2, graphics/audio dependencies & Clang 21
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y lsb-release wget software-properties-common gnupg libxkbcommon-dev libwayland-dev libx11-dev libxext-dev libxrandr-dev libxcomposite-dev libxdamage-dev libxtst-dev libdrm-dev libgbm-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev libglib2.0-dev pkg-config
+          sudo apt-get install -y lsb-release wget software-properties-common gnupg libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libxkbcommon-dev libwayland-dev libx11-dev libxext-dev libxrandr-dev libxcomposite-dev libxdamage-dev libxtst-dev libdrm-dev libgbm-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libssl-dev libglib2.0-dev pkg-config
           wget -q https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 21
@@ -135,7 +135,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           TAG="desktop-edge"
           TITLE="Balacopapo Desktop (Edge — ${SHORT_SHA})"
-          NOTES="Cliente desktop 100% Nativo em Rust (Iced + wgpu, Zero WebView / Zero Electron) para Windows e Linux (Fedora, CachyOS/Arch) — commit ${SHORT_SHA}. Windows: baixe e instale com Balacopapo-Setup-windows-x64.exe (Menu Iniciar, Area de Trabalho, balacopapo:// e auto-update silencioso) ou use a versao portable .exe/.zip. Linux: extraia Balacopapo-Desktop-linux-x64.tar.gz e rode ./install.sh."
+          NOTES="Cliente desktop Tauri v2 Híbrido (WebView do SO + Motor Nativo Rust, Zero Electron) para Windows e Linux (Fedora, CachyOS/Arch) — commit ${SHORT_SHA}. Windows: baixe e instale com Balacopapo-Setup-windows-x64.exe (Menu Iniciar, Area de Trabalho, balacopapo:// e auto-update silencioso) ou use a versao portable .exe/.zip. Linux: extraia Balacopapo-Desktop-linux-x64.tar.gz e rode ./install.sh."
 
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"

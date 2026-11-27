@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Balacopapo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1015;
+      --surface: rgba(24, 27, 36, 0.86);
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --text: #eef1f7;
+      --muted: #98a2b3;
+      --accent: #5865f2;
+      --accent-hover: #6c77f6;
+      --danger: #f04747;
+      --success: #3ba55d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+      background:
+        radial-gradient(600px 400px at 20% 15%, rgba(88, 101, 242, 0.16), transparent 70%),
+        radial-gradient(500px 350px at 85% 85%, rgba(59, 165, 93, 0.10), transparent 70%),
+        var(--bg);
+      color: var(--text);
+      user-select: none;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      padding: 32px 28px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .brand-badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #5865f2, #3b44c9);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 20px;
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(88, 101, 242, 0.35);
+    }
+
+    .brand h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cfd6e3;
+      margin-bottom: 8px;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      height: 46px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(10, 12, 17, 0.75);
+      color: var(--text);
+      padding: 0 14px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="url"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.25);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.45;
+    }
+
+    .error {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(240, 71, 71, 0.14);
+      border: 1px solid rgba(240, 71, 71, 0.32);
+      color: #ff9b9b;
+      font-size: 13px;
+      display: none;
+    }
+
+    .error.visible {
+      display: block;
+    }
+
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      flex: 1;
+      height: 44px;
+      border: none;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .footer {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .update-btn {
+      flex: 0 0 auto;
+      height: auto;
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 8px;
+      background: rgba(59, 165, 93, 0.18);
+      color: #7ee29f;
+      border: 1px solid rgba(59, 165, 93, 0.35);
+      display: none;
+    }
+
+    .update-btn.visible {
+      display: inline-block;
+    }
+
+    .update-btn:hover {
+      background: rgba(59, 165, 93, 0.28);
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <div class="brand-badge">B</div>
+      <div>
+        <h1>Balacopapo Desktop</h1>
+        <p>Conecte-se à sua instância self-hosted</p>
+      </div>
+    </div>
+
+    <form id="connect-form">
+      <label for="instance-url">Endereço do servidor Balacopapo</label>
+      <input
+        id="instance-url"
+        type="url"
+        placeholder="https://chat.seudominio.com"
+        autocomplete="url"
+        required
+      />
+      <p class="hint">
+        Aceita domínio HTTPS ou endereço local da sua rede (ex.: <code>http://192.168.1.50:3000</code>).
+        Você pode trocar de instância a qualquer momento pelo ícone na bandeja do sistema.
+      </p>
+      <div id="error-box" class="error"></div>
+      <div class="actions">
+        <button id="connect-btn" type="submit">Conectar</button>
+      </div>
+    </form>
+
+    <div class="footer">
+      <span id="version-label">Carregando...</span>
+      <button id="update-btn" class="update-btn" type="button">Atualizar e reiniciar</button>
+    </div>
+  </main>
+
+  <script>
+    const invoke = window.__TAURI__?.core?.invoke;
+    const listen = window.__TAURI__?.event?.listen;
+
+    const form = document.getElementById("connect-form");
+    const input = document.getElementById("instance-url");
+    const btn = document.getElementById("connect-btn");
+    const errorBox = document.getElementById("error-box");
+    const versionLabel = document.getElementById("version-label");
+    const updateBtn = document.getElementById("update-btn");
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.add("visible");
+    }
+
+    function clearError() {
+      errorBox.textContent = "";
+      errorBox.classList.remove("visible");
+    }
+
+    function applyUpdateUi(status) {
+      if (status && status.kind === "readyToRestart") {
+        updateBtn.textContent = `↑ Atualizar (${status.version || "nova versão"})`;
+        updateBtn.classList.add("visible");
+      }
+    }
+
+    async function init() {
+      if (!invoke) {
+        versionLabel.textContent = "Tauri IPC indisponível";
+        return;
+      }
+
+      try {
+        const info = await invoke("get_desktop_info");
+        const sha = info.buildSha ? ` · ${info.buildSha}` : "";
+        versionLabel.textContent = `v${info.version}${sha} (${info.platform})`;
+        applyUpdateUi(info.updateStatus);
+
+        if (info.instanceUrl) {
+          input.value = info.instanceUrl;
+          // Navega automaticamente na abertura normal (exceto quando o usuário clicou em "Trocar instância").
+          if (!window.location.search.includes("switch=1")) {
+            btn.disabled = true;
+            btn.textContent = "Conectando...";
+            window.location.replace(info.instanceUrl);
+            return;
+          }
+        }
+      } catch (err) {
+        showError(String(err));
+      }
+
+      if (listen) {
+        listen("balacopapo://update-status", (ev) => applyUpdateUi(ev.payload));
+      }
+    }
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      clearError();
+      if (!invoke) {
+        showError("API nativa Tauri indisponível.");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Conectando...";
+      try {
+        const normalized = await invoke("set_instance_url", { rawUrl: input.value });
+        window.location.replace(normalized);
+      } catch (err) {
+        showError(String(err));
+        btn.disabled = false;
+        btn.textContent = "Conectar";
+      }
+    });
+
+    updateBtn.addEventListener("click", async () => {
+      if (!invoke) return;
+      updateBtn.disabled = true;
+      updateBtn.textContent = "Reiniciando...";
+      try {
+        await invoke("apply_update_and_restart");
+      } catch (err) {
+        showError(String(err));
+        updateBtn.disabled = false;
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

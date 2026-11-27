@@ -4,9 +4,7 @@
 //! - Com o app aberto, verifica e baixa a nova versão silenciosamente em background.
 //!   Quando pronta, exibe apenas um botãozinho discreto (`↑ vX.Y.Z`) para reiniciar e aplicar.
 
-use futures_util::SinkExt;
-use iced::Subscription;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -14,9 +12,9 @@ use std::time::Duration;
 
 use crate::core::config::{DEFAULT_RELEASES_API, DEFAULT_RELEASES_PAGE};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum UpdateCheckState {
-    #[allow(dead_code)]
     Idle,
     Checking,
     UpToDate,
@@ -27,6 +25,7 @@ pub enum UpdateCheckState {
     /// Atualização já baixada e validada no disco — botãozinho discreto para reiniciar e aplicar.
     ReadyToRestart {
         version: String,
+        #[serde(skip_serializing)]
         staged_path: PathBuf,
     },
     /// Fallback quando a release ainda não tem binário direto para este SO.
@@ -34,7 +33,9 @@ pub enum UpdateCheckState {
         version: String,
         release_url: String,
     },
-    Failed(String),
+    Failed {
+        message: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -162,21 +163,35 @@ pub async fn check_and_stage_update() -> UpdateCheckState {
         .build()
     {
         Ok(c) => c,
-        Err(e) => return UpdateCheckState::Failed(format!("HTTP indisponível: {e}")),
+        Err(e) => {
+            return UpdateCheckState::Failed {
+                message: format!("HTTP indisponível: {e}"),
+            };
+        }
     };
 
     let resp = match client.get(DEFAULT_RELEASES_API).send().await {
         Ok(r) => r,
-        Err(e) => return UpdateCheckState::Failed(format!("Sem acesso ao GitHub: {e}")),
+        Err(e) => {
+            return UpdateCheckState::Failed {
+                message: format!("Sem acesso ao GitHub: {e}"),
+            };
+        }
     };
 
     if !resp.status().is_success() {
-        return UpdateCheckState::Failed(format!("GitHub HTTP {}", resp.status().as_u16()));
+        return UpdateCheckState::Failed {
+            message: format!("GitHub HTTP {}", resp.status().as_u16()),
+        };
     }
 
     let releases = match resp.json::<Vec<GithubRelease>>().await {
         Ok(r) => r,
-        Err(e) => return UpdateCheckState::Failed(format!("Resposta inválida: {e}")),
+        Err(e) => {
+            return UpdateCheckState::Failed {
+                message: format!("Resposta inválida: {e}"),
+            };
+        }
     };
 
     // Encontra a release mais recente que tenha artefato do Balacopapo Desktop (estável v* ou desktop-edge).
@@ -277,27 +292,6 @@ pub fn install_and_restart(staged_path: &Path) -> Result<(), String> {
         .map_err(|e| format!("Falha ao reiniciar versão atualizada: {e}"))?;
 
     std::process::exit(0);
-}
-
-/// Verifica e baixa atualizações silenciosamente a cada 30 min enquanto o app estiver aberto
-/// (0% CPU dormindo no timer assíncrono do Tokio).
-pub fn periodic_check_subscription() -> Subscription<UpdateCheckState> {
-    Subscription::run_with_id(
-        "balacopapo-silent-updater",
-        iced::stream::channel(4, |mut output| async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(30 * 60)).await;
-                let state = check_and_stage_update().await;
-                if matches!(
-                    state,
-                    UpdateCheckState::ReadyToRestart { .. }
-                        | UpdateCheckState::AvailableManual { .. }
-                ) {
-                    let _ = output.send(state).await;
-                }
-            }
-        }),
-    )
 }
 
 #[cfg(test)]

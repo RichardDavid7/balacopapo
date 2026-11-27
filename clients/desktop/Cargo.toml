@@ -1,7 +1,7 @@
 [package]
 name = "balacopapo-desktop"
-version = "0.2.0"
-description = "Cliente desktop 100% nativo (Rust + Iced + wgpu, Zero WebView) para o Balacopapo"
+version = "0.3.0"
+description = "Cliente desktop híbrido (Tauri v2 + WebView do SO + Motor Nativo Rust) para o Balacopapo"
 authors = ["RichardDavid7"]
 edition = "2021"
 license = "AGPL-3.0-only"
@@ -10,11 +10,13 @@ license = "AGPL-3.0-only"
 name = "balacopapo-desktop"
 path = "src/main.rs"
 
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
 [dependencies]
-iced = { version = "0.13", features = ["tokio", "wgpu", "svg", "image", "canvas", "advanced"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
+tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
-futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -28,11 +30,7 @@ hound = "3.5"
 sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 image = { version = "0.25", default-features = false, features = ["ico", "png", "jpeg", "webp", "gif"] }
 notify-rust = "4"
-rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
 livekit = { version = "0.11", default-features = false, features = ["rustls-tls-webpki-roots"] }
-
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
 
 [profile.release]
 panic = "abort"

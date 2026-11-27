@@ -2,7 +2,7 @@
 ; Instala por usuário em %LOCALAPPDATA%\Balacopapo (sem UAC e compatível com auto-update silencioso).
 
 #define MyAppName "Balacopapo"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "Balacopapo"
 #define MyAppURL "https://github.com/RichardDavid7/balacopapo"
 #define MyAppExeName "Balacopapo.exe"
