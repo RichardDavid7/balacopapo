@@ -486,7 +486,7 @@ pub async fn approve_remote_control(
     allow_mouse: bool,
     allow_keyboard: bool,
     state: State<'_, DesktopState>,
-) -> RemoteControlState {
+) -> Result<RemoteControlState, String> {
     let next = if let Ok(mut guard) = state.remote_control.lock() {
         guard.approve(allow_mouse, allow_keyboard);
         guard.clone()
@@ -514,7 +514,7 @@ pub async fn approve_remote_control(
     }
 
     let _ = app.emit("balacopapo://remote-control-state", next.clone());
-    next
+    Ok(next)
 }
 
 #[tauri::command]
