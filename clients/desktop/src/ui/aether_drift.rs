@@ -206,9 +206,7 @@ pub fn header_bar_style(_theme: &Theme) -> container::Style {
 pub fn rail_home_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_theme, status| {
         let lit = active || matches!(status, button::Status::Hovered | button::Status::Pressed);
-        let (bg, fg, radius) = if active {
-            (Color::WHITE, BG_RAIL, 13.0)
-        } else if lit {
+        let (bg, fg, radius) = if lit {
             (Color::WHITE, BG_RAIL, 13.0)
         } else {
             (Color::from_rgb8(58, 58, 68), Color::WHITE, 20.0)

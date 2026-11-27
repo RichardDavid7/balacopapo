@@ -1478,7 +1478,7 @@ fn floating_profile_popout<'a>(
 
     if !pm.roles.is_empty() {
         let mut sorted_roles = pm.roles.clone();
-        sorted_roles.sort_by(|a, b| b.position.cmp(&a.position));
+        sorted_roles.sort_by_key(|a| std::cmp::Reverse(a.position));
         let mut roles_col = column![
             text("CARGOS")
                 .size(10)
@@ -1620,7 +1620,7 @@ fn member_list_sidebar<'a>(
         let mut offline: Vec<&GroupMember> = Vec::new();
 
         let mut sorted_roles: Vec<&RoleSummary> = group.roles.iter().collect();
-        sorted_roles.sort_by(|a, b| b.position.cmp(&a.position));
+        sorted_roles.sort_by_key(|a| std::cmp::Reverse(a.position));
         for r in &sorted_roles {
             role_buckets.push((r, Vec::new()));
         }
