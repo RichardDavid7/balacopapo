@@ -520,14 +520,26 @@ fn main() {
                 None => WebviewUrl::App("index.html".into()),
             };
 
-            let main_window = tauri::WebviewWindowBuilder::new(app.handle(), "main", webview_url)
-                .title("Balacopapo")
-                .inner_size(1280.0, 820.0)
-                .min_inner_size(960.0, 620.0)
-                .resizable(true)
-                .background_color(tauri::window::Color(14, 16, 21, 255))
-                .initialization_script(build_init_script())
-                .build()?;
+            #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
+            let mut window_builder =
+                tauri::WebviewWindowBuilder::new(app.handle(), "main", webview_url)
+                    .title("Balacopapo")
+                    .inner_size(1280.0, 820.0)
+                    .min_inner_size(960.0, 620.0)
+                    .resizable(true)
+                    .background_color(tauri::window::Color(14, 16, 21, 255))
+                    .initialization_script(build_init_script());
+
+            #[cfg(target_os = "windows")]
+            {
+                // Auto-concede microfone/câmera reais sem popup de navegador, libera autoplay
+                // de voz/soundboard e evita captura indesejada de teclas multimídia pelo WebView2.
+                window_builder = window_builder.additional_browser_args(
+                    "--use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --disable-features=HardwareMediaKeyHandling",
+                );
+            }
+
+            let main_window = window_builder.build()?;
 
             let handle_for_events = app.handle().clone();
             main_window.on_window_event(move |event| match event {
