@@ -321,7 +321,7 @@ fn main() {
                 .min_inner_size(960.0, 620.0)
                 .resizable(true)
                 .background_color(tauri::window::Color(14, 16, 21, 255))
-                .initialization_script(&build_init_script())
+                .initialization_script(build_init_script())
                 .build()?;
 
             let handle_for_events = app.handle().clone();
