@@ -3,14 +3,23 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::core::config::{normalize_instance_url, AppConfig};
+use crate::media::isolated_audio::{
+    list_audio_targets as enumerate_audio_targets, AudioTarget, IsolatedAudioController,
+    IsolatedAudioMode, IsolatedAudioStatus,
+};
 use crate::os::activity::{scan_running_game, DetectedGame};
 use crate::os::autostart;
 use crate::os::notifications::send_desktop_notification;
+use crate::os::overlay::{
+    self, OverlayConfig, OverlayPointerPayload, OverlaySpeaker, OverlayToastPayload,
+};
 use crate::os::updater::{self, UpdateCheckState};
 
 pub struct DesktopState {
     pub config: Mutex<AppConfig>,
     pub update_state: Mutex<UpdateCheckState>,
+    pub isolated_audio: IsolatedAudioController,
+    pub overlay_config: Mutex<OverlayConfig>,
 }
 
 impl DesktopState {
@@ -18,6 +27,8 @@ impl DesktopState {
         Self {
             config: Mutex::new(config),
             update_state: Mutex::new(UpdateCheckState::Idle),
+            isolated_audio: IsolatedAudioController::new(),
+            overlay_config: Mutex::new(OverlayConfig::default()),
         }
     }
 }
@@ -31,6 +42,8 @@ pub struct DesktopInfo {
     pub instance_url: Option<String>,
     pub autostart_enabled: bool,
     pub update_status: UpdateCheckState,
+    pub overlay_active: bool,
+    pub isolated_audio: IsolatedAudioStatus,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -50,7 +63,7 @@ impl From<DetectedGame> for DetectedGameDto {
 }
 
 #[tauri::command]
-pub fn get_desktop_info(state: State<'_, DesktopState>) -> DesktopInfo {
+pub fn get_desktop_info(app: AppHandle, state: State<'_, DesktopState>) -> DesktopInfo {
     let instance_url = state
         .config
         .lock()
@@ -70,6 +83,8 @@ pub fn get_desktop_info(state: State<'_, DesktopState>) -> DesktopInfo {
         instance_url,
         autostart_enabled: autostart::is_enabled(),
         update_status,
+        overlay_active: overlay::is_overlay_active(&app),
+        isolated_audio: state.isolated_audio.status(),
     }
 }
 
@@ -156,4 +171,121 @@ pub fn apply_update_and_restart(state: State<'_, DesktopState>) -> Result<(), St
 pub fn scan_active_game(ignored: Option<Vec<String>>) -> Option<DetectedGameDto> {
     let list = ignored.unwrap_or_default();
     scan_running_game(&list).map(Into::into)
+}
+
+// ---------------------------------------------------------------------------
+// Etapa 2: Áudio Isolado por Janela / Processo (WASAPI Process Loopback / PipeWire)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn list_audio_targets() -> Vec<AudioTarget> {
+    enumerate_audio_targets()
+}
+
+#[tauri::command]
+pub fn start_isolated_audio(
+    mode: IsolatedAudioMode,
+    state: State<'_, DesktopState>,
+) -> Result<IsolatedAudioStatus, String> {
+    state.isolated_audio.start(mode)
+}
+
+#[tauri::command]
+pub fn stop_isolated_audio(state: State<'_, DesktopState>) -> IsolatedAudioStatus {
+    state.isolated_audio.stop();
+    state.isolated_audio.status()
+}
+
+#[tauri::command]
+pub fn get_isolated_audio_status(state: State<'_, DesktopState>) -> IsolatedAudioStatus {
+    state.isolated_audio.status()
+}
+
+// ---------------------------------------------------------------------------
+// Etapa 2: Overlay In-Game Click-Through & Anti-Captura (3 Camadas)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_overlay_config(state: State<'_, DesktopState>) -> OverlayConfig {
+    if let Ok(guard) = state.overlay_config.lock() {
+        guard.clone()
+    } else {
+        OverlayConfig::default()
+    }
+}
+
+#[tauri::command]
+pub fn show_overlay(
+    app: AppHandle,
+    config: Option<OverlayConfig>,
+    state: State<'_, DesktopState>,
+) -> Result<OverlayConfig, String> {
+    let mut next = if let Some(cfg) = config {
+        cfg
+    } else if let Ok(guard) = state.overlay_config.lock() {
+        guard.clone()
+    } else {
+        OverlayConfig::default()
+    };
+    next.enabled = true;
+
+    overlay::ensure_overlay_window(&app, &next)?;
+    if let Ok(mut guard) = state.overlay_config.lock() {
+        *guard = next.clone();
+    }
+    Ok(next)
+}
+
+#[tauri::command]
+pub fn hide_overlay(app: AppHandle, state: State<'_, DesktopState>) -> OverlayConfig {
+    overlay::destroy_overlay_window(&app);
+    let mut next = if let Ok(guard) = state.overlay_config.lock() {
+        guard.clone()
+    } else {
+        OverlayConfig::default()
+    };
+    next.enabled = false;
+    if let Ok(mut guard) = state.overlay_config.lock() {
+        *guard = next.clone();
+    }
+    next
+}
+
+#[tauri::command]
+pub fn update_overlay_config(
+    app: AppHandle,
+    config: OverlayConfig,
+    state: State<'_, DesktopState>,
+) -> Result<OverlayConfig, String> {
+    if config.enabled {
+        overlay::ensure_overlay_window(&app, &config)?;
+    } else {
+        overlay::destroy_overlay_window(&app);
+    }
+
+    if let Ok(mut guard) = state.overlay_config.lock() {
+        *guard = config.clone();
+    }
+    Ok(config)
+}
+
+#[tauri::command]
+pub fn push_overlay_pointer(app: AppHandle, pointer: OverlayPointerPayload) {
+    if overlay::is_overlay_active(&app) {
+        overlay::emit_pointer(&app, pointer);
+    }
+}
+
+#[tauri::command]
+pub fn set_overlay_speakers(app: AppHandle, speakers: Vec<OverlaySpeaker>) {
+    if overlay::is_overlay_active(&app) {
+        overlay::emit_speakers(&app, &speakers);
+    }
+}
+
+#[tauri::command]
+pub fn push_overlay_toast(app: AppHandle, toast: OverlayToastPayload) {
+    if overlay::is_overlay_active(&app) {
+        overlay::emit_toast(&app, toast);
+    }
 }

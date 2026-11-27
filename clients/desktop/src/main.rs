@@ -19,6 +19,7 @@ use crate::os::autostart;
 use crate::os::updater::{self, UpdateCheckState};
 
 const MENU_OPEN: &str = "open";
+const MENU_TOGGLE_OVERLAY: &str = "toggle_overlay";
 const MENU_SWITCH_INSTANCE: &str = "switch_instance";
 const MENU_RELOAD: &str = "reload";
 const MENU_AUTOSTART: &str = "autostart";
@@ -109,8 +110,8 @@ fn build_init_script() -> String {
             platform: "{platform}",
             architecture: "tauri-v2-hybrid",
             capabilities: {{
-              isolatedAudio: false,
-              inGameOverlay: false,
+              isolatedAudio: true,
+              inGameOverlay: true,
               nativeScreenShare: false,
               gamePresence: true,
               nativeNotifications: true,
@@ -165,6 +166,13 @@ fn spawn_background_updater(app: AppHandle) {
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let open_item = MenuItem::with_id(app, MENU_OPEN, "Abrir Balacopapo", true, None::<&str>)?;
+    let overlay_item = MenuItem::with_id(
+        app,
+        MENU_TOGGLE_OVERLAY,
+        "Alternar Overlay In-Game",
+        true,
+        None::<&str>,
+    )?;
     let switch_item = MenuItem::with_id(
         app,
         MENU_SWITCH_INSTANCE,
@@ -196,6 +204,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         app,
         &[
             &open_item,
+            &overlay_item,
             &switch_item,
             &reload_item,
             &sep1,
@@ -222,6 +231,35 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_menu_event(move |app, event| match event.id.as_ref() {
             MENU_OPEN => focus_main_window(app),
+            MENU_TOGGLE_OVERLAY => {
+                if os::overlay::is_overlay_active(app) {
+                    os::overlay::destroy_overlay_window(app);
+                    if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
+                        guard.enabled = false;
+                    }
+                } else {
+                    let mut cfg = if let Ok(guard) = app.state::<DesktopState>().overlay_config.lock() {
+                        guard.clone()
+                    } else {
+                        os::overlay::OverlayConfig::default()
+                    };
+                    cfg.enabled = true;
+                    if os::overlay::ensure_overlay_window(app, &cfg).is_ok() {
+                        if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
+                            *guard = cfg;
+                        }
+                        os::overlay::emit_toast(
+                            app,
+                            os::overlay::OverlayToastPayload {
+                                title: "Overlay In-Game ativado".to_string(),
+                                body: "Click-through ativo e invisível na transmissão.".to_string(),
+                                kind: "info".to_string(),
+                                duration_ms: 2_800,
+                            },
+                        );
+                    }
+                }
+            }
             MENU_SWITCH_INSTANCE => {
                 if let Some(window) = app.get_webview_window("main") {
                     navigate_window(&window, launcher_switch_url());
@@ -258,6 +296,8 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 });
             }
             MENU_QUIT => {
+                app.state::<DesktopState>().isolated_audio.stop();
+                os::overlay::destroy_overlay_window(app);
                 app.exit(0);
             }
             _ => {}
@@ -299,6 +339,17 @@ fn main() {
             commands::check_updates_now,
             commands::apply_update_and_restart,
             commands::scan_active_game,
+            commands::list_audio_targets,
+            commands::start_isolated_audio,
+            commands::stop_isolated_audio,
+            commands::get_isolated_audio_status,
+            commands::get_overlay_config,
+            commands::show_overlay,
+            commands::hide_overlay,
+            commands::update_overlay_config,
+            commands::push_overlay_pointer,
+            commands::set_overlay_speakers,
+            commands::push_overlay_toast,
         ])
         .setup(move |app| {
             setup_tray(app.handle())?;

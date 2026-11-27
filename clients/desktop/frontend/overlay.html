@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Balacopapo Overlay</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent !important;
+      pointer-events: none;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    }
+
+    /* Camada 1: Clicar & Apontar na transmissão */
+    #pointers-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+    }
+
+    .pointer-marker {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      animation: pointerFade 2.6s ease-out forwards;
+    }
+
+    .pointer-ring {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 3px solid var(--ptr-color, #5865f2);
+      box-shadow: 0 0 14px var(--ptr-color, #5865f2);
+      position: relative;
+      animation: pointerPulse 0.9s ease-out infinite;
+    }
+
+    .pointer-dot {
+      position: absolute;
+      inset: 50% auto auto 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ptr-color, #5865f2);
+      transform: translate(-50%, -50%);
+    }
+
+    .pointer-label {
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(14, 16, 21, 0.86);
+      border: 1px solid var(--ptr-color, #5865f2);
+      color: #f4f6fb;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    }
+
+    @keyframes pointerPulse {
+      0% { transform: scale(0.85); opacity: 1; }
+      70% { transform: scale(1.22); opacity: 0.75; }
+      100% { transform: scale(1.3); opacity: 0.35; }
+    }
+
+    @keyframes pointerFade {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
+      10% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      82% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    }
+
+    /* Camada 2: Indicador de Voz (Quem está falando) */
+    #speakers-layer {
+      position: fixed;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 16px;
+      max-width: 240px;
+    }
+
+    #speakers-layer.top-left { top: 0; left: 0; align-items: flex-start; }
+    #speakers-layer.top-right { top: 0; right: 0; align-items: flex-end; }
+    #speakers-layer.bottom-left { bottom: 0; left: 0; align-items: flex-start; }
+    #speakers-layer.bottom-right { bottom: 0; right: 0; align-items: flex-end; }
+
+    .speaker-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 11px 6px 7px;
+      border-radius: 999px;
+      background: rgba(14, 16, 21, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #eef1f7;
+      font-size: 12.5px;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .speaker-pill.speaking {
+      background: rgba(14, 24, 18, 0.84);
+      border-color: rgba(59, 165, 93, 0.85);
+      box-shadow: 0 0 12px rgba(59, 165, 93, 0.32);
+    }
+
+    .speaker-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: #fff;
+      background: var(--avatar-bg, #5865f2);
+      border: 2px solid transparent;
+    }
+
+    .speaker-pill.speaking .speaker-avatar {
+      border-color: #3ba55d;
+    }
+
+    .speaker-muted {
+      font-size: 11px;
+      color: #f04747;
+      margin-left: 2px;
+    }
+
+    /* Camada 3: Toasts discretos */
+    #toasts-layer {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+      max-width: 300px;
+    }
+
+    .toast-card {
+      padding: 9px 13px;
+      border-radius: 12px;
+      background: rgba(18, 21, 29, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #eef1f7;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      animation: toastIn 0.2s ease-out;
+    }
+
+    .toast-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #cfd8ff;
+    }
+
+    .toast-body {
+      font-size: 12px;
+      color: #d7dde8;
+      margin-top: 2px;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div id="pointers-layer"></div>
+  <div id="speakers-layer" class="top-left"></div>
+  <div id="toasts-layer"></div>
+
+  <script>
+    const listen = window.__TAURI__?.event?.listen;
+    const pointersLayer = document.getElementById("pointers-layer");
+    const speakersLayer = document.getElementById("speakers-layer");
+    const toastsLayer = document.getElementById("toasts-layer");
+
+    let config = {
+      enabled: true,
+      showPointers: true,
+      showSpeakers: true,
+      showToasts: true,
+      corner: "top-left",
+      opacity: 0.92,
+    };
+
+    function applyConfig(next) {
+      config = { ...config, ...next };
+      document.body.style.opacity = String(Math.max(0.2, Math.min(1, config.opacity ?? 0.92)));
+      pointersLayer.style.display = config.showPointers ? "block" : "none";
+      speakersLayer.style.display = config.showSpeakers ? "flex" : "none";
+      toastsLayer.style.display = config.showToasts ? "flex" : "none";
+      speakersLayer.className = config.corner || "top-left";
+    }
+
+    function renderPointer(payload) {
+      if (!config.showPointers || !payload) return;
+      const el = document.createElement("div");
+      el.className = "pointer-marker";
+      el.style.left = `${(payload.x * 100).toFixed(3)}%`;
+      el.style.top = `${(payload.y * 100).toFixed(3)}%`;
+      el.style.setProperty("--ptr-color", payload.color || "#5865f2");
+
+      const ring = document.createElement("div");
+      ring.className = "pointer-ring";
+      const dot = document.createElement("div");
+      dot.className = "pointer-dot";
+      ring.appendChild(dot);
+
+      const label = document.createElement("div");
+      label.className = "pointer-label";
+      label.textContent = payload.senderName || "Amigo";
+
+      el.appendChild(ring);
+      el.appendChild(label);
+      pointersLayer.appendChild(el);
+
+      setTimeout(() => el.remove(), 2650);
+    }
+
+    function renderSpeakers(list) {
+      speakersLayer.textContent = "";
+      if (!config.showSpeakers || !Array.isArray(list)) return;
+
+      for (const s of list.slice(0, 8)) {
+        const pill = document.createElement("div");
+        pill.className = `speaker-pill${s.speaking ? " speaking" : ""}`;
+
+        const av = document.createElement("div");
+        av.className = "speaker-avatar";
+        if (s.avatarColor) av.style.setProperty("--avatar-bg", s.avatarColor);
+        av.textContent = (s.name || "?").trim().slice(0, 1).toUpperCase();
+
+        const name = document.createElement("span");
+        name.textContent = s.name || s.identity;
+
+        pill.appendChild(av);
+        pill.appendChild(name);
+
+        if (s.muted) {
+          const muted = document.createElement("span");
+          muted.className = "speaker-muted";
+          muted.textContent = "✕";
+          pill.appendChild(muted);
+        }
+
+        speakersLayer.appendChild(pill);
+      }
+    }
+
+    function renderToast(payload) {
+      if (!config.showToasts || !payload) return;
+      const card = document.createElement("div");
+      card.className = "toast-card";
+
+      const title = document.createElement("div");
+      title.className = "toast-title";
+      title.textContent = payload.title || "Balacopapo";
+
+      const body = document.createElement("div");
+      body.className = "toast-body";
+      body.textContent = payload.body || "";
+
+      card.appendChild(title);
+      if (payload.body) card.appendChild(body);
+      toastsLayer.appendChild(card);
+
+      const ttl = Math.max(1200, Math.min(8000, payload.durationMs || 3200));
+      setTimeout(() => card.remove(), ttl);
+    }
+
+    if (listen) {
+      listen("balacopapo://overlay-config", (ev) => applyConfig(ev.payload));
+      listen("balacopapo://overlay-pointer", (ev) => renderPointer(ev.payload));
+      listen("balacopapo://overlay-speakers", (ev) => renderSpeakers(ev.payload));
+      listen("balacopapo://overlay-toast", (ev) => renderToast(ev.payload));
+    }
+  </script>
+</body>
+</html>
