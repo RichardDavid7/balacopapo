@@ -6,35 +6,44 @@
 use iced::widget::{button, container, text_input};
 use iced::{theme::Palette, Background, Border, Color, Theme};
 
+const fn rgb8(r: u8, g: u8, b: u8) -> Color {
+    Color {
+        r: r as f32 / 255.0,
+        g: g as f32 / 255.0,
+        b: b as f32 / 255.0,
+        a: 1.0,
+    }
+}
+
 // ── Matte Surfaces (`globals.css`) ───────────────────────────────────────────
-pub const BG_RAIL: Color = Color::from_rgb8(11, 11, 16); // --bg-base: 11 11 16 (#0B0B10)
-pub const SURFACE: Color = Color::from_rgb8(26, 26, 35); // --bg-channel / --bg-members: 26 26 35 (#1A1A23)
-pub const BG_OBSIDIAN: Color = Color::from_rgb8(19, 19, 26); // --bg-chat: 19 19 26 (#13131A)
-pub const SURFACE_ELEVATED: Color = Color::from_rgb8(37, 37, 48); // --bg-elevated: 37 37 48 (#252530)
-pub const BG_INPUT: Color = Color::from_rgb8(17, 17, 24); // --bg-input: 17 17 24 (#111118)
-pub const SURFACE_DOCK: Color = Color::from_rgb8(20, 20, 26); // --glass-bg: #14141A
+pub const BG_RAIL: Color = rgb8(11, 11, 16); // --bg-base: 11 11 16 (#0B0B10)
+pub const SURFACE: Color = rgb8(26, 26, 35); // --bg-channel / --bg-members: 26 26 35 (#1A1A23)
+pub const BG_OBSIDIAN: Color = rgb8(19, 19, 26); // --bg-chat: 19 19 26 (#13131A)
+pub const SURFACE_ELEVATED: Color = rgb8(37, 37, 48); // --bg-elevated: 37 37 48 (#252530)
+pub const BG_INPUT: Color = rgb8(17, 17, 24); // --bg-input: 17 17 24 (#111118)
+pub const SURFACE_DOCK: Color = rgb8(20, 20, 26); // --glass-bg: #14141A
 
 // ── Borders (`globals.css`) ──────────────────────────────────────────────────
-pub const BORDER_HARD: Color = Color::from_rgb8(34, 34, 44); // --border-hard: 34 34 44 (#22222C)
-pub const BORDER_SOFT: Color = Color::from_rgb8(42, 42, 54); // --border-soft: 42 42 54 (#2A2A36)
+pub const BORDER_HARD: Color = rgb8(34, 34, 44); // --border-hard: 34 34 44 (#22222C)
+pub const BORDER_SOFT: Color = rgb8(42, 42, 54); // --border-soft: 42 42 54 (#2A2A36)
 pub const BORDER_SUBTLE: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.07); // --glass-border
 
 // ── Pastel Accents & Primary (`globals.css`) ─────────────────────────────────
-pub const ACCENT_VIOLET: Color = Color::from_rgb8(124, 108, 246); // --accent-primary: 124 108 246 (#7C6CF6)
-pub const ACCENT_VIOLET_HOVER: Color = Color::from_rgb8(107, 92, 224); // --accent-primary-hover: 107 92 224
-pub const SUCCESS_GREEN: Color = Color::from_rgb8(134, 239, 172); // --accent-mint / --status-online: 134 239 172 (#86EFAC)
-pub const STATUS_IDLE: Color = Color::from_rgb8(252, 211, 77); // --status-idle / --accent-amber: 252 211 77 (#FCD34D)
-pub const DANGER_RED: Color = Color::from_rgb8(252, 165, 165); // --text-danger / --status-dnd: 252 165 165 (#FCA5A5)
-pub const ACCENT_ROSE: Color = Color::from_rgb8(253, 164, 175); // --accent-rose / --notification: 253 164 175 (#FDA4AF)
-pub const STATUS_OFFLINE: Color = Color::from_rgb8(58, 58, 68); // --status-offline: 58 58 68
+pub const ACCENT_VIOLET: Color = rgb8(124, 108, 246); // --accent-primary: 124 108 246 (#7C6CF6)
+pub const ACCENT_VIOLET_HOVER: Color = rgb8(107, 92, 224); // --accent-primary-hover: 107 92 224
+pub const SUCCESS_GREEN: Color = rgb8(134, 239, 172); // --accent-mint / --status-online: 134 239 172 (#86EFAC)
+pub const STATUS_IDLE: Color = rgb8(252, 211, 77); // --status-idle / --accent-amber: 252 211 77 (#FCD34D)
+pub const DANGER_RED: Color = rgb8(252, 165, 165); // --text-danger / --status-dnd: 252 165 165 (#FCA5A5)
+pub const ACCENT_ROSE: Color = rgb8(253, 164, 175); // --accent-rose / --notification: 253 164 175 (#FDA4AF)
+pub const STATUS_OFFLINE: Color = rgb8(58, 58, 68); // --status-offline: 58 58 68
 
 // ── Text Hierarchy (`globals.css`) ───────────────────────────────────────────
-pub const TEXT_PRIMARY: Color = Color::from_rgb8(239, 239, 239); // --text-primary: 239 239 239 (#EFEFEF)
-pub const TEXT_SECONDARY: Color = Color::from_rgb8(160, 160, 170); // --text-secondary: 160 160 170 (#A0A0AA)
-pub const TEXT_MUTED: Color = Color::from_rgb8(92, 92, 104); // --text-tertiary: 92 92 104 (#5C5C68)
-pub const TEXT_CATEGORY: Color = Color::from_rgb8(72, 72, 84); // --text-category: 72 72 84 (#484854)
-pub const TEXT_MESSAGE: Color = Color::from_rgb8(216, 216, 222); // --text-message: 216 216 222 (#D8D8DE)
-pub const TEXT_LINK: Color = Color::from_rgb8(125, 211, 252); // --text-link: 125 211 252 (#7DD3FC)
+pub const TEXT_PRIMARY: Color = rgb8(239, 239, 239); // --text-primary: 239 239 239 (#EFEFEF)
+pub const TEXT_SECONDARY: Color = rgb8(160, 160, 170); // --text-secondary: 160 160 170 (#A0A0AA)
+pub const TEXT_MUTED: Color = rgb8(92, 92, 104); // --text-tertiary: 92 92 104 (#5C5C68)
+pub const TEXT_CATEGORY: Color = rgb8(72, 72, 84); // --text-category: 72 72 84 (#484854)
+pub const TEXT_MESSAGE: Color = rgb8(216, 216, 222); // --text-message: 216 216 222 (#D8D8DE)
+pub const TEXT_LINK: Color = rgb8(125, 211, 252); // --text-link: 125 211 252 (#7DD3FC)
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AppThemeId {

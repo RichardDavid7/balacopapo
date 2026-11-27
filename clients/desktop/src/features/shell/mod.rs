@@ -273,16 +273,23 @@ pub fn view<'a>(
                 .into()
         };
 
-        let g_btn = button(icon_content)
-            .width(Length::Fixed(40.0))
-            .height(Length::Fixed(40.0))
-            .padding(0)
-            .on_press(ShellMessage::SelectGroup(group.id.clone()))
-            .style(if cache_key.is_some() {
-                aether_drift::icon_button_style(false)
-            } else {
-                aether_drift::rail_icon_button_style(active)
-            });
+        let g_btn: Element<'a, ShellMessage> = if cache_key.is_some() {
+            button(icon_content)
+                .width(Length::Fixed(40.0))
+                .height(Length::Fixed(40.0))
+                .padding(0)
+                .on_press(ShellMessage::SelectGroup(group.id.clone()))
+                .style(aether_drift::icon_button_style(false))
+                .into()
+        } else {
+            button(icon_content)
+                .width(Length::Fixed(40.0))
+                .height(Length::Fixed(40.0))
+                .padding(0)
+                .on_press(ShellMessage::SelectGroup(group.id.clone()))
+                .style(aether_drift::rail_icon_button_style(active))
+                .into()
+        };
 
         let g_row = row![
             rail_left_pill(active),

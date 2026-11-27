@@ -43,9 +43,17 @@ impl AudioParams {
             .store(gain.clamp(0.0, 3.0).to_bits(), Ordering::Relaxed);
     }
 
+    pub fn mic_gain(&self) -> f32 {
+        f32::from_bits(self.mic_gain_bits.load(Ordering::Relaxed))
+    }
+
     pub fn set_vad_threshold_db(&self, db: f32) {
         self.vad_threshold_db_bits
             .store(db.clamp(-80.0, -5.0).to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn vad_threshold_db(&self) -> f32 {
+        f32::from_bits(self.vad_threshold_db_bits.load(Ordering::Relaxed))
     }
 }
 
