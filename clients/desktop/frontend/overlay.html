@@ -214,8 +214,17 @@
       speakersLayer.className = config.corner || "top-left";
     }
 
+    let lastPointerKey = "";
+    let lastPointerAt = 0;
+
     function renderPointer(payload) {
       if (!config.showPointers || !payload) return;
+      const now = Date.now();
+      const dedupKey = `${payload.senderName}:${payload.x.toFixed(3)}:${payload.y.toFixed(3)}`;
+      if (dedupKey === lastPointerKey && now - lastPointerAt < 80) return;
+      lastPointerKey = dedupKey;
+      lastPointerAt = now;
+
       const el = document.createElement("div");
       el.className = "pointer-marker";
       el.style.left = `${(payload.x * 100).toFixed(3)}%`;
@@ -289,6 +298,8 @@
       const ttl = Math.max(1200, Math.min(8000, payload.durationMs || 3200));
       setTimeout(() => card.remove(), ttl);
     }
+
+    window.__bpRenderPointer = renderPointer;
 
     if (invoke) {
       invoke("get_overlay_config").then((cfg) => {

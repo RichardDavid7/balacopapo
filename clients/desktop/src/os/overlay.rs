@@ -234,11 +234,16 @@ pub fn emit_config(app: &AppHandle, config: &OverlayConfig) {
 }
 
 pub fn emit_pointer(app: &AppHandle, pointer: OverlayPointerPayload) {
-    let _ = app.emit_to(
-        OVERLAY_LABEL,
-        "balacopapo://overlay-pointer",
-        pointer.sanitized(),
-    );
+    let clean = pointer.sanitized();
+    let _ = app.emit_to(OVERLAY_LABEL, "balacopapo://overlay-pointer", &clean);
+    if let (Some(win), Ok(json)) = (
+        app.get_webview_window(OVERLAY_LABEL),
+        serde_json::to_string(&clean),
+    ) {
+        let _ = win.eval(format!(
+            "window.__bpRenderPointer && window.__bpRenderPointer({json});"
+        ));
+    }
 }
 
 pub fn emit_speakers(app: &AppHandle, speakers: &[OverlaySpeaker]) {

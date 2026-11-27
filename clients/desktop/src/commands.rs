@@ -352,10 +352,30 @@ pub async fn update_overlay_config(
 }
 
 #[tauri::command]
-pub fn push_overlay_pointer(app: AppHandle, pointer: OverlayPointerPayload) {
-    if overlay::is_overlay_active(&app) {
-        overlay::emit_pointer(&app, pointer);
+pub async fn push_overlay_pointer(
+    app: AppHandle,
+    pointer: OverlayPointerPayload,
+    state: State<'_, DesktopState>,
+) -> Result<(), String> {
+    let cfg = if let Ok(guard) = state.overlay_config.lock() {
+        guard.clone()
+    } else {
+        OverlayConfig::default()
+    };
+
+    if !cfg.show_pointers {
+        return Ok(());
     }
+
+    if !overlay::is_overlay_active(&app) {
+        let mut active_cfg = cfg;
+        active_cfg.enabled = true;
+        overlay::ensure_overlay_window(&app, &active_cfg)?;
+        tokio::time::sleep(std::time::Duration::from_millis(350)).await;
+    }
+
+    overlay::emit_pointer(&app, pointer);
+    Ok(())
 }
 
 #[tauri::command]
