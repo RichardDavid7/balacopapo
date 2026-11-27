@@ -28,7 +28,7 @@ hound = "3.5"
 sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 image = { version = "0.25", default-features = false, features = ["ico", "png", "jpeg", "webp", "gif"] }
 notify-rust = "4"
-rfd = { version = "0.15", default-features = false, features = ["xdg-portal"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
