@@ -10,6 +10,8 @@ export interface DesktopCapabilities {
   isolatedAudio: boolean;
   inGameOverlay: boolean;
   nativeScreenShare: boolean;
+  globalKeybinds: boolean;
+  safeRemoteControl: boolean;
   gamePresence: boolean;
   nativeNotifications: boolean;
   silentUpdater: boolean;
@@ -145,11 +147,45 @@ export interface NativeScreenShareStatus {
   error: string | null;
 }
 
+export interface KeybindEntry {
+  action:
+    | 'ToggleMute'
+    | 'ToggleDeafen'
+    | 'PushToTalk'
+    | 'ToggleOverlay'
+    | 'MuteSoundboard'
+    | { PlaySoundboardClip: string };
+  shortcut: string;
+  enabled: boolean;
+}
+
+export interface GamePresenceConfig {
+  enabled: boolean;
+  ignoredGames: string[];
+  manualOverride: string | null;
+}
+
+export type RemoteControlState =
+  | { status: 'idle' }
+  | { status: 'pendingConsent'; requester: string }
+  | { status: 'active'; controller: string; allowMouse: boolean; allowKeyboard: boolean };
+
+export type RemoteInputEvent =
+  | { kind: 'mouse_move'; nx: number; ny: number }
+  | { kind: 'mouse_button'; button: 'left' | 'right' | 'middle'; pressed: boolean }
+  | { kind: 'key_press'; code: string; pressed: boolean };
+
 interface TauriWindowGlobals {
   __BALACOPAPO_DESKTOP__?: DesktopRuntimeMeta;
   __TAURI__?: {
     core?: {
       invoke?: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+    };
+    event?: {
+      listen?: <T>(
+        event: string,
+        handler: (ev: { payload: T }) => void,
+      ) => Promise<() => void>;
     };
   };
 }
@@ -204,11 +240,46 @@ export const desktopBridge = {
   getNativeScreenShareStatus: () =>
     tauriInvoke<NativeScreenShareStatus>('get_native_screen_share_status'),
 
-  // Presença de Jogos & Notificações Nativas
+  // Presença de Jogos & Notificações Nativas (Etapa 4)
   scanActiveGame: (ignored?: string[]) =>
     tauriInvoke<{ processName: string; displayName: string } | null>('scan_active_game', {
       ignored,
     }),
+  getGamePresenceConfig: () => tauriInvoke<GamePresenceConfig>('get_game_presence_config'),
+  setGamePresenceConfig: (config: GamePresenceConfig) =>
+    tauriInvoke<GamePresenceConfig>('set_game_presence_config', { config }),
+  getCurrentGamePresence: () =>
+    tauriInvoke<{ processName: string; displayName: string } | null>('get_current_game_presence'),
   sendNativeNotification: (title: string, body: string) =>
     tauriInvoke<void>('send_native_notification', { title, body }),
+
+  // Atalhos Globais em Jogos (Etapa 4)
+  getKeybinds: () => tauriInvoke<KeybindEntry[]>('get_keybinds'),
+  setKeybinds: (entries: KeybindEntry[]) =>
+    tauriInvoke<KeybindEntry[]>('set_keybinds', { entries }),
+
+  // Controle Remoto Seguro (Etapa 4 — com atalho de pânico Ctrl+Alt+Escape)
+  getRemoteControlState: () => tauriInvoke<RemoteControlState>('get_remote_control_state'),
+  requestRemoteControl: (requester: string) =>
+    tauriInvoke<RemoteControlState>('request_remote_control', { requester }),
+  approveRemoteControl: (allowMouse: boolean, allowKeyboard: boolean) =>
+    tauriInvoke<RemoteControlState>('approve_remote_control', { allowMouse, allowKeyboard }),
+  revokeRemoteControl: () => tauriInvoke<RemoteControlState>('revoke_remote_control'),
+  injectRemoteInput: (event: RemoteInputEvent) =>
+    tauriInvoke<void>('inject_remote_input', { event }),
+
+  // Listener tipado para eventos nativos (keybinds, game-presence, remote-control-state)
+  listenEvent: async <T>(
+    eventName:
+      | 'balacopapo://keybind-triggered'
+      | 'balacopapo://game-presence'
+      | 'balacopapo://remote-control-state'
+      | 'balacopapo://update-status'
+      | 'balacopapo://window-visibility',
+    handler: (payload: T) => void,
+  ): Promise<(() => void) | null> => {
+    const listen = getGlobals().__TAURI__?.event?.listen;
+    if (!listen) return null;
+    return listen<T>(eventName, (ev) => handler(ev.payload));
+  },
 };

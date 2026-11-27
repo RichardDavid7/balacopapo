@@ -11,11 +11,14 @@ use std::time::Duration;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WindowEvent};
+use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
-use crate::commands::DesktopState;
+use crate::commands::{sync_global_shortcuts, DesktopState, DetectedGameDto};
 use crate::core::config::AppConfig;
 use crate::core::deep_link::{parse_deep_link, DeepLinkTarget};
 use crate::os::autostart;
+use crate::os::keybinds::KeybindActionKind;
+use crate::os::remote_control::{RemoteControlState, PANIC_HOTKEY};
 use crate::os::updater::{self, UpdateCheckState};
 
 const MENU_OPEN: &str = "open";
@@ -113,6 +116,8 @@ fn build_init_script() -> String {
               isolatedAudio: true,
               inGameOverlay: true,
               nativeScreenShare: true,
+              globalKeybinds: true,
+              safeRemoteControl: true,
               gamePresence: true,
               nativeNotifications: true,
               silentUpdater: true
@@ -141,6 +146,127 @@ fn apply_linux_graphics_guardrails() {
     {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
+}
+
+fn spawn_game_presence_scanner(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        // Espera inicial para não competir com o boot; depois escaneia a cada 12s (0% CPU dormindo).
+        tokio::time::sleep(Duration::from_secs(8)).await;
+        loop {
+            let (enabled, ignored, manual_override) = {
+                let state = app.state::<DesktopState>();
+                if let Ok(cfg) = state.config.lock() {
+                    (
+                        cfg.game_presence_enabled,
+                        cfg.ignored_games.clone(),
+                        cfg.manual_game_override.clone(),
+                    )
+                } else {
+                    (false, Vec::new(), None)
+                }
+            };
+
+            let detected = if !enabled {
+                None
+            } else if let Some(manual) = manual_override {
+                Some(DetectedGameDto {
+                    process_name: "manual".to_string(),
+                    display_name: manual,
+                })
+            } else {
+                os::activity::scan_running_game(&ignored).map(Into::into)
+            };
+
+            let changed = {
+                let state = app.state::<DesktopState>();
+                if let Ok(mut guard) = state.last_detected_game.lock() {
+                    if *guard != detected {
+                        *guard = detected.clone();
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+
+            if changed {
+                let _ = app.emit("balacopapo://game-presence", detected);
+            }
+
+            tokio::time::sleep(Duration::from_secs(12)).await;
+        }
+    });
+}
+
+fn handle_global_shortcut_pressed(app: &AppHandle, shortcut: &Shortcut) {
+    // 1. Atalho de pânico (Ctrl+Alt+Escape) tem prioridade absoluta para cortar Controle Remoto.
+    if PANIC_HOTKEY.parse::<Shortcut>().ok().as_ref() == Some(shortcut) {
+        let was_active = {
+            let state = app.state::<DesktopState>();
+            if let Ok(mut guard) = state.remote_control.lock() {
+                let active = !matches!(*guard, RemoteControlState::Idle);
+                guard.panic_revoke();
+                active
+            } else {
+                false
+            }
+        };
+        if was_active {
+            let _ = app.emit("balacopapo://remote-control-state", RemoteControlState::Idle);
+            if os::overlay::is_overlay_active(app) {
+                os::overlay::emit_toast(
+                    app,
+                    os::overlay::OverlayToastPayload {
+                        title: "Controle Remoto CORTADO".to_string(),
+                        body: "Atalho de pânico acionado com sucesso.".to_string(),
+                        kind: "warning".to_string(),
+                        duration_ms: 3_000,
+                    },
+                );
+            }
+        }
+        return;
+    }
+
+    // 2. Verifica atalhos de voz / overlay / soundboard configurados pelo usuário.
+    let matched = {
+        let state = app.state::<DesktopState>();
+        state.keybinds.lock().ok().and_then(|list| {
+            list.iter()
+                .filter(|e| e.enabled)
+                .find(|e| e.shortcut.trim().parse::<Shortcut>().ok().as_ref() == Some(shortcut))
+                .map(|e| e.action.clone())
+        })
+    };
+
+    let Some(action) = matched else {
+        return;
+    };
+
+    if matches!(action, KeybindActionKind::ToggleOverlay) {
+        if os::overlay::is_overlay_active(app) {
+            os::overlay::destroy_overlay_window(app);
+            if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
+                guard.enabled = false;
+            }
+        } else {
+            let mut cfg = if let Ok(guard) = app.state::<DesktopState>().overlay_config.lock() {
+                guard.clone()
+            } else {
+                os::overlay::OverlayConfig::default()
+            };
+            cfg.enabled = true;
+            if os::overlay::ensure_overlay_window(app, &cfg).is_ok() {
+                if let Ok(mut guard) = app.state::<DesktopState>().overlay_config.lock() {
+                    *guard = cfg;
+                }
+            }
+        }
+    }
+
+    let _ = app.emit("balacopapo://keybind-triggered", action);
 }
 
 fn spawn_background_updater(app: AppHandle) {
@@ -329,6 +455,15 @@ fn main() {
             handle_deep_link_args(app, &args);
             focus_main_window(app);
         }))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        handle_global_shortcut_pressed(app, shortcut);
+                    }
+                })
+                .build(),
+        )
         .manage(DesktopState::new(config.clone()))
         .invoke_handler(tauri::generate_handler![
             commands::get_desktop_info,
@@ -356,6 +491,16 @@ fn main() {
             commands::start_native_screen_share,
             commands::stop_native_screen_share,
             commands::get_native_screen_share_status,
+            commands::get_keybinds,
+            commands::set_keybinds,
+            commands::get_game_presence_config,
+            commands::set_game_presence_config,
+            commands::get_current_game_presence,
+            commands::get_remote_control_state,
+            commands::request_remote_control,
+            commands::approve_remote_control,
+            commands::revoke_remote_control,
+            commands::inject_remote_input,
         ])
         .setup(move |app| {
             setup_tray(app.handle())?;
@@ -397,6 +542,10 @@ fn main() {
                 _ => {}
             });
 
+            if let Ok(entries) = app.state::<DesktopState>().keybinds.lock() {
+                sync_global_shortcuts(app.handle(), &entries);
+            }
+            spawn_game_presence_scanner(app.handle().clone());
             spawn_background_updater(app.handle().clone());
             Ok(())
         })

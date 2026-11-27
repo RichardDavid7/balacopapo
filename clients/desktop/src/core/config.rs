@@ -26,6 +26,12 @@ pub struct AppConfig {
     pub low_interrupt_mode: bool,
     #[serde(default = "default_true")]
     pub desktop_notifications: bool,
+    #[serde(default = "default_true")]
+    pub game_presence_enabled: bool,
+    #[serde(default)]
+    pub ignored_games: Vec<String>,
+    #[serde(default)]
+    pub manual_game_override: Option<String>,
 }
 
 fn default_language() -> String {
@@ -54,6 +60,9 @@ impl Default for AppConfig {
             clock_format: default_clock_format(),
             low_interrupt_mode: true,
             desktop_notifications: true,
+            game_presence_enabled: true,
+            ignored_games: Vec::new(),
+            manual_game_override: None,
         }
     }
 }

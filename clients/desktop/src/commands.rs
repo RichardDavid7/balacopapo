@@ -1,6 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::core::config::{normalize_instance_url, AppConfig};
 use crate::media::isolated_audio::{
@@ -13,10 +14,12 @@ use crate::media::native_capture::{
 };
 use crate::os::activity::{scan_running_game, DetectedGame};
 use crate::os::autostart;
+use crate::os::keybinds::{default_keybinds, find_shortcut_conflicts, KeybindEntry};
 use crate::os::notifications::send_desktop_notification;
 use crate::os::overlay::{
     self, OverlayConfig, OverlayPointerPayload, OverlaySpeaker, OverlayToastPayload,
 };
+use crate::os::remote_control::{self, RemoteControlState, RemoteInputEvent, PANIC_HOTKEY};
 use crate::os::updater::{self, UpdateCheckState};
 
 pub struct DesktopState {
@@ -25,6 +28,9 @@ pub struct DesktopState {
     pub isolated_audio: IsolatedAudioController,
     pub overlay_config: Mutex<OverlayConfig>,
     pub native_screen_share: NativeScreenShareController,
+    pub keybinds: Mutex<Vec<KeybindEntry>>,
+    pub remote_control: Mutex<RemoteControlState>,
+    pub last_detected_game: Mutex<Option<DetectedGameDto>>,
 }
 
 impl DesktopState {
@@ -35,6 +41,9 @@ impl DesktopState {
             isolated_audio: IsolatedAudioController::new(),
             overlay_config: Mutex::new(OverlayConfig::default()),
             native_screen_share: NativeScreenShareController::new(),
+            keybinds: Mutex::new(default_keybinds()),
+            remote_control: Mutex::new(RemoteControlState::Idle),
+            last_detected_game: Mutex::new(None),
         }
     }
 }
@@ -51,9 +60,10 @@ pub struct DesktopInfo {
     pub overlay_active: bool,
     pub isolated_audio: IsolatedAudioStatus,
     pub native_screen_share: NativeScreenShareStatus,
+    pub remote_control: RemoteControlState,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DetectedGameDto {
     pub process_name: String,
@@ -65,6 +75,30 @@ impl From<DetectedGame> for DetectedGameDto {
         Self {
             process_name: value.process_name,
             display_name: value.display_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GamePresenceConfig {
+    pub enabled: bool,
+    pub ignored_games: Vec<String>,
+    pub manual_override: Option<String>,
+}
+
+/// Registra todos os atalhos globais ativos + o atalho de pânico do Controle Remoto.
+pub fn sync_global_shortcuts(app: &AppHandle, entries: &[KeybindEntry]) {
+    let gs = app.global_shortcut();
+    let _ = gs.unregister_all();
+
+    // Atalho de pânico sempre reservado para cortar Controle Remoto instantaneamente.
+    let _ = gs.register(PANIC_HOTKEY);
+
+    for entry in entries.iter().filter(|e| e.enabled) {
+        let trimmed = entry.shortcut.trim();
+        if !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("mouse4") && !trimmed.eq_ignore_ascii_case("mouse5") {
+            let _ = gs.register(trimmed);
         }
     }
 }
@@ -83,6 +117,12 @@ pub fn get_desktop_info(app: AppHandle, state: State<'_, DesktopState>) -> Deskt
         UpdateCheckState::Idle
     };
 
+    let remote_control = if let Ok(guard) = state.remote_control.lock() {
+        guard.clone()
+    } else {
+        RemoteControlState::Idle
+    };
+
     DesktopInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         build_sha: option_env!("BALACOPAPO_BUILD_SHA").map(ToString::to_string),
@@ -93,6 +133,7 @@ pub fn get_desktop_info(app: AppHandle, state: State<'_, DesktopState>) -> Deskt
         overlay_active: overlay::is_overlay_active(&app),
         isolated_audio: state.isolated_audio.status(),
         native_screen_share: state.native_screen_share.status(),
+        remote_control,
     }
 }
 
@@ -329,4 +370,189 @@ pub fn stop_native_screen_share(state: State<'_, DesktopState>) -> NativeScreenS
 #[tauri::command]
 pub fn get_native_screen_share_status(state: State<'_, DesktopState>) -> NativeScreenShareStatus {
     state.native_screen_share.status()
+}
+
+// ---------------------------------------------------------------------------
+// Etapa 4: Atalhos Globais em Jogos, Presença Contínua & Controle Remoto Seguro
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_keybinds(state: State<'_, DesktopState>) -> Vec<KeybindEntry> {
+    if let Ok(guard) = state.keybinds.lock() {
+        guard.clone()
+    } else {
+        default_keybinds()
+    }
+}
+
+#[tauri::command]
+pub fn set_keybinds(
+    app: AppHandle,
+    entries: Vec<KeybindEntry>,
+    state: State<'_, DesktopState>,
+) -> Result<Vec<KeybindEntry>, String> {
+    let conflicts = find_shortcut_conflicts(&entries);
+    if !conflicts.is_empty() {
+        return Err(format!(
+            "Conflito de atalhos duplicados: {}",
+            conflicts.join(", ")
+        ));
+    }
+
+    sync_global_shortcuts(&app, &entries);
+    if let Ok(mut guard) = state.keybinds.lock() {
+        *guard = entries.clone();
+    }
+    Ok(entries)
+}
+
+#[tauri::command]
+pub fn get_game_presence_config(state: State<'_, DesktopState>) -> GamePresenceConfig {
+    if let Ok(cfg) = state.config.lock() {
+        GamePresenceConfig {
+            enabled: cfg.game_presence_enabled,
+            ignored_games: cfg.ignored_games.clone(),
+            manual_override: cfg.manual_game_override.clone(),
+        }
+    } else {
+        GamePresenceConfig {
+            enabled: true,
+            ignored_games: Vec::new(),
+            manual_override: None,
+        }
+    }
+}
+
+#[tauri::command]
+pub fn set_game_presence_config(
+    config: GamePresenceConfig,
+    state: State<'_, DesktopState>,
+) -> Result<GamePresenceConfig, String> {
+    let mut cfg = state
+        .config
+        .lock()
+        .map_err(|_| "Falha ao acessar configuração local.".to_string())?;
+    cfg.game_presence_enabled = config.enabled;
+    cfg.ignored_games = config.ignored_games.clone();
+    cfg.manual_game_override = config
+        .manual_override
+        .clone()
+        .filter(|s| !s.trim().is_empty());
+    cfg.save()?;
+    Ok(GamePresenceConfig {
+        enabled: cfg.game_presence_enabled,
+        ignored_games: cfg.ignored_games.clone(),
+        manual_override: cfg.manual_game_override.clone(),
+    })
+}
+
+#[tauri::command]
+pub fn get_current_game_presence(state: State<'_, DesktopState>) -> Option<DetectedGameDto> {
+    state
+        .last_detected_game
+        .lock()
+        .ok()
+        .and_then(|g| g.clone())
+}
+
+#[tauri::command]
+pub fn get_remote_control_state(state: State<'_, DesktopState>) -> RemoteControlState {
+    if let Ok(guard) = state.remote_control.lock() {
+        guard.clone()
+    } else {
+        RemoteControlState::Idle
+    }
+}
+
+#[tauri::command]
+pub fn request_remote_control(
+    app: AppHandle,
+    requester: String,
+    state: State<'_, DesktopState>,
+) -> RemoteControlState {
+    let next = if let Ok(mut guard) = state.remote_control.lock() {
+        guard.request_from(requester);
+        guard.clone()
+    } else {
+        RemoteControlState::Idle
+    };
+    let _ = app.emit("balacopapo://remote-control-state", next.clone());
+    next
+}
+
+#[tauri::command]
+pub fn approve_remote_control(
+    app: AppHandle,
+    allow_mouse: bool,
+    allow_keyboard: bool,
+    state: State<'_, DesktopState>,
+) -> RemoteControlState {
+    let next = if let Ok(mut guard) = state.remote_control.lock() {
+        guard.approve(allow_mouse, allow_keyboard);
+        guard.clone()
+    } else {
+        RemoteControlState::Idle
+    };
+
+    if matches!(next, RemoteControlState::Active { .. }) {
+        let mut ov_cfg = if let Ok(guard) = state.overlay_config.lock() {
+            guard.clone()
+        } else {
+            OverlayConfig::default()
+        };
+        ov_cfg.enabled = true;
+        let _ = overlay::ensure_overlay_window(&app, &ov_cfg);
+        overlay::emit_toast(
+            &app,
+            OverlayToastPayload {
+                title: "Controle Remoto ATIVO".to_string(),
+                body: format!("Pressione {PANIC_HOTKEY} a qualquer momento para cortar."),
+                kind: "warning".to_string(),
+                duration_ms: 5_000,
+            },
+        );
+    }
+
+    let _ = app.emit("balacopapo://remote-control-state", next.clone());
+    next
+}
+
+#[tauri::command]
+pub fn revoke_remote_control(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> RemoteControlState {
+    if let Ok(mut guard) = state.remote_control.lock() {
+        guard.panic_revoke();
+    }
+    if overlay::is_overlay_active(&app) {
+        overlay::emit_toast(
+            &app,
+            OverlayToastPayload {
+                title: "Controle Remoto encerrado".to_string(),
+                body: "Acesso remoto revogado com segurança.".to_string(),
+                kind: "info".to_string(),
+                duration_ms: 2_800,
+            },
+        );
+    }
+    let _ = app.emit("balacopapo://remote-control-state", RemoteControlState::Idle);
+    RemoteControlState::Idle
+}
+
+#[tauri::command]
+pub fn inject_remote_input(
+    event: RemoteInputEvent,
+    state: State<'_, DesktopState>,
+) -> Result<(), String> {
+    let allowed = state
+        .remote_control
+        .lock()
+        .ok()
+        .is_some_and(|st| st.accepts_event(&event));
+
+    if !allowed {
+        return Err("Controle remoto não autorizado para este evento.".to_string());
+    }
+    remote_control::inject_os_input(&event)
 }
