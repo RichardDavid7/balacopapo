@@ -253,7 +253,7 @@ fn apply_windows_overlay_flags(window: &tauri::WebviewWindow) {
     let Ok(tauri_hwnd) = window.hwnd() else {
         return;
     };
-    let hwnd = HWND(tauri_hwnd.0 as *mut std::ffi::c_void);
+    let hwnd = HWND(tauri_hwnd.0);
 
     unsafe {
         // Exclui o overlay da captura de tela/transmissão (sem loop infinito na stream).
