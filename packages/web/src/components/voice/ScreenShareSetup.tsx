@@ -97,10 +97,8 @@ export function ScreenShareSetup() {
   const electron = isElectron();
   const nativeDesktop = isBalacopapoDesktop();
 
-  // Balacopapo Desktop (Tauri v2) native audio targets & capture profile
+  // Balacopapo Desktop (Tauri v2): alvos de áudio isolado (selecionados automaticamente conforme a janela/tela)
   const [nativeAudioTargets, setNativeAudioTargets] = useState<AudioTarget[]>([]);
-  const [selectedAudioTargetKey, setSelectedAudioTargetKey] = useState<string>('excludeSelf');
-  const [nativeProfile, setNativeProfile] = useState<CaptureProfile>('highClarity120');
   const [nativeStatusMsg, setNativeStatusMsg] = useState<string | null>(null);
 
   // Who picks: null until the desktop answered (or immediately 'app' where it can't be asked)
@@ -217,15 +215,6 @@ export function ScreenShareSetup() {
     if (nativeDesktop) {
       setSelectedId(sourceId);
       setNativeStatusMsg(null);
-      if (sourceId.startsWith('window:')) {
-        const pid = Number(sourceId.slice('window:'.length));
-        const match = nativeAudioTargets.find((t) => !t.isSystemDefault && t.pid === pid);
-        if (match) {
-          setSelectedAudioTargetKey(`pid:${match.pid}`);
-        }
-      } else {
-        setSelectedAudioTargetKey('excludeSelf');
-      }
       return;
     }
     if (!api) return;
@@ -457,12 +446,11 @@ export function ScreenShareSetup() {
       setError(null);
       setNativeStatusMsg(null);
       try {
-        if (selectedAudioTargetKey === 'muted') {
+        const shareCfg = useVoiceStore.getState().screenShareConfig;
+        if (!shareCfg.shareAudio) {
           await desktopBridge.stopIsolatedAudio();
-        } else if (selectedAudioTargetKey === 'excludeSelf') {
-          await desktopBridge.startIsolatedAudio({ kind: 'excludeSelf' });
-        } else if (selectedAudioTargetKey.startsWith('pid:')) {
-          const pid = Number(selectedAudioTargetKey.slice(4));
+        } else if (selectedId.startsWith('window:') && (shareCfg.audioScope ?? 'window') === 'window') {
+          const pid = Number(selectedId.slice('window:'.length));
           const target = nativeAudioTargets.find((t) => !t.isSystemDefault && t.pid === pid);
           await desktopBridge.startIsolatedAudio({
             kind: 'includeProcessTree',
@@ -470,11 +458,19 @@ export function ScreenShareSetup() {
             pipewireNodeId: target?.pipewireNodeId,
             label: target?.windowTitle,
           });
+        } else {
+          await desktopBridge.startIsolatedAudio({ kind: 'excludeSelf' });
         }
+
+        const profile: CaptureProfile = shareCfg.fps >= 120
+          ? 'highClarity120'
+          : shareCfg.height === 1440 || shareCfg.height === 'native'
+            ? 'ultraCrisp60'
+            : 'balanced60';
 
         const capStatus = await desktopBridge.startNativeScreenShare({
           sourceId: selectedId,
-          profile: nativeProfile,
+          profile,
         });
         if (capStatus?.error) {
           setNativeStatusMsg(capStatus.error);
@@ -517,7 +513,7 @@ export function ScreenShareSetup() {
     setStaged(null);
     setStarting(false);
     close();
-  }, [close, selectedId, pickerMode, nativeDesktop, selectedAudioTargetKey, nativeAudioTargets, nativeProfile]);
+  }, [close, selectedId, pickerMode, nativeDesktop, nativeAudioTargets]);
 
   const screens = useMemo(() => sources.filter((s) => s.isScreen), [sources]);
   const windows = useMemo(() => {
@@ -670,45 +666,9 @@ export function ScreenShareSetup() {
                   )}
                 </div>
 
-                {/* Balacopapo Desktop native isolated audio + 1080p120 profile bar */}
-                {nativeDesktop && (
-                  <div className="flex-shrink-0 mt-3 rounded-xl glass px-3.5 py-3 flex flex-col gap-2.5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label className="flex items-center gap-2 text-xs font-semibold text-txt-secondary flex-1 min-w-[220px]">
-                        <span className="whitespace-nowrap">Áudio Isolado:</span>
-                        <select
-                          value={selectedAudioTargetKey}
-                          onChange={(e) => setSelectedAudioTargetKey(e.target.value)}
-                          className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
-                        >
-                          <option value="excludeSelf">Sistema inteiro (sem eco do Balacopapo)</option>
-                          <option value="muted">Sem áudio</option>
-                          {nativeAudioTargets
-                            .filter((t) => !t.isSystemDefault && t.pid > 0)
-                            .map((t) => (
-                              <option key={`${t.pid}-${t.pipewireNodeId ?? 0}`} value={`pid:${t.pid}`}>
-                                {t.windowTitle} ({t.processName})
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                      <label className="flex items-center gap-2 text-xs font-semibold text-txt-secondary flex-1 min-w-[220px]">
-                        <span className="whitespace-nowrap">Perfil Nativo:</span>
-                        <select
-                          value={nativeProfile}
-                          onChange={(e) => setNativeProfile(e.target.value as CaptureProfile)}
-                          className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
-                        >
-                          <option value="highClarity120">1080p · 120 fps · 150 Mbps (4:2:0 sem downscale)</option>
-                          <option value="pixelPerfect444">1080p · 120 fps · 150 Mbps (4:4:4 Pixel-Perfect)</option>
-                          <option value="ultraCrisp60">1440p · 60 fps · 80 Mbps</option>
-                          <option value="balanced60">1080p · 60 fps · 25 Mbps</option>
-                        </select>
-                      </label>
-                    </div>
-                    {nativeStatusMsg && (
-                      <div className="text-xs text-txt-danger">{nativeStatusMsg}</div>
-                    )}
+                {nativeDesktop && nativeStatusMsg && (
+                  <div className="flex-shrink-0 mt-2 text-xs text-txt-danger px-1">
+                    {nativeStatusMsg}
                   </div>
                 )}
 

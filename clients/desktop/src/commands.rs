@@ -35,16 +35,48 @@ pub struct DesktopState {
 
 impl DesktopState {
     pub fn new(config: AppConfig) -> Self {
+        let initial_overlay = OverlayConfig {
+            enabled: config.overlay_enabled,
+            show_pointers: config.overlay_show_pointers,
+            show_speakers: config.overlay_show_speakers,
+            show_toasts: config.overlay_show_toasts,
+            corner: match config.overlay_corner.as_str() {
+                "top-right" => overlay::OverlayCorner::TopRight,
+                "bottom-left" => overlay::OverlayCorner::BottomLeft,
+                "bottom-right" => overlay::OverlayCorner::BottomRight,
+                _ => overlay::OverlayCorner::TopLeft,
+            },
+            opacity: config.overlay_opacity.clamp(0.3, 1.0),
+            monitor_index: None,
+        };
         Self {
             config: Mutex::new(config),
             update_state: Mutex::new(UpdateCheckState::Idle),
             isolated_audio: IsolatedAudioController::new(),
-            overlay_config: Mutex::new(OverlayConfig::default()),
+            overlay_config: Mutex::new(initial_overlay),
             native_screen_share: NativeScreenShareController::new(),
             keybinds: Mutex::new(default_keybinds()),
             remote_control: Mutex::new(RemoteControlState::Idle),
             last_detected_game: Mutex::new(None),
         }
+    }
+}
+
+fn persist_overlay_config(state: &DesktopState, cfg: &OverlayConfig) {
+    if let Ok(mut app_cfg) = state.config.lock() {
+        app_cfg.overlay_enabled = cfg.enabled;
+        app_cfg.overlay_show_pointers = cfg.show_pointers;
+        app_cfg.overlay_show_speakers = cfg.show_speakers;
+        app_cfg.overlay_show_toasts = cfg.show_toasts;
+        app_cfg.overlay_corner = match cfg.corner {
+            overlay::OverlayCorner::TopLeft => "top-left",
+            overlay::OverlayCorner::TopRight => "top-right",
+            overlay::OverlayCorner::BottomLeft => "bottom-left",
+            overlay::OverlayCorner::BottomRight => "bottom-right",
+        }
+        .to_string();
+        app_cfg.overlay_opacity = cfg.opacity.clamp(0.3, 1.0);
+        let _ = app_cfg.save();
     }
 }
 
@@ -315,6 +347,7 @@ pub async fn update_overlay_config(
     if let Ok(mut guard) = state.overlay_config.lock() {
         *guard = config.clone();
     }
+    persist_overlay_config(&state, &config);
     Ok(config)
 }
 

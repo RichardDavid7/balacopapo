@@ -32,7 +32,7 @@
     }
 
     aside {
-      width: 230px;
+      width: 220px;
       flex-shrink: 0;
       background: var(--sidebar);
       border-right: 1px solid var(--border);
@@ -62,7 +62,6 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.12s ease, color 0.12s ease;
     }
 
     .nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
@@ -78,11 +77,11 @@
       padding: 24px 28px;
     }
 
-    .tab-panel { display: none; max-width: 720px; }
+    .tab-panel { display: none; max-width: 680px; }
     .tab-panel.active { display: block; }
 
     h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-    .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.45; }
+    .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.45; }
 
     .card {
       background: var(--card);
@@ -97,7 +96,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      padding: 8px 0;
+      padding: 9px 0;
     }
 
     .row + .row { border-top: 1px solid rgba(255, 255, 255, 0.05); }
@@ -117,13 +116,9 @@
     }
 
     button.btn:hover { background: var(--accent-hover); }
-    button.btn.secondary {
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text);
-    }
+    button.btn.secondary { background: rgba(255, 255, 255, 0.08); color: var(--text); }
     button.btn.secondary:hover { background: rgba(255, 255, 255, 0.13); }
     button.btn.danger { background: rgba(240, 71, 71, 0.85); }
-    button.btn.danger:hover { background: var(--danger); }
     button.btn.mint { background: rgba(59, 165, 93, 0.85); }
 
     select, input[type="text"] {
@@ -144,67 +139,7 @@
     }
 
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-
-    .meter-wrap {
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.08);
-      overflow: hidden;
-      margin-top: 10px;
-    }
-
-    .meter-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #3ba55d, #fbbf24, #f04747);
-      transition: width 0.08s linear;
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      background: rgba(255, 255, 255, 0.07);
-      color: #d6dce8;
-      margin: 4px 6px 0 0;
-    }
-
-    .pill.hw {
-      background: rgba(59, 165, 93, 0.18);
-      border: 1px solid rgba(59, 165, 93, 0.35);
-      color: #8ce9ab;
-    }
-
-    .status-line {
-      font-size: 12.5px;
-      color: #b7c2d6;
-      margin-top: 8px;
-      line-height: 1.45;
-    }
-
-    .list-box {
-      max-height: 180px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 10px;
-    }
-
-    .list-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 11px;
-      border-radius: 9px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      font-size: 12.5px;
-    }
+    .status-line { font-size: 12.5px; color: #b7c2d6; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -214,38 +149,36 @@
       <p id="app-meta">Carregando...</p>
     </div>
     <button class="nav-btn active" data-tab="overlay">Overlay In-Game</button>
-    <button class="nav-btn" data-tab="audio">Áudio Isolado</button>
-    <button class="nav-btn" data-tab="capture">Captura 1080p120</button>
-    <button class="nav-btn" data-tab="keybinds">Atalhos & Jogos</button>
-    <button class="nav-btn" data-tab="system">Controle Remoto & SO</button>
+    <button class="nav-btn" data-tab="games">Presença de Jogos</button>
+    <button class="nav-btn" data-tab="system">Sistema & Controle Remoto</button>
   </aside>
 
   <main>
     <!-- ABA 1: OVERLAY IN-GAME -->
     <section id="tab-overlay" class="tab-panel active">
-      <h2>Overlay In-Game (Click-Through)</h2>
+      <h2>Overlay In-Game</h2>
       <p class="subtitle">
-        Sobreposição transparente sem injeção de DLL (zero risco de Anti-Cheat) e invisível na transmissão de tela (<code>WDA_EXCLUDEFROMCAPTURE</code>).
+        Sobreposição click-through sem injeção de DLL (zero risco de Anti-Cheat) e invisível na transmissão (<code>WDA_EXCLUDEFROMCAPTURE</code>). Todas as alterações são salvas automaticamente.
       </p>
 
       <div class="card">
         <div class="row">
           <div>
             <div class="row-title">Ativar Overlay In-Game</div>
-            <div class="row-desc">Criado sob demanda e destruído ao desligar (0 MB de RAM quando inativo).</div>
+            <div class="row-desc">Fica salvo entre sessões. Quando desligado, consome 0 MB de RAM.</div>
           </div>
           <input id="ov-enabled" type="checkbox" />
         </div>
         <div class="row">
           <div>
             <div class="row-title">Clicar & Apontar na transmissão</div>
-            <div class="row-desc">Exibe os cliques/pings dos amigos exatamente onde eles apontaram.</div>
+            <div class="row-desc">Mostra na sua tela exatamente onde os amigos clicaram.</div>
           </div>
           <input id="ov-pointers" type="checkbox" checked />
         </div>
         <div class="row">
           <div>
-            <div class="row-title">Indicador de Voz (Quem está falando)</div>
+            <div class="row-title">Quem está falando</div>
             <div class="row-desc">Lista compacta no canto da tela com destaque verde ao falar.</div>
           </div>
           <input id="ov-speakers" type="checkbox" checked />
@@ -253,7 +186,7 @@
         <div class="row">
           <div>
             <div class="row-title">Toasts discretos</div>
-            <div class="row-desc">Avisos rápidos sem atrapalhar o jogo.</div>
+            <div class="row-desc">Avisos rápidos sem roubar foco do jogo.</div>
           </div>
           <input id="ov-toasts" type="checkbox" checked />
         </div>
@@ -271,83 +204,18 @@
           <input id="ov-opacity" type="range" min="30" max="100" value="92" />
         </div>
         <div class="actions">
-          <button id="ov-save-btn" class="btn">Aplicar Overlay</button>
           <button id="ov-test-pointer" class="btn secondary">Testar Clique & Apontar</button>
-          <button id="ov-test-speakers" class="btn secondary">Testar Quem está falando</button>
+          <button id="ov-test-speakers" class="btn secondary">Testar Quem está falando (4s)</button>
         </div>
       </div>
     </section>
 
-    <!-- ABA 2: ÁUDIO ISOLADO -->
-    <section id="tab-audio" class="tab-panel">
-      <h2>Áudio Isolado por Janela / Processo</h2>
+    <!-- ABA 2: PRESENÇA DE JOGOS -->
+    <section id="tab-games" class="tab-panel">
+      <h2>Presença de Jogos</h2>
       <p class="subtitle">
-        Captura apenas o áudio do jogo/janela escolhida (Windows WASAPI Process Loopback / Linux PipeWire), sem misturar outros apps e sem eco das vozes do Balacopapo.
+        Detecta automaticamente o jogo em execução (varredura leve a cada 12s, 0% CPU dormindo).
       </p>
-
-      <div class="card">
-        <div class="row">
-          <div class="row-title">Alvo de captura de áudio</div>
-          <button id="audio-refresh-btn" class="btn secondary">Atualizar janelas</button>
-        </div>
-        <select id="audio-target-select" style="width: 100%; margin-top: 8px;"></select>
-        <div class="actions">
-          <button id="audio-start-btn" class="btn mint">Iniciar captura isolada</button>
-          <button id="audio-stop-btn" class="btn danger">Parar captura</button>
-        </div>
-        <div class="meter-wrap"><div id="audio-meter" class="meter-fill"></div></div>
-        <div id="audio-status" class="status-line">Inativo.</div>
-      </div>
-    </section>
-
-    <!-- ABA 3: CAPTURA PIXEL-PERFECT -->
-    <section id="tab-capture" class="tab-panel">
-      <h2>Captura Pixel-Perfect 1080p 120fps (até 150 Mbps)</h2>
-      <p class="subtitle">
-        Captura nativa com codificação por hardware (GPU) para manter texto e pixels nítidos sem borramento e sem sobrecarregar a CPU.
-      </p>
-
-      <div class="card">
-        <div class="row-title">Encoders de Hardware detectados</div>
-        <div id="hw-encoders-list" style="margin-top: 8px;">Detectando...</div>
-      </div>
-
-      <div class="card">
-        <div class="row">
-          <div class="row-title">Monitores e Janelas disponíveis</div>
-          <button id="cap-refresh-btn" class="btn secondary">Atualizar fontes</button>
-        </div>
-        <select id="cap-source-select" style="width: 100%; margin-top: 8px;"></select>
-
-        <div class="row" style="margin-top: 10px;">
-          <div class="row-title">Perfil de Qualidade</div>
-          <select id="cap-profile-select">
-            <option value="pixelPerfect444">Pixel-Perfect 4:4:4 · 1080p 120fps (150 Mbps)</option>
-            <option value="highClarity120">Alta Nitidez 4:2:0 · 1080p 120fps (150 Mbps)</option>
-            <option value="ultraCrisp60">Ultra Crisp · 1440p 60fps (80 Mbps)</option>
-            <option value="balanced60">Equilibrado · 1080p 60fps (25 Mbps)</option>
-          </select>
-        </div>
-
-        <div class="actions">
-          <button id="cap-start-btn" class="btn mint">Testar Captura Nativa</button>
-          <button id="cap-stop-btn" class="btn danger">Parar Captura</button>
-        </div>
-        <div id="cap-status" class="status-line">Inativo.</div>
-      </div>
-    </section>
-
-    <!-- ABA 4: ATALHOS & PRESENÇA DE JOGOS -->
-    <section id="tab-keybinds" class="tab-panel">
-      <h2>Atalhos Globais em Jogos & Presença</h2>
-      <p class="subtitle">
-        Funcionam sem Alt+Tab enquanto você joga. O atalho de pânico <code>Ctrl+Alt+Escape</code> está sempre reservado para cortar Controle Remoto.
-      </p>
-
-      <div class="card">
-        <div class="row-title">Atalhos ativos</div>
-        <div id="keybinds-list" class="list-box"></div>
-      </div>
 
       <div class="card">
         <div class="row">
@@ -362,25 +230,25 @@
           <input id="gp-ignored" type="text" placeholder="ex: cs2, valorant" style="width: 240px;" />
         </div>
         <div class="actions">
-          <button id="gp-save-btn" class="btn">Salvar Presença</button>
+          <button id="gp-save-btn" class="btn">Salvar</button>
         </div>
       </div>
     </section>
 
-    <!-- ABA 5: CONTROLE REMOTO & SISTEMA -->
+    <!-- ABA 3: SISTEMA & CONTROLE REMOTO -->
     <section id="tab-system" class="tab-panel">
-      <h2>Controle Remoto Seguro & Sistema</h2>
+      <h2>Sistema & Controle Remoto Seguro</h2>
       <p class="subtitle">
-        Consentimento explícito obrigatório antes de aceitar mouse/teclado remoto, com corte instantâneo via <code>Ctrl+Alt+Escape</code>.
+        O áudio isolado por janela e a qualidade da transmissão são selecionados automaticamente ao compartilhar tela.
       </p>
 
       <div class="card">
         <div class="row">
           <div>
-            <div class="row-title">Estado do Controle Remoto</div>
-            <div id="rc-status" class="row-desc">Inativo (nenhuma sessão ativa).</div>
+            <div class="row-title">Controle Remoto Seguro</div>
+            <div id="rc-status" class="row-desc">Inativo. Atalho de pânico global: <code>Ctrl+Alt+Escape</code>.</div>
           </div>
-          <button id="rc-panic-btn" class="btn danger">Cortar Agora (Pânico)</button>
+          <button id="rc-panic-btn" class="btn danger">Cortar Agora</button>
         </div>
       </div>
 
@@ -404,7 +272,6 @@
   <script>
     const invoke = window.__TAURI__?.core?.invoke;
 
-    // Navegação por abas
     document.querySelectorAll(".nav-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
@@ -422,10 +289,6 @@
     const ovOpacity = document.getElementById("ov-opacity");
     const ovOpacityVal = document.getElementById("ov-opacity-val");
 
-    ovOpacity.addEventListener("input", () => {
-      ovOpacityVal.textContent = `${ovOpacity.value}%`;
-    });
-
     function readOverlayForm() {
       return {
         enabled: ovEnabled.checked,
@@ -438,10 +301,20 @@
       };
     }
 
-    document.getElementById("ov-save-btn").addEventListener("click", async () => {
+    async function saveOverlayNow() {
       if (!invoke) return;
       await invoke("update_overlay_config", { config: readOverlayForm() });
+    }
+
+    ovEnabled.addEventListener("change", saveOverlayNow);
+    ovPointers.addEventListener("change", saveOverlayNow);
+    ovSpeakers.addEventListener("change", saveOverlayNow);
+    ovToasts.addEventListener("change", saveOverlayNow);
+    ovCorner.addEventListener("change", saveOverlayNow);
+    ovOpacity.addEventListener("input", () => {
+      ovOpacityVal.textContent = `${ovOpacity.value}%`;
     });
+    ovOpacity.addEventListener("change", saveOverlayNow);
 
     let testSpeakersTimer = null;
 
@@ -449,11 +322,8 @@
       if (!invoke) return;
       const wasEnabled = ovEnabled.checked;
       ovEnabled.checked = true;
-      await invoke("update_overlay_config", { config: readOverlayForm() });
-      // Se o overlay acabou de ser criado agora, aguarda o WebView carregar antes de enviar o ping.
-      if (!wasEnabled) {
-        await new Promise((r) => setTimeout(r, 400));
-      }
+      await saveOverlayNow();
+      if (!wasEnabled) await new Promise((r) => setTimeout(r, 400));
       await invoke("push_overlay_pointer", {
         pointer: {
           senderName: "Teste Clicar & Apontar",
@@ -469,10 +339,8 @@
       if (!invoke) return;
       const wasEnabled = ovEnabled.checked;
       ovEnabled.checked = true;
-      await invoke("update_overlay_config", { config: readOverlayForm() });
-      if (!wasEnabled) {
-        await new Promise((r) => setTimeout(r, 400));
-      }
+      await saveOverlayNow();
+      if (!wasEnabled) await new Promise((r) => setTimeout(r, 400));
       await invoke("set_overlay_speakers", {
         speakers: [
           { identity: "u1", name: "Você", speaking: true, muted: false, avatarColor: "#3ba55d" },
@@ -485,123 +353,6 @@
       }, 4000);
     });
 
-    // Áudio isolado
-    let audioTargets = [];
-    async function refreshAudioTargets() {
-      if (!invoke) return;
-      audioTargets = await invoke("list_audio_targets");
-      const sel = document.getElementById("audio-target-select");
-      sel.textContent = "";
-      for (const t of audioTargets) {
-        const opt = document.createElement("option");
-        opt.value = JSON.stringify(t);
-        opt.textContent = t.isSystemDefault
-          ? t.windowTitle
-          : `${t.windowTitle} (${t.processName} · PID ${t.pid})`;
-        sel.appendChild(opt);
-      }
-    }
-
-    document.getElementById("audio-refresh-btn").addEventListener("click", refreshAudioTargets);
-
-    document.getElementById("audio-start-btn").addEventListener("click", async () => {
-      if (!invoke) return;
-      const sel = document.getElementById("audio-target-select");
-      if (!sel.value) return;
-      const target = JSON.parse(sel.value);
-      const mode = target.isSystemDefault
-        ? { kind: "excludeSelf" }
-        : {
-            kind: "includeProcessTree",
-            pid: target.pid,
-            pipewireNodeId: target.pipewireNodeId ?? null,
-            label: target.windowTitle,
-          };
-      const st = await invoke("start_isolated_audio", { mode });
-      renderAudioStatus(st);
-    });
-
-    document.getElementById("audio-stop-btn").addEventListener("click", async () => {
-      if (!invoke) return;
-      const st = await invoke("stop_isolated_audio");
-      renderAudioStatus(st);
-    });
-
-    function renderAudioStatus(st) {
-      const meter = document.getElementById("audio-meter");
-      const label = document.getElementById("audio-status");
-      if (!st) return;
-      meter.style.width = `${Math.round((st.peakLevel || 0) * 100)}%`;
-      if (st.error) {
-        label.textContent = `Erro: ${st.error}`;
-      } else if (st.active) {
-        label.textContent = `Ativo (${st.backend}) · Alvo: ${st.targetLabel} · ${st.sampleRate} Hz · ${st.capturedFrames} frames`;
-      } else {
-        label.textContent = `Inativo (${st.backend}).`;
-      }
-    }
-
-    // Captura 1080p120
-    async function refreshCaptureData() {
-      if (!invoke) return;
-      const encoders = await invoke("detect_hardware_encoders");
-      const encEl = document.getElementById("hw-encoders-list");
-      encEl.textContent = "";
-      if (!encoders || encoders.length === 0) {
-        encEl.textContent = "Nenhum encoder hardware detectado (instale ffmpeg com NVENC/AMF/QSV/VAAPI).";
-      } else {
-        for (const e of encoders) {
-          const pill = document.createElement("span");
-          pill.className = `pill${e.hardwareAccelerated ? " hw" : ""}`;
-          pill.textContent = `${e.name} · ${e.vendor}${e.supports444 ? " · 4:4:4" : ""}`;
-          encEl.appendChild(pill);
-        }
-      }
-
-      const sources = await invoke("list_capture_sources");
-      const sel = document.getElementById("cap-source-select");
-      sel.textContent = "";
-      for (const s of sources || []) {
-        const opt = document.createElement("option");
-        opt.value = s.id;
-        opt.textContent = s.kind === "monitor"
-          ? `[Monitor] ${s.name} (${s.width}x${s.height})`
-          : `[Janela] ${s.name}`;
-        sel.appendChild(opt);
-      }
-    }
-
-    document.getElementById("cap-refresh-btn").addEventListener("click", refreshCaptureData);
-
-    document.getElementById("cap-start-btn").addEventListener("click", async () => {
-      if (!invoke) return;
-      const sourceId = document.getElementById("cap-source-select").value || "monitor:0";
-      const profile = document.getElementById("cap-profile-select").value;
-      const st = await invoke("start_native_screen_share", {
-        config: { sourceId, profile },
-      });
-      renderCaptureStatus(st);
-    });
-
-    document.getElementById("cap-stop-btn").addEventListener("click", async () => {
-      if (!invoke) return;
-      const st = await invoke("stop_native_screen_share");
-      renderCaptureStatus(st);
-    });
-
-    function renderCaptureStatus(st) {
-      const el = document.getElementById("cap-status");
-      if (!st) return;
-      if (st.error) {
-        el.textContent = `Erro: ${st.error}`;
-      } else if (st.active && st.params) {
-        el.textContent = `Ativo · ${st.params.width}x${st.params.height} @ ${st.params.fps}fps · ${st.params.encoder} (${st.params.chroma}) · ${st.currentBitrateMbps.toFixed(1)} Mbps`;
-      } else {
-        el.textContent = `Inativo (${st.captureBackend}).`;
-      }
-    }
-
-    // Presença & Atalhos
     document.getElementById("gp-save-btn").addEventListener("click", async () => {
       if (!invoke) return;
       const enabled = document.getElementById("gp-enabled").checked;
@@ -615,7 +366,6 @@
       });
     });
 
-    // Controle remoto & Sistema
     document.getElementById("rc-panic-btn").addEventListener("click", async () => {
       if (!invoke) return;
       await invoke("revoke_remote_control");
@@ -672,29 +422,6 @@
         document.getElementById("game-detected-label").textContent =
           `Jogando agora: ${curGame.displayName} (${curGame.processName})`;
       }
-
-      const keybinds = await invoke("get_keybinds");
-      const kbBox = document.getElementById("keybinds-list");
-      kbBox.textContent = "";
-      for (const kb of keybinds || []) {
-        const item = document.createElement("div");
-        item.className = "list-item";
-        const name = typeof kb.action === "string" ? kb.action : JSON.stringify(kb.action);
-        item.innerHTML = `<span>${name}</span><code>${kb.shortcut}</code>`;
-        kbBox.appendChild(item);
-      }
-
-      await Promise.all([refreshAudioTargets(), refreshCaptureData()]);
-
-      // Polling leve apenas enquanto o painel de configurações estiver aberto
-      setInterval(async () => {
-        const [aSt, cSt] = await Promise.all([
-          invoke("get_isolated_audio_status"),
-          invoke("get_native_screen_share_status"),
-        ]);
-        renderAudioStatus(aSt);
-        renderCaptureStatus(cSt);
-      }, 250);
     }
 
     bootstrap();

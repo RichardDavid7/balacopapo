@@ -32,6 +32,26 @@ pub struct AppConfig {
     pub ignored_games: Vec<String>,
     #[serde(default)]
     pub manual_game_override: Option<String>,
+    #[serde(default)]
+    pub overlay_enabled: bool,
+    #[serde(default = "default_true")]
+    pub overlay_show_pointers: bool,
+    #[serde(default = "default_true")]
+    pub overlay_show_speakers: bool,
+    #[serde(default = "default_true")]
+    pub overlay_show_toasts: bool,
+    #[serde(default = "default_overlay_corner")]
+    pub overlay_corner: String,
+    #[serde(default = "default_overlay_opacity")]
+    pub overlay_opacity: f32,
+}
+
+fn default_overlay_corner() -> String {
+    "top-left".to_string()
+}
+
+fn default_overlay_opacity() -> f32 {
+    0.92
 }
 
 fn default_language() -> String {
@@ -63,6 +83,12 @@ impl Default for AppConfig {
             game_presence_enabled: true,
             ignored_games: Vec::new(),
             manual_game_override: None,
+            overlay_enabled: false,
+            overlay_show_pointers: true,
+            overlay_show_speakers: true,
+            overlay_show_toasts: true,
+            overlay_corner: default_overlay_corner(),
+            overlay_opacity: default_overlay_opacity(),
         }
     }
 }
