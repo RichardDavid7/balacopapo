@@ -66,7 +66,10 @@ Itens já identificados durante os testes e uso real:
 
 ### Fase 4 — Interação em Call, Presença e Acessibilidade
 - [x] **Clicar e apontar na stream** — marcação visual temporária (coordenadas normalizadas X/Y via LiveKit DataChannel em `streamPointerProtocol.ts` + `streamPointerStore.ts` + `StreamTile.tsx`) com `Shift+clique` (ou modo Apontar) no desktop e **botão de mira arrastável deslocada 64px acima do dedo no mobile** (dispara ao soltar), acompanhando zoom/pan e `object-contain`.
-- [ ] **Prévia de câmera ao clicar no botão da câmera** — abrir uma prévia local da webcam (com seletor de dispositivo e opção de confirmar/cancelar) antes de transmitir o vídeo para os demais participantes da call.
+- [ ] **Prévia de câmera, espelho local e ajuste de qualidade da webcam:**
+  - **Prévia ao clicar no botão da câmera:** abrir prévia local (com seletor de dispositivo e confirmação) antes de transmitir o vídeo para os demais participantes.
+  - **Espelho local (self-view):** opção de se enxergar espelhado (`scaleX(-1)`) apenas localmente para facilitar o enquadramento, enquanto os demais participantes veem a imagem normal (sem inversão).
+  - **Refinamento de qualidade da câmera:** revisar resolução, framerate (30/60 fps), bitrate (`CAMERA_OVERDRIVE` em `screenShare.ts`, hoje fixo em `2 Mbps` / `30 fps` com `maintain-framerate`) e `degradationPreference` para evitar borramento/compressão excessiva.
 - [ ] **Indicar qual jogo está jogando** — permitir escolher/indicar manualmente (ou detectar no desktop) qual jogo aparece no seu perfil/presença *(acompanhar/integrar PR upstream `TheZwiss/backspace#482`)*.
 - [ ] **Modo leigo / acessível no Android (mobile)** — layout simplificado com botões grandes, alto contraste e fluxo direto pensado para idosos e usuários iniciantes.
 
