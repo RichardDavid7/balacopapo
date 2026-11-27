@@ -773,8 +773,8 @@ mod linux_impl {
                 Ok(0) => break,
                 Ok(n) => {
                     let count = n / 4;
-                    for (i, chunk) in raw_buf[..count * 4].chunks_exact(4).enumerate() {
-                        f32_buf[i] = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    for (i, chunk) in raw_buf[..count * 4].as_chunks::<4>().0.iter().enumerate() {
+                        f32_buf[i] = f32::from_le_bytes(*chunk);
                     }
                     metrics.record_block(&f32_buf[..count]);
                 }

@@ -112,7 +112,7 @@ fn build_init_script() -> String {
             capabilities: {{
               isolatedAudio: true,
               inGameOverlay: true,
-              nativeScreenShare: false,
+              nativeScreenShare: true,
               gamePresence: true,
               nativeNotifications: true,
               silentUpdater: true
@@ -297,6 +297,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             }
             MENU_QUIT => {
                 app.state::<DesktopState>().isolated_audio.stop();
+                app.state::<DesktopState>().native_screen_share.stop();
                 os::overlay::destroy_overlay_window(app);
                 app.exit(0);
             }
@@ -350,6 +351,11 @@ fn main() {
             commands::push_overlay_pointer,
             commands::set_overlay_speakers,
             commands::push_overlay_toast,
+            commands::list_capture_sources,
+            commands::detect_hardware_encoders,
+            commands::start_native_screen_share,
+            commands::stop_native_screen_share,
+            commands::get_native_screen_share_status,
         ])
         .setup(move |app| {
             setup_tray(app.handle())?;

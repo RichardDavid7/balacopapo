@@ -7,6 +7,10 @@ use crate::media::isolated_audio::{
     list_audio_targets as enumerate_audio_targets, AudioTarget, IsolatedAudioController,
     IsolatedAudioMode, IsolatedAudioStatus,
 };
+use crate::media::native_capture::{
+    self, CaptureSource, HardwareEncoderInfo, NativeScreenShareConfig, NativeScreenShareController,
+    NativeScreenShareStatus,
+};
 use crate::os::activity::{scan_running_game, DetectedGame};
 use crate::os::autostart;
 use crate::os::notifications::send_desktop_notification;
@@ -20,6 +24,7 @@ pub struct DesktopState {
     pub update_state: Mutex<UpdateCheckState>,
     pub isolated_audio: IsolatedAudioController,
     pub overlay_config: Mutex<OverlayConfig>,
+    pub native_screen_share: NativeScreenShareController,
 }
 
 impl DesktopState {
@@ -29,6 +34,7 @@ impl DesktopState {
             update_state: Mutex::new(UpdateCheckState::Idle),
             isolated_audio: IsolatedAudioController::new(),
             overlay_config: Mutex::new(OverlayConfig::default()),
+            native_screen_share: NativeScreenShareController::new(),
         }
     }
 }
@@ -44,6 +50,7 @@ pub struct DesktopInfo {
     pub update_status: UpdateCheckState,
     pub overlay_active: bool,
     pub isolated_audio: IsolatedAudioStatus,
+    pub native_screen_share: NativeScreenShareStatus,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -85,6 +92,7 @@ pub fn get_desktop_info(app: AppHandle, state: State<'_, DesktopState>) -> Deskt
         update_status,
         overlay_active: overlay::is_overlay_active(&app),
         isolated_audio: state.isolated_audio.status(),
+        native_screen_share: state.native_screen_share.status(),
     }
 }
 
@@ -288,4 +296,37 @@ pub fn push_overlay_toast(app: AppHandle, toast: OverlayToastPayload) {
     if overlay::is_overlay_active(&app) {
         overlay::emit_toast(&app, toast);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Etapa 3: Captura & Transmissão Pixel-Perfect 1080p 120fps (até 150 Mbps)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn list_capture_sources(app: AppHandle) -> Vec<CaptureSource> {
+    native_capture::list_capture_sources(&app)
+}
+
+#[tauri::command]
+pub fn detect_hardware_encoders() -> Vec<HardwareEncoderInfo> {
+    native_capture::detect_hardware_encoders()
+}
+
+#[tauri::command]
+pub fn start_native_screen_share(
+    config: NativeScreenShareConfig,
+    state: State<'_, DesktopState>,
+) -> Result<NativeScreenShareStatus, String> {
+    state.native_screen_share.start(config)
+}
+
+#[tauri::command]
+pub fn stop_native_screen_share(state: State<'_, DesktopState>) -> NativeScreenShareStatus {
+    state.native_screen_share.stop();
+    state.native_screen_share.status()
+}
+
+#[tauri::command]
+pub fn get_native_screen_share_status(state: State<'_, DesktopState>) -> NativeScreenShareStatus {
+    state.native_screen_share.status()
 }
