@@ -104,6 +104,9 @@ import type {
   SpaceApiKeySummary,
   CreateSpaceApiKeyRequest,
   CreateSpaceApiKeyResponse,
+  LastFmNowPlayingResponse,
+  AdminLastFmConfigResponse,
+  AdminLastFmUpdateRequest,
 } from '@backspace/shared';
 import { MESSAGE_PAGING_AFTER, MESSAGE_PAGING_HEADER } from '@backspace/shared';
 
@@ -483,6 +486,10 @@ export class BackspaceApiClient {
       setAllowed: (spaceId: string, allowFileRetention: boolean) => Promise<AdminSpaceRetentionItem>;
       deleteSpace: (spaceId: string) => Promise<{ success: boolean }>;
     };
+    lastfm: {
+      getConfig: () => Promise<AdminLastFmConfigResponse>;
+      updateConfig: (data: AdminLastFmUpdateRequest) => Promise<AdminLastFmConfigResponse>;
+    };
   };
 
   stickers: {
@@ -523,6 +530,10 @@ export class BackspaceApiClient {
     list: (spaceId: string) => Promise<{ apiKeys: SpaceApiKeySummary[] }>;
     create: (spaceId: string, data: CreateSpaceApiKeyRequest) => Promise<CreateSpaceApiKeyResponse>;
     revoke: (spaceId: string, keyId: string) => Promise<{ success: boolean }>;
+  };
+
+  readonly lastfm: {
+    getNowPlaying: (userId: string) => Promise<LastFmNowPlayingResponse>;
   };
 
   constructor(baseUrl: string, getToken: () => string | null, onUnauthorized?: () => void) {
@@ -1170,6 +1181,11 @@ export class BackspaceApiClient {
         deleteSpace: (spaceId: string) =>
           request<{ success: boolean }>('DELETE', `/admin/spaces/${encodeURIComponent(spaceId)}`),
       },
+      lastfm: {
+        getConfig: () => request<AdminLastFmConfigResponse>('GET', '/admin/lastfm'),
+        updateConfig: (data: AdminLastFmUpdateRequest) =>
+          request<AdminLastFmConfigResponse>('PATCH', '/admin/lastfm', data),
+      },
     };
 
     this.music = {
@@ -1195,6 +1211,11 @@ export class BackspaceApiClient {
         request<CreateSpaceApiKeyResponse>('POST', `/spaces/${encodeURIComponent(spaceId)}/api-keys`, data),
       revoke: (spaceId, keyId) =>
         request<{ success: boolean }>('DELETE', `/spaces/${encodeURIComponent(spaceId)}/api-keys/${encodeURIComponent(keyId)}`),
+    };
+
+    this.lastfm = {
+      getNowPlaying: (userId) =>
+        request<LastFmNowPlayingResponse>('GET', `/users/${encodeURIComponent(userId)}/lastfm`),
     };
   }
 }

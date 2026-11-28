@@ -316,7 +316,19 @@
     }
   },
   "connections": {
-    "title": "Connections"
+    "title": "Connections",
+    "lastfm": {
+      "heading": "Last.fm",
+      "description": "Link your Last.fm account to show your profile link and what you are currently listening to.",
+      "usernameLabel": "Last.fm username",
+      "usernamePlaceholder": "e.g. your_username or https://www.last.fm/user/...",
+      "showNowPlayingLabel": "Show currently playing track",
+      "showNowPlayingHint": "Display your active Last.fm scrobble on your profile card.",
+      "save": "Save Last.fm",
+      "disconnect": "Unlink",
+      "saved": "Last.fm settings saved",
+      "disconnected": "Last.fm account unlinked"
+    }
   },
   "instance": {
     "tabs": {
@@ -330,7 +342,26 @@
       "telemetry": "Say hi",
       "audio": "Audio",
       "oidc": "OIDC",
-      "ipBans": "IP Bans"
+      "ipBans": "IP Bans",
+      "lastfm": "Last.fm"
+    },
+    "lastfm": {
+      "title": "Last.fm Integration",
+      "subtitle": "Configure a Last.fm Web Services API key so users can display what they are currently listening to on their profiles (cached for 25s on the server).",
+      "statusLabel": "Status",
+      "currentKey": "Active API key",
+      "sources": {
+        "database": "Configured in panel",
+        "env": "Configured via LASTFM_API_KEY env",
+        "none": "Not configured"
+      },
+      "apiKeyLabel": "Last.fm API Key",
+      "apiKeyPlaceholder": "Paste your 32-character Last.fm API key...",
+      "helpText": "Need an API key? Create a free one at",
+      "saveButton": "Save API Key",
+      "removeButton": "Remove saved key",
+      "saved": "Last.fm API key saved",
+      "cleared": "Saved Last.fm API key removed"
     }
   },
   "keybinds": {
@@ -440,42 +471,6 @@
     "instance": {
       "current": "Currently connected instance",
       "change": "Change Instance"
-    },
-    "overlay": {
-      "title": "In-Game Overlay",
-      "description": "Click-through transparent overlay excluded from screen capture (no DLL injection).",
-      "enabled": "Enable In-Game Overlay",
-      "enabledDesc": "Saves automatically. Uses 0 MB RAM when turned off.",
-      "pointers": "Click & Point on stream",
-      "pointersDesc": "Shows on your screen where friends clicked on your stream.",
-      "speakers": "Voice activity indicator",
-      "speakersDesc": "Compact list showing who is currently speaking.",
-      "toasts": "Discreet notifications",
-      "toastsDesc": "Lightweight notices without stealing game focus.",
-      "corner": "Indicator position",
-      "corners": {
-        "top-left": "Top Left",
-        "top-right": "Top Right",
-        "bottom-left": "Bottom Left",
-        "bottom-right": "Bottom Right"
-      },
-      "opacity": "Opacity ({{value}}%)",
-      "testPointer": "Test Click & Point",
-      "testSpeakers": "Test Speakers (4s)"
-    },
-    "gamePresence": {
-      "title": "Game Presence",
-      "enabled": "Detect running games automatically",
-      "detected": "Playing now: {{name}}",
-      "none": "No game detected right now.",
-      "ignoredLabel": "Ignored games (comma-separated)",
-      "ignoredPlaceholder": "e.g. cs2, valorant",
-      "save": "Save"
-    },
-    "remoteControl": {
-      "title": "Safe Remote Control",
-      "description": "Explicit consent required. Global panic hotkey: Ctrl+Alt+Escape.",
-      "revoke": "Revoke Now"
     }
   },
   "desktopDownload": {

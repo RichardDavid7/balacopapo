@@ -309,6 +309,13 @@
       "when": 1795832000000,
       "tag": "0043_space_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1796004800000,
+      "tag": "0044_lastfm_integration",
+      "breakpoints": true
     }
   ]
 }

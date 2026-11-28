@@ -413,7 +413,7 @@ export function isCaptureCancellation(err: unknown): boolean {
 }
 
 /** Must run inside a user gesture in browsers (getDisplayMedia requires transient activation). */
-export async function stageScreenCapture(captureOpts?: { targetAppName?: string; sourceId?: string | null }): Promise<MediaStream> {
+export async function stageScreenCapture(captureOpts?: { targetAppName?: string }): Promise<MediaStream> {
   const config = useVoiceStore.getState().screenShareConfig;
   const opts = buildScreenShareOptions(config);
   if (!isScreenCaptureSupported()) {
@@ -422,15 +422,12 @@ export async function stageScreenCapture(captureOpts?: { targetAppName?: string;
   try {
     // Where the desktop app can build the system audio without Backspace's own
     // playback, that track stands in for the loopback one. When window-only
-    // audio is selected, pass the window title (Linux PipeWire) and sourceId
-    // (Windows WASAPI Process Loopback) so the target app is isolated.
+    // audio is selected, pass the window title so PipeWire isolates that app.
     const wantWindowOnly = (config.audioScope ?? 'window') === 'window';
     const ownFree = config.shareAudio
-      ? await acquireAppExcludedSystemAudio({
-          targetAppName: wantWindowOnly ? captureOpts?.targetAppName : undefined,
-          sourceId: wantWindowOnly ? (captureOpts?.sourceId ?? null) : null,
-          excludeSelf: true,
-        })
+      ? await acquireAppExcludedSystemAudio(
+          wantWindowOnly && captureOpts?.targetAppName ? { targetAppName: captureOpts.targetAppName } : undefined,
+        )
       : null;
     let stream: MediaStream;
     try {
@@ -827,14 +824,10 @@ function settleWithin<T>(promise: Promise<T>, ms: number, discard: (late: T) => 
 async function acquireScreenShareAudio(sourceId: string): Promise<MediaStreamTrack> {
   const api = getElectronAPI();
   if (!api?.preselectScreenSource) throw new DOMException('Source preselection is not available', 'NotSupportedError');
-  const config = useVoiceStore.getState().screenShareConfig;
-  const wantWindowOnly = (config.audioScope ?? 'window') === 'window';
-  const ownFree = await acquireAppExcludedSystemAudio({
-    sourceId: wantWindowOnly ? sourceId : null,
-    excludeSelf: true,
-  });
+  const ownFree = await acquireAppExcludedSystemAudio();
   if (ownFree) return ownFree;
   await api.preselectScreenSource(sourceId, true);
+  const config = useVoiceStore.getState().screenShareConfig;
   const stream = await navigator.mediaDevices.getDisplayMedia(
     buildCaptureConstraints({ ...config, shareAudio: true }, buildScreenShareOptions(config)),
   );

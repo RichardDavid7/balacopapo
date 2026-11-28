@@ -317,7 +317,19 @@
     }
   },
   "connections": {
-    "title": "Conexões"
+    "title": "Conexões",
+    "lastfm": {
+      "heading": "Last.fm",
+      "description": "Vincule seu usuário do Last.fm para mostrar o link do perfil e a música que você está ouvindo agora.",
+      "usernameLabel": "Usuário do Last.fm",
+      "usernamePlaceholder": "Ex.: seu_usuario ou https://www.last.fm/user/...",
+      "showNowPlayingLabel": "Mostrar música que estou ouvindo agora",
+      "showNowPlayingHint": "Exibe seu scrobble ativo do Last.fm no cartão de perfil.",
+      "save": "Salvar Last.fm",
+      "disconnect": "Desvincular",
+      "saved": "Configurações do Last.fm salvas",
+      "disconnected": "Conta do Last.fm desvinculada"
+    }
   },
   "instance": {
     "tabs": {
@@ -331,7 +343,26 @@
       "telemetry": "Oi",
       "audio": "Áudio",
       "oidc": "OIDC",
-      "ipBans": "Ban IP"
+      "ipBans": "Ban IP",
+      "lastfm": "Last.fm"
+    },
+    "lastfm": {
+      "title": "Integração com Last.fm",
+      "subtitle": "Configure uma chave da API do Last.fm para que os usuários possam exibir a música que estão ouvindo no perfil (com cache de 25s no servidor).",
+      "statusLabel": "Status",
+      "currentKey": "Chave de API ativa",
+      "sources": {
+        "database": "Configurada no painel",
+        "env": "Configurada via variável LASTFM_API_KEY",
+        "none": "Não configurada"
+      },
+      "apiKeyLabel": "Chave de API do Last.fm",
+      "apiKeyPlaceholder": "Cole sua chave de API do Last.fm...",
+      "helpText": "Precisa de uma chave? Crie gratuitamente em",
+      "saveButton": "Salvar Chave",
+      "removeButton": "Remover chave salva",
+      "saved": "Chave de API do Last.fm salva",
+      "cleared": "Chave salva do Last.fm removida"
     }
   },
   "keybinds": {
@@ -441,42 +472,6 @@
     "instance": {
       "current": "Instância conectada no momento",
       "change": "Trocar instância"
-    },
-    "overlay": {
-      "title": "Sobreposição em Jogo (Overlay)",
-      "description": "Sobreposição transparente click-through invisível na transmissão (sem injeção de DLL).",
-      "enabled": "Ativar sobreposição em jogo",
-      "enabledDesc": "Salva automaticamente. Consome 0 MB de RAM quando desligada.",
-      "pointers": "Clicar e apontar na transmissão",
-      "pointersDesc": "Mostra na sua tela exatamente onde seus amigos clicaram.",
-      "speakers": "Indicador de quem está falando",
-      "speakersDesc": "Lista compacta no canto da tela com destaque verde ao falar.",
-      "toasts": "Avisos discretos",
-      "toastsDesc": "Notificações leves sem roubar o foco do jogo.",
-      "corner": "Posição do indicador",
-      "corners": {
-        "top-left": "Superior esquerdo",
-        "top-right": "Superior direito",
-        "bottom-left": "Inferior esquerdo",
-        "bottom-right": "Inferior direito"
-      },
-      "opacity": "Opacidade ({{value}}%)",
-      "testPointer": "Testar Clicar e Apontar",
-      "testSpeakers": "Testar Quem está falando (4s)"
-    },
-    "gamePresence": {
-      "title": "Presença de Jogos",
-      "enabled": "Detectar jogos automaticamente",
-      "detected": "Jogando agora: {{name}}",
-      "none": "Nenhum jogo detectado no momento.",
-      "ignoredLabel": "Jogos ignorados (separados por vírgula)",
-      "ignoredPlaceholder": "ex: cs2, valorant",
-      "save": "Salvar"
-    },
-    "remoteControl": {
-      "title": "Controle Remoto Seguro",
-      "description": "Exige consentimento explícito. Atalho de pânico global: Ctrl+Alt+Escape.",
-      "revoke": "Cortar agora"
     }
   },
   "desktopDownload": {

@@ -79,5 +79,9 @@
     "online": "在线 — {{n}}",
     "offline": "离线 — {{n}}"
   },
-  "instanceNotConnected": "未连接到 {{host}}。请重新连接后再试。"
+  "instanceNotConnected": "未连接到 {{host}}。请重新连接后再试。",
+  "lastfm": {
+    "profileLabel": "Last.fm · {{username}}",
+    "nowPlaying": "正在收听"
+  }
 }

@@ -31,6 +31,8 @@ export const users = sqliteTable('users', {
   profileUpdatedAt: integer('profile_updated_at'),
   passwordChangedAt: integer('password_changed_at'),
   showActivity: integer('show_activity').notNull().default(1),
+  lastfmUsername: text('lastfm_username'),
+  lastfmShowNowPlaying: integer('lastfm_show_now_playing').notNull().default(1),
   federationRegistryUpdatedAt: integer('federation_registry_updated_at').default(0),
   federationHealPending: integer('federation_heal_pending').default(0),
   federationHomeOrphaned: integer('federation_home_orphaned').default(0),
@@ -462,6 +464,8 @@ export const instanceSettings = sqliteTable('instance_settings', {
   directoryBrowseEnabled: integer('directory_browse_enabled').notNull().default(1),
   /** The web client's Backspace page shows the Support card. Hides only that card; the server does nothing else with it. */
   supportCardEnabled: integer('support_card_enabled', { mode: 'boolean' }).notNull().default(true),
+  /** Optional Last.fm Web Services API key configured via Instance Settings (falls back to LASTFM_API_KEY env). */
+  lastfmApiKey: text('lastfm_api_key'),
   /** First-boot timestamp (ms); backfilled by ensureDefaults, so non-null after boot. */
   installedAt: integer('installed_at'),
   /**

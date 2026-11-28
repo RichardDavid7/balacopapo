@@ -29,6 +29,10 @@ export interface User {
   homeUserId: string | null;
   replicatedInstances: ReplicatedInstance[];
   showActivity?: boolean;
+  /** Optional Last.fm username linked on the user's profile. */
+  lastfmUsername?: string | null;
+  /** Whether to fetch and show currently playing Last.fm scrobble on the user's profile (default true). */
+  lastfmShowNowPlaying?: boolean;
   /** Self-view only: this federated account's home instance was reset/lost — it now operates as a sovereign local account (detach spec). */
   federationHomeOrphaned?: boolean;
   /**
@@ -982,6 +986,10 @@ export interface UpdateUserRequest {
   profileUpdatedAt?: number;
   discoverable?: boolean;
   showActivity?: boolean;
+  /** Optional Last.fm username linked on the user's profile. */
+  lastfmUsername?: string | null;
+  /** Whether to fetch and show currently playing Last.fm scrobble on the user's profile (default true). */
+  lastfmShowNowPlaying?: boolean;
 }
 
 export interface UpdateMemberRequest {
@@ -2459,4 +2467,37 @@ export interface SpaceBotInfoResponse {
     id: string;
     name: string;
   }>;
+}
+
+// ─── Last.fm Integration (Profile Link + Cached Now Playing) ──────────────────
+
+export interface LastFmNowPlayingTrack {
+  name: string;
+  artist: string;
+  album: string | null;
+  coverUrl: string | null;
+  trackUrl: string | null;
+}
+
+export interface LastFmNowPlayingResponse {
+  /** Whether this instance has a Last.fm API key configured (via Instance Settings or LASTFM_API_KEY env). */
+  configured: boolean;
+  username: string | null;
+  profileUrl: string | null;
+  showNowPlaying: boolean;
+  isPlaying: boolean;
+  /** True when Last.fm returned error 17 ("Hide recent listening information"). */
+  privateProfile: boolean;
+  track: LastFmNowPlayingTrack | null;
+  cachedAt: number | null;
+}
+
+export interface AdminLastFmConfigResponse {
+  configured: boolean;
+  source: 'database' | 'env' | 'none';
+  keyPreview: string | null;
+}
+
+export interface AdminLastFmUpdateRequest {
+  apiKey: string | null;
 }

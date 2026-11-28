@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Toggle } from '../../ui/Toggle';
@@ -222,115 +222,6 @@ function UpdateSettings() {
   );
 }
 
-type OverlayCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-
-function OverlaySettingsSection() {
-  const { t } = useTranslation('settings');
-  const [enabled, setEnabled] = useState(true);
-  const [corner, setCorner] = useState<OverlayCorner>('top-left');
-  const [opacity, setOpacity] = useState(92);
-  const speakersTimerRef = useRef<number | null>(null);
-
-  useEffect(() => () => {
-    if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
-  }, []);
-
-  if (!window.backspace?.setOverlayConfig) return null;
-
-  const pushConfig = (next: { enabled?: boolean; corner?: OverlayCorner; opacity?: number }) => {
-    const e = next.enabled ?? enabled;
-    const c = next.corner ?? corner;
-    const o = next.opacity ?? opacity;
-    setEnabled(e);
-    setCorner(c);
-    setOpacity(o);
-    window.backspace?.setOverlayConfig?.({ enabled: e, corner: c, opacity: o / 100 });
-  };
-
-  const testPointer = () => {
-    if (!enabled) pushConfig({ enabled: true });
-    window.backspace?.dispatchOverlayEvent?.({
-      kind: 'pointer_ping',
-      x: 0.35 + Math.random() * 0.3,
-      y: 0.35 + Math.random() * 0.3,
-      senderName: t('desktop.overlay.pointers'),
-      color: '#5865f2',
-    });
-  };
-
-  const testSpeakers = () => {
-    if (!enabled) pushConfig({ enabled: true });
-    window.backspace?.dispatchOverlayEvent?.({
-      kind: 'speaking_update',
-      speakers: [{ id: 'preview', name: t('desktop.updates.appName'), avatarColor: '#3ba55d' }],
-    });
-    if (speakersTimerRef.current !== null) window.clearTimeout(speakersTimerRef.current);
-    speakersTimerRef.current = window.setTimeout(() => {
-      window.backspace?.dispatchOverlayEvent?.({ kind: 'speaking_update', speakers: [] });
-    }, 4000);
-  };
-
-  return (
-    <div className="rounded-lg bg-white/[0.03] border border-white/[0.04] p-3.5 space-y-3">
-      <div>
-        <div className="text-sm font-semibold text-txt-primary">{t('desktop.overlay.title')}</div>
-        <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.description')}</div>
-      </div>
-
-      <div className="flex items-center justify-between py-1">
-        <div className="flex-1 mr-4">
-          <div className="text-sm text-txt-primary">{t('desktop.overlay.enabled')}</div>
-          <div className="text-xs text-txt-tertiary mt-0.5">{t('desktop.overlay.enabledDesc')}</div>
-        </div>
-        <Toggle enabled={enabled} onChange={(v) => pushConfig({ enabled: v })} />
-      </div>
-
-      <div className="border-t border-white/[0.04]" />
-
-      <div className="flex items-center justify-between py-1 gap-4">
-        <div className="text-sm text-txt-primary">{t('desktop.overlay.corner')}</div>
-        <select
-          value={corner}
-          onChange={(e) => pushConfig({ corner: e.target.value as OverlayCorner })}
-          className="rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5 text-xs text-txt-primary outline-none"
-        >
-          <option value="top-left">{t('desktop.overlay.corners.top-left')}</option>
-          <option value="top-right">{t('desktop.overlay.corners.top-right')}</option>
-          <option value="bottom-left">{t('desktop.overlay.corners.bottom-left')}</option>
-          <option value="bottom-right">{t('desktop.overlay.corners.bottom-right')}</option>
-        </select>
-      </div>
-
-      <div className="flex items-center justify-between py-1 gap-4">
-        <div className="text-sm text-txt-primary">{t('desktop.overlay.opacity', { value: opacity })}</div>
-        <input
-          type="range"
-          min={30}
-          max={100}
-          value={opacity}
-          onChange={(e) => pushConfig({ opacity: Number(e.target.value) })}
-          className="w-40 accent-accent-primary"
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-2 pt-1">
-        <button
-          onClick={testPointer}
-          className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-        >
-          {t('desktop.overlay.testPointer')}
-        </button>
-        <button
-          onClick={testSpeakers}
-          className="px-3 py-1.5 text-xs font-medium text-txt-secondary hover:text-txt-primary bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition-colors"
-        >
-          {t('desktop.overlay.testSpeakers')}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function DesktopPanel() {
   const { t } = useTranslation('settings');
   const initialize = useUpdateStore((s) => s.initialize);
@@ -371,8 +262,6 @@ export function DesktopPanel() {
           </button>
         </div>
       </div>
-
-      <OverlaySettingsSection />
     </div>
   );
 }

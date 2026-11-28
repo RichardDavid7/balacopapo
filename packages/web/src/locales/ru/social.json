@@ -85,5 +85,9 @@
     "online": "В сети — {{n}}",
     "offline": "Не в сети — {{n}}"
   },
-  "instanceNotConnected": "Нет подключения к {{host}}. Подключитесь снова и повторите попытку."
+  "instanceNotConnected": "Нет подключения к {{host}}. Подключитесь снова и повторите попытку.",
+  "lastfm": {
+    "profileLabel": "Last.fm · {{username}}",
+    "nowPlaying": "Слушает сейчас"
+  }
 }

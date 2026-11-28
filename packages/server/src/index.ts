@@ -11,6 +11,7 @@ import { authRoutes } from './routes/auth.js';
 import { oidcRoutes } from './routes/oidc.js';
 import { musicRoutes } from './routes/music.js';
 import { spaceApiKeyRoutes } from './routes/spaceApiKeys.js';
+import { lastfmRoutes } from './routes/lastfm.js';
 import { userRoutes } from './routes/users.js';
 import { spaceRoutes } from './routes/spaces.js';
 import { channelRoutes } from './routes/channels.js';
@@ -214,6 +215,7 @@ async function main(): Promise<void> {
   await app.register(oidcRoutes);
   await app.register(musicRoutes);
   await app.register(spaceApiKeyRoutes);
+  await app.register(lastfmRoutes);
   await app.register(userRoutes);
   await app.register(spaceRoutes);
   await app.register(channelRoutes);

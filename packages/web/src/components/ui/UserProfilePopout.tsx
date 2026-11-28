@@ -6,6 +6,7 @@ import type { User } from '@backspace/shared';
 import { Avatar } from '../ui/Avatar';
 import { Username } from '../ui/Username';
 import { ProfileBio } from './ProfileBio';
+import { LastFmStatus } from '../profile/LastFmStatus';
 import { useSpaceStore } from '../../stores/spaceStore';
 import { api } from '../../api/client';
 import { useSelfIdentity } from '../../stores/authStore';
@@ -219,6 +220,18 @@ export function UserProfilePopout({ user: propUser, origin, onClose, anchor, pla
           <>
             <div className="border-t border-white/[0.06] my-3" />
             <ProfileRoles roles={roles} />
+          </>
+        )}
+
+        {user.lastfmUsername && (
+          <>
+            <div className="border-t border-white/[0.06] my-3" />
+            <LastFmStatus
+              userId={user.id}
+              username={user.lastfmUsername}
+              showNowPlaying={user.lastfmShowNowPlaying !== false}
+              origin={origin}
+            />
           </>
         )}
 

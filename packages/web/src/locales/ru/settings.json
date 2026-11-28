@@ -318,7 +318,19 @@
     }
   },
   "connections": {
-    "title": "Подключения"
+    "title": "Подключения",
+    "lastfm": {
+      "heading": "Last.fm",
+      "description": "Привяжите аккаунт Last.fm, чтобы показывать ссылку на профиль и трек, который вы сейчас слушаете.",
+      "usernameLabel": "Имя пользователя Last.fm",
+      "usernamePlaceholder": "Например: your_name или https://www.last.fm/user/...",
+      "showNowPlayingLabel": "Показывать текущий трек",
+      "showNowPlayingHint": "Отображать активный скроббл Last.fm в карточке профиля.",
+      "save": "Сохранить Last.fm",
+      "disconnect": "Отвязать",
+      "saved": "Настройки Last.fm сохранены",
+      "disconnected": "Аккаунт Last.fm отвязан"
+    }
   },
   "instance": {
     "tabs": {
@@ -332,7 +344,26 @@
       "telemetry": "Привет",
       "audio": "Аудио",
       "oidc": "OIDC",
-      "ipBans": "Блокировка IP"
+      "ipBans": "Блокировка IP",
+      "lastfm": "Last.fm"
+    },
+    "lastfm": {
+      "title": "Интеграция Last.fm",
+      "subtitle": "Укажите ключ API Last.fm, чтобы пользователи могли показывать текущий трек в профиле (кэш на сервере 25 сек).",
+      "statusLabel": "Статус",
+      "currentKey": "Активный ключ API",
+      "sources": {
+        "database": "Настроен в панели",
+        "env": "Настроен через переменную LASTFM_API_KEY",
+        "none": "Не настроен"
+      },
+      "apiKeyLabel": "Ключ API Last.fm",
+      "apiKeyPlaceholder": "Вставьте ключ API Last.fm...",
+      "helpText": "Нет ключа? Получите его бесплатно на",
+      "saveButton": "Сохранить ключ",
+      "removeButton": "Удалить сохранённый ключ",
+      "saved": "Ключ API Last.fm сохранён",
+      "cleared": "Сохранённый ключ Last.fm удалён"
     }
   },
   "keybinds": {
@@ -442,42 +473,6 @@
     "instance": {
       "current": "Текущий сервер",
       "change": "Сменить сервер"
-    },
-    "overlay": {
-      "title": "Игровой оверлей",
-      "description": "Прозрачный оверлей click-through, скрытый от захвата экрана (без внедрения DLL).",
-      "enabled": "Включить игровой оверлей",
-      "enabledDesc": "Сохраняется автоматически. 0 МБ ОЗУ в выключенном состоянии.",
-      "pointers": "Указатели на трансляции",
-      "pointersDesc": "Показывает на экране, куда указали друзья.",
-      "speakers": "Индикатор говорящих",
-      "speakersDesc": "Компактный список тех, кто сейчас говорит.",
-      "toasts": "Ненавязчивые уведомления",
-      "toastsDesc": "Лёгкие оповещения без потери фокуса игры.",
-      "corner": "Расположение индикатора",
-      "corners": {
-        "top-left": "Сверху слева",
-        "top-right": "Сверху справа",
-        "bottom-left": "Снизу слева",
-        "bottom-right": "Снизу справа"
-      },
-      "opacity": "Прозрачность ({{value}}%)",
-      "testPointer": "Проверить указатель",
-      "testSpeakers": "Проверить говорящих (4с)"
-    },
-    "gamePresence": {
-      "title": "Игровая активность",
-      "enabled": "Автоматически определять игры",
-      "detected": "Сейчас запущено: {{name}}",
-      "none": "Игры сейчас не обнаружены.",
-      "ignoredLabel": "Игнорируемые игры (через запятую)",
-      "ignoredPlaceholder": "напр. cs2, valorant",
-      "save": "Сохранить"
-    },
-    "remoteControl": {
-      "title": "Безопасное удалённое управление",
-      "description": "Требуется явное согласие. Экстренное отключение: Ctrl+Alt+Escape.",
-      "revoke": "Отключить сейчас"
     }
   },
   "desktopDownload": {

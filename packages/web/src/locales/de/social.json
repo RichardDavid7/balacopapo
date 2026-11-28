@@ -81,5 +81,9 @@
     "online": "Online – {{n}}",
     "offline": "Offline – {{n}}"
   },
-  "instanceNotConnected": "Keine Verbindung zu {{host}}. Verbinde dich erneut und versuche es noch einmal."
+  "instanceNotConnected": "Keine Verbindung zu {{host}}. Verbinde dich erneut und versuche es noch einmal.",
+  "lastfm": {
+    "profileLabel": "Last.fm · {{username}}",
+    "nowPlaying": "Hört gerade"
+  }
 }

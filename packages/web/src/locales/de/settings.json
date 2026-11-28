@@ -316,7 +316,19 @@
     }
   },
   "connections": {
-    "title": "Verbindungen"
+    "title": "Verbindungen",
+    "lastfm": {
+      "heading": "Last.fm",
+      "description": "Verknüpfe dein Last.fm-Konto, um deinen Profillink und deinen aktuellen Titel anzuzeigen.",
+      "usernameLabel": "Last.fm-Benutzername",
+      "usernamePlaceholder": "z. B. dein_name oder https://www.last.fm/user/...",
+      "showNowPlayingLabel": "Aktuell gespielten Titel anzeigen",
+      "showNowPlayingHint": "Zeigt deinen aktiven Last.fm-Scrobble auf deiner Profilkarte an.",
+      "save": "Last.fm speichern",
+      "disconnect": "Trennen",
+      "saved": "Last.fm-Einstellungen gespeichert",
+      "disconnected": "Last.fm-Konto getrennt"
+    }
   },
   "instance": {
     "tabs": {
@@ -330,7 +342,26 @@
       "telemetry": "Hallo sagen",
       "audio": "Ton",
       "oidc": "OIDC",
-      "ipBans": "IP-Sperren"
+      "ipBans": "IP-Sperren",
+      "lastfm": "Last.fm"
+    },
+    "lastfm": {
+      "title": "Last.fm-Integration",
+      "subtitle": "Richte einen Last.fm-API-Schlüssel ein, damit Benutzer ihren aktuellen Titel im Profil anzeigen können (25s Server-Cache).",
+      "statusLabel": "Status",
+      "currentKey": "Aktiver API-Schlüssel",
+      "sources": {
+        "database": "Im Panel konfiguriert",
+        "env": "Über LASTFM_API_KEY-Variable konfiguriert",
+        "none": "Nicht konfiguriert"
+      },
+      "apiKeyLabel": "Last.fm-API-Schlüssel",
+      "apiKeyPlaceholder": "Last.fm-API-Schlüssel einfügen...",
+      "helpText": "Noch kein Schlüssel? Kostenlos erstellen unter",
+      "saveButton": "Schlüssel speichern",
+      "removeButton": "Gespeicherten Schlüssel entfernen",
+      "saved": "Last.fm-API-Schlüssel gespeichert",
+      "cleared": "Gespeicherter Last.fm-Schlüssel entfernt"
     }
   },
   "keybinds": {
@@ -440,42 +471,6 @@
     "instance": {
       "current": "Aktuell verbundene Instanz",
       "change": "Instanz wechseln"
-    },
-    "overlay": {
-      "title": "In-Game-Overlay",
-      "description": "Transparentes Click-Through-Overlay, von der Bildschirmaufnahme ausgeschlossen (keine DLL-Injektion).",
-      "enabled": "In-Game-Overlay aktivieren",
-      "enabledDesc": "Wird automatisch gespeichert. 0 MB RAM im ausgeschalteten Zustand.",
-      "pointers": "Klicken & Zeigen im Stream",
-      "pointersDesc": "Zeigt auf deinem Bildschirm, wohin Freunde geklickt haben.",
-      "speakers": "Sprachaktivitätsanzeige",
-      "speakersDesc": "Kompakte Liste der aktuell sprechenden Personen.",
-      "toasts": "Dezente Hinweise",
-      "toastsDesc": "Kurze Benachrichtigungen ohne Fokusverlust im Spiel.",
-      "corner": "Position der Anzeige",
-      "corners": {
-        "top-left": "Oben links",
-        "top-right": "Oben rechts",
-        "bottom-left": "Unten links",
-        "bottom-right": "Unten rechts"
-      },
-      "opacity": "Deckkraft ({{value}}%)",
-      "testPointer": "Klicken & Zeigen testen",
-      "testSpeakers": "Sprecher testen (4s)"
-    },
-    "gamePresence": {
-      "title": "Spielpräsenz",
-      "enabled": "Laufende Spiele automatisch erkennen",
-      "detected": "Spielt gerade: {{name}}",
-      "none": "Derzeit kein Spiel erkannt.",
-      "ignoredLabel": "Ignorierte Spiele (kommagetrennt)",
-      "ignoredPlaceholder": "z. B. cs2, valorant",
-      "save": "Speichern"
-    },
-    "remoteControl": {
-      "title": "Sichere Fernsteuerung",
-      "description": "Ausdrückliche Zustimmung erforderlich. Globaler Notfall-Hotkey: Ctrl+Alt+Escape.",
-      "revoke": "Jetzt trennen"
     }
   },
   "desktopDownload": {

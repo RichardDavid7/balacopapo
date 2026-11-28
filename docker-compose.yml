@@ -56,6 +56,8 @@ services:
       - OIDC_DISABLE_PASSWORD_LOGIN=${OIDC_DISABLE_PASSWORD_LOGIN:-false}
       # ── Balacopapo Utilidades (Music Bot Companion API) ──
       - MUSIC_BOT_API_KEY=${MUSIC_BOT_API_KEY:-}
+      # ── Last.fm Integration (optional env fallback; also configurable in Instance Settings) ──
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
     networks:
       - app
     healthcheck:

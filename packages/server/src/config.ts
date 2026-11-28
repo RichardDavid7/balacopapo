@@ -302,6 +302,7 @@ export const config = {
     disablePasswordLogin: envBool('OIDC_DISABLE_PASSWORD_LOGIN', false),
   },
   musicBotApiKey: envOptional('MUSIC_BOT_API_KEY')?.trim() || null,
+  lastfmApiKey: envOptional('LASTFM_API_KEY')?.trim() || null,
 } as const;
 
 if (config.jwtSecret.length < 32) {

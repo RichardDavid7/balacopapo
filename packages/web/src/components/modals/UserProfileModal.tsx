@@ -9,6 +9,7 @@ import type { User } from '@backspace/shared';
 import { Avatar } from '../ui/Avatar';
 import { Username } from '../ui/Username';
 import { ProfileBio } from '../ui/ProfileBio';
+import { LastFmStatus } from '../profile/LastFmStatus';
 import { useUIStore, type ProfileMemberContext } from '../../stores/uiStore';
 import { useSpaceStore, getApiForOrigin } from '../../stores/spaceStore';
 import { api } from '../../api/client';
@@ -323,6 +324,15 @@ export function UserProfileModal() {
               )}
 
               <ProfileRoles roles={roles} />
+
+              {user.lastfmUsername && (
+                <LastFmStatus
+                  userId={user.id}
+                  username={user.lastfmUsername}
+                  showNowPlaying={user.lastfmShowNowPlaying !== false}
+                  origin={userOrigin}
+                />
+              )}
 
               {/* Member Since */}
               <div>

@@ -9,6 +9,7 @@ import type { UpdateUserRequest, VerifyPasswordRequest, VerifyPasswordResponse, 
 import { AVATAR_COLORS, isChosenUserStatus, type ChosenUserStatus } from '@backspace/shared';
 import { PASSWORD_MIN_LENGTH } from '@backspace/shared/src/constants.js';
 import { sanitizeUser } from '../utils/sanitize.js';
+import { clearLastFmCache, normalizeLastFmUsername } from '../services/lastfm.js';
 import { applyChosenStatus } from '../ws/presence.js';
 import { presenceUpdateFor } from '../ws/presenceEvent.js';
 import { deleteUploadFile, deleteAttachmentByFilename } from '../utils/fileCleanup.js';
@@ -218,7 +219,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: UpdateUserRequest }>('/api/users/@me', { preHandler: authenticate }, async (request, reply) => {
-    const { username, displayName, avatar, banner, accentColor, avatarColor, bio, customStatus, status, replicatedInstances, homeUserId, profileUpdatedAt, discoverable, showActivity } = request.body;
+    const { username, displayName, avatar, banner, accentColor, avatarColor, bio, customStatus, status, replicatedInstances, homeUserId, profileUpdatedAt, discoverable, showActivity, lastfmUsername, lastfmShowNowPlaying } = request.body;
     const db = getDb();
 
     const updateData: Record<string, string | null | undefined> = {};
@@ -483,6 +484,27 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
         return sendError(reply, 400, 'validation_failed', { field: 'showActivity', reason: 'must be a boolean' });
       }
       (updateData as Record<string, unknown>).showActivity = showActivity ? 1 : 0;
+    }
+
+    if (lastfmUsername !== undefined) {
+      if (lastfmUsername === null || (typeof lastfmUsername === 'string' && lastfmUsername.trim() === '')) {
+        updateData.lastfmUsername = null;
+      } else {
+        const normalized = normalizeLastFmUsername(lastfmUsername);
+        if (!normalized) {
+          return sendError(reply, 400, 'validation_failed', { field: 'lastfmUsername', reason: 'invalid Last.fm username' });
+        }
+        updateData.lastfmUsername = normalized;
+      }
+      if (preUpdateUser.lastfmUsername) clearLastFmCache(preUpdateUser.lastfmUsername);
+      if (updateData.lastfmUsername) clearLastFmCache(updateData.lastfmUsername);
+    }
+
+    if (lastfmShowNowPlaying !== undefined) {
+      if (typeof lastfmShowNowPlaying !== 'boolean') {
+        return sendError(reply, 400, 'validation_failed', { field: 'lastfmShowNowPlaying', reason: 'must be a boolean' });
+      }
+      (updateData as Record<string, unknown>).lastfmShowNowPlaying = lastfmShowNowPlaying ? 1 : 0;
     }
 
     if (Object.keys(updateData).length === 0 && chosenStatus === undefined) {

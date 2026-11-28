@@ -66,6 +66,7 @@ Itens já identificados durante os testes e uso real:
 
 ### Fase 4 — Interação em Call, Presença e Acessibilidade
 - [x] **Clicar e apontar na stream** — marcação visual temporária (coordenadas normalizadas X/Y via LiveKit DataChannel em `streamPointerProtocol.ts` + `streamPointerStore.ts` + `StreamTile.tsx`) com `Shift+clique` (ou modo Apontar) no desktop e **botão de mira arrastável deslocada 64px acima do dedo no mobile** (dispara ao soltar), acompanhando zoom/pan e `object-contain`.
+- [x] **Integração com Last.fm (Ouvindo Agora no perfil)** — migração `0044_lastfm_integration.sql`, API key configurável nas Configurações da Instância (`LastFmPanel` ou `LASTFM_API_KEY` no `.env`), vínculo de usuário + toggle de privacidade em Configurações → Conexões (`LastFmUserSection`), serviço backend isolado com cache de 25s e tratamento gracioso do erro 17 (`services/lastfm.ts` + `routes/lastfm.ts`), e card `LastFmStatus.tsx` no Popout e Modal de perfil.
 - [ ] **Prévia de câmera, espelho local e ajuste de qualidade da webcam:**
   - **Prévia ao clicar no botão da câmera:** abrir prévia local (com seletor de dispositivo e confirmação) antes de transmitir o vídeo para os demais participantes.
   - **Espelho local (self-view):** opção de se enxergar espelhado (`scaleX(-1)`) apenas localmente para facilitar o enquadramento, enquanto os demais participantes veem a imagem normal (sem inversão).

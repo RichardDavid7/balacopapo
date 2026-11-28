@@ -315,7 +315,19 @@
     }
   },
   "connections": {
-    "title": "连接"
+    "title": "连接",
+    "lastfm": {
+      "heading": "Last.fm",
+      "description": "绑定您的 Last.fm 账号，以在个人资料中展示主页链接和当前正在收听的歌曲。",
+      "usernameLabel": "Last.fm 用户名",
+      "usernamePlaceholder": "例如：your_username 或 https://www.last.fm/user/...",
+      "showNowPlayingLabel": "显示正在收听的歌曲",
+      "showNowPlayingHint": "在个人资料卡片中显示当前活跃的 Last.fm 播放记录。",
+      "save": "保存 Last.fm",
+      "disconnect": "解除绑定",
+      "saved": "Last.fm 设置已保存",
+      "disconnected": "已解除 Last.fm 账号绑定"
+    }
   },
   "instance": {
     "tabs": {
@@ -329,7 +341,26 @@
       "telemetry": "打个招呼",
       "audio": "音频",
       "oidc": "OIDC",
-      "ipBans": "IP 封禁"
+      "ipBans": "IP 封禁",
+      "lastfm": "Last.fm"
+    },
+    "lastfm": {
+      "title": "Last.fm 集成",
+      "subtitle": "配置 Last.fm API 密钥，以便用户在个人资料上显示正在收听的音乐（服务器缓存 25 秒）。",
+      "statusLabel": "状态",
+      "currentKey": "当前 API 密钥",
+      "sources": {
+        "database": "已在面板中配置",
+        "env": "已通过 LASTFM_API_KEY 环境变量配置",
+        "none": "未配置"
+      },
+      "apiKeyLabel": "Last.fm API 密钥",
+      "apiKeyPlaceholder": "粘贴您的 Last.fm API 密钥...",
+      "helpText": "还没有密钥？可在以下地址免费申请：",
+      "saveButton": "保存密钥",
+      "removeButton": "移除已保存的密钥",
+      "saved": "Last.fm API 密钥已保存",
+      "cleared": "已移除保存的 Last.fm 密钥"
     }
   },
   "keybinds": {
@@ -439,42 +470,6 @@
     "instance": {
       "current": "当前连接的实例",
       "change": "切换实例"
-    },
-    "overlay": {
-      "title": "游戏内覆盖层",
-      "description": "鼠标穿透透明覆盖层，不出现在屏幕共享中（无需 DLL 注入）。",
-      "enabled": "启用游戏内覆盖层",
-      "enabledDesc": "自动保存。关闭时占用 0 MB 内存。",
-      "pointers": "共享画面点击指示",
-      "pointersDesc": "在屏幕上直接显示好友点击的位置。",
-      "speakers": "发言状态指示器",
-      "speakersDesc": "在屏幕角落显示正在说话的成员。",
-      "toasts": "轻量提示",
-      "toastsDesc": "不抢占游戏焦点的简洁通知。",
-      "corner": "指示器位置",
-      "corners": {
-        "top-left": "左上角",
-        "top-right": "右上角",
-        "bottom-left": "左下角",
-        "bottom-right": "右下角"
-      },
-      "opacity": "不透明度 ({{value}}%)",
-      "testPointer": "测试点击指示",
-      "testSpeakers": "测试发言显示 (4秒)"
-    },
-    "gamePresence": {
-      "title": "游戏状态检测",
-      "enabled": "自动检测正在运行的游戏",
-      "detected": "正在游玩：{{name}}",
-      "none": "当前未检测到游戏。",
-      "ignoredLabel": "忽略的游戏（用逗号分隔）",
-      "ignoredPlaceholder": "例如 cs2, valorant",
-      "save": "保存"
-    },
-    "remoteControl": {
-      "title": "安全远程控制",
-      "description": "需明确授权。全局紧急断开快捷键：Ctrl+Alt+Escape。",
-      "revoke": "立即断开"
     }
   },
   "desktopDownload": {

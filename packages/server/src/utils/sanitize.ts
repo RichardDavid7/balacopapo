@@ -54,6 +54,8 @@ export function sanitizeUser(row: typeof schema.users.$inferSelect, isSelf = fal
     homeInstance: row.homeInstance ?? null,
     homeUserId: row.homeUserId ?? null,
     replicatedInstances,
+    lastfmUsername: row.lastfmUsername ?? null,
+    lastfmShowNowPlaying: row.lastfmShowNowPlaying !== 0,
     ...(isSelf
       ? {
           showActivity: row.showActivity !== 0,
