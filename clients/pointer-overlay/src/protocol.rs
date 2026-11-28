@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn parses_ping_clear_and_state() {
         let ping = parse_command_line(
-            r#"{"type":"pointer:ping","x":0.42,"y":0.75,"from":"Biel","color":"#34d399","ttlMs":2500}"#,
+            r##"{"type":"pointer:ping","x":0.42,"y":0.75,"from":"Biel","color":"#34d399","ttlMs":2500}"##,
         )
         .expect("ping válido");
         assert!(matches!(ping, OverlayCommand::PointerPing { .. }));
