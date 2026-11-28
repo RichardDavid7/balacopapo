@@ -1,37 +1,36 @@
-name: Pointer Overlay Native CI (Rust — Win & Linux)
+name: Balacopapo Desktop (Electron + Native Pointer Overlay)
 
 on:
   push:
     branches: [main]
     paths:
       - 'clients/pointer-overlay/**'
+      - 'packages/desktop/**'
       - '.github/workflows/pointer-overlay-ci.yml'
   pull_request:
     paths:
       - 'clients/pointer-overlay/**'
+      - 'packages/desktop/**'
       - '.github/workflows/pointer-overlay-ci.yml'
   workflow_dispatch:
 
 concurrency:
-  group: pointer-overlay-ci-${{ github.ref }}
+  group: balacopapo-electron-overlay-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  build-overlay:
-    name: Pointer Overlay (${{ matrix.target }})
+  build-desktop:
+    name: Desktop + Overlay (${{ matrix.target }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, target: windows-x64, bin: balacopapo-pointer-overlay.exe }
-          - { os: ubuntu-22.04, target: linux-x64, bin: balacopapo-pointer-overlay }
+          - { os: windows-latest, target: windows-x64, eb_flags: '--win --x64' }
+          - { os: ubuntu-22.04, target: linux-x64, eb_flags: '--linux --x64' }
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: clients/pointer-overlay
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -43,23 +42,68 @@ jobs:
         with:
           workspaces: clients/pointer-overlay
 
-      - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
-
-      - name: Unit Tests
-        run: cargo test
-
-      - name: Release Build
-        run: cargo build --release
-
-      - name: Stage Artifact
-        shell: bash
+      - name: Lint, Test & Build Native Pointer Overlay (Rust)
+        working-directory: clients/pointer-overlay
         run: |
-          mkdir -p dist
-          cp "target/release/${{ matrix.bin }}" "dist/${{ matrix.bin }}"
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+          cargo build --release
 
-      - name: Upload Pointer Overlay Binary
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install Workspace Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test & Package Electron Desktop with Bundled Pointer Overlay
+        working-directory: packages/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          pnpm run test
+          pnpm exec tsc
+          pnpm exec electron-builder ${{ matrix.eb_flags }} --publish never
+
+      - name: Upload Ready-to-Install Desktop Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: balacopapo-pointer-overlay-${{ matrix.target }}
-          path: clients/pointer-overlay/dist/*
+          name: balacopapo-electron-${{ matrix.target }}
+          path: |
+            packages/desktop/dist-electron/*.exe
+            packages/desktop/dist-electron/*.AppImage
+            packages/desktop/dist-electron/*.deb
+
+  publish-electron-edge:
+    name: Publicar Balacopapo Desktop (Electron + Overlay)
+    needs: [build-desktop]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Publicar release desktop-electron-edge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="desktop-electron-edge"
+          TITLE="Balacopapo Desktop + Overlay Nativo (Edge — ${SHORT_SHA})"
+          NOTES="Balacopapo Desktop (Electron + UI 100% Backspace Web + Overlay Externo Nativo em Rust click-through embutido em resources/bin) — commit ${SHORT_SHA}. Windows: instale o .exe, abra o app e use 'Testar Overlay de Apontar' na bandeja ou Shift+Clique / Modo Apontar na transmissão."
+
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" out/* --clobber --repo "${GITHUB_REPOSITORY}"
+            gh release edit "${TAG}" --title "${TITLE}" --notes "${NOTES}" --target "${GITHUB_SHA}" --repo "${GITHUB_REPOSITORY}"
+          else
+            gh release create "${TAG}" out/* --prerelease --target "${GITHUB_SHA}" --title "${TITLE}" --notes "${NOTES}" --repo "${GITHUB_REPOSITORY}"
+          fi

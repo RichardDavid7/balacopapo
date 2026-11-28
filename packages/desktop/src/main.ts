@@ -6,6 +6,7 @@ import {
   Notification,
   nativeImage,
   ipcMain,
+  globalShortcut,
   shell,
   screen,
   session,
@@ -1479,7 +1480,31 @@ if (!gotTheLock) {
     const applyMenusForState = (state: RecoveryState): void => {
       const language = getDesktopLanguage();
       if (tray) {
-        tray.setContextMenu(Menu.buildFromTemplate(buildTrayMenuTemplate(state, trayActions, language)));
+        const baseTemplate = buildTrayMenuTemplate(state, trayActions, language);
+        const overlayItems: Electron.MenuItemConstructorOptions[] = [
+          { type: 'separator' },
+          {
+            label: 'Testar Overlay de Apontar',
+            click: () => {
+              overlayManager.dispatch({
+                kind: 'pointer_ping',
+                x: 0.5,
+                y: 0.5,
+                senderName: 'Teste Local',
+                color: '#86EFAC',
+              });
+            },
+          },
+          {
+            label: 'Limpar Marcadores (Ctrl+Shift+Alt+X)',
+            click: () => {
+              overlayManager.dispatch({ kind: 'pointer_clear' });
+            },
+          },
+        ];
+        const insertAt = Math.max(0, baseTemplate.length - 1);
+        baseTemplate.splice(insertAt, 0, ...overlayItems);
+        tray.setContextMenu(Menu.buildFromTemplate(baseTemplate));
       }
       if (process.platform === 'darwin') {
         Menu.setApplicationMenu(Menu.buildFromTemplate(buildAppMenuTemplate(app.name, state, trayActions, language)));
@@ -1580,6 +1605,14 @@ if (!gotTheLock) {
     overlayManager.setConfig(partial);
   });
 
+  try {
+    globalShortcut.register('CommandOrControl+Shift+Alt+X', () => {
+      overlayManager.dispatch({ kind: 'pointer_clear' });
+    });
+  } catch {
+    // ignore if shortcut is already taken by another app
+  }
+
   // Legacy alias kept for backwards compatibility with older web clients
   ipcMain.on('stream-pointer-overlay', (_event, payload: { x: number; y: number; senderName: string; color: string }) => {
     if (!payload || typeof payload !== 'object') return;
@@ -1587,6 +1620,7 @@ if (!gotTheLock) {
   });
 
   app.on('before-quit', () => {
+    globalShortcut.unregisterAll();
     systemAudio.stop();
     winProcessAudio.stop();
     overlayManager.destroy();

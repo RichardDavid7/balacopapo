@@ -1,4 +1,4 @@
-appId: io.github.richarddavid7.balacopapo
+appId: com.balacopapo.desktop
 productName: Balacopapo
 # Every release asset names its platform, so the GitHub asset list (which is
 # sorted by name and nothing else) groups by platform and reads on its own:
@@ -26,6 +26,12 @@ files:
   - "!**/node_modules/uiohook-napi/bin/**"
 asarUnpack:
   - "**/*.node"
+extraResources:
+  - from: ../../clients/pointer-overlay/target/release
+    to: bin
+    filter:
+      - balacopapo-pointer-overlay.exe
+      - balacopapo-pointer-overlay
 npmRebuild: false
 # afterPack also flips Electron security fuses (RunAsNode, EnableNodeCliInspectArguments,
 # OnlyLoadAppFromAsar) via @electron/fuses, not via a top-level `electronFuses:` key here.
@@ -72,7 +78,7 @@ linux:
   # `@backspacedesktop`. Setting this key is therefore a rename, not a restoration.
   # Keep the fuse-verification paths in .github/workflows/release.yml in step with
   # it; nothing else couples them.
-  executableName: Balacopapo
+  executableName: Backspace
   icon: build/icons/
   target:
     - AppImage
