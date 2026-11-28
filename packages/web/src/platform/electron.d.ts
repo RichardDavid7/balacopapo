@@ -205,6 +205,7 @@ interface BackspaceElectronAPI {
   // Isolated OS click-through overlay (stream pointer pings, speaking badges, toasts)
   dispatchOverlayEvent?: (event:
     | { kind: 'pointer_ping'; x: number; y: number; senderName: string; color: string }
+    | { kind: 'pointer_clear' }
     | { kind: 'speaking_update'; speakers: Array<{ id: string; name: string; avatarColor?: string; muted?: boolean; deafened?: boolean }> }
     | { kind: 'toast'; title: string; subtitle?: string; tone?: 'info' | 'join' | 'leave' }
   ) => void;
