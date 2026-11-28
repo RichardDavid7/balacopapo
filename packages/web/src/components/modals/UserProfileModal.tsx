@@ -332,15 +332,6 @@ export function UserProfileModal() {
 
               <RichPresenceCard user={user} origin={userOrigin} />
 
-              {user.lastfmUsername && (
-                <LastFmStatus
-                  userId={user.id}
-                  username={user.lastfmUsername}
-                  showNowPlaying={user.lastfmShowNowPlaying !== false}
-                  origin={userOrigin}
-                />
-              )}
-
               {/* Member Since */}
               <div>
                 <span className="text-[11px] uppercase tracking-wide font-semibold text-txt-tertiary">

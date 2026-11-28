@@ -13,7 +13,6 @@ import { useUIStore } from '../../../stores/uiStore';
 import { describeError } from '../../../i18n/errors';
 import { PlatformIcon } from '../../profile/SocialConnectionsView';
 import { LastFmUserSection } from './LastFmUserSection';
-import { RichPresenceEditor } from '../../presence/RichPresenceEditor';
 
 export function ConnectionsPanel() {
   const { t } = useTranslation(['settings', 'social', 'common']);
@@ -88,9 +87,6 @@ export function ConnectionsPanel() {
         <h2 className="text-lg font-semibold text-txt-primary">{t('settings:connections.title')}</h2>
         <p className="text-xs text-txt-tertiary mt-1">{t('settings:connections.subtitle')}</p>
       </div>
-
-      {/* Rich Presence (Playing / Looking to play / Watching / Listening) */}
-      <RichPresenceEditor />
 
       {/* Last.fm Integration */}
       <LastFmUserSection />

@@ -28,6 +28,7 @@ import { IncomingCallModal } from '../voice/IncomingCallModal';
 import { PictureInPicture } from '../voice/PictureInPicture';
 import { SoundController } from '../voice/SoundController';
 import { GlobalAudioRenderer } from '../voice/GlobalAudioRenderer';
+import { CameraPreviewModal } from '../voice/CameraPreviewModal';
 import { P2PTransferTray } from '../voice/P2PMeshModal';
 import { NotificationController } from '../NotificationController';
 import { UserProfilePopoutLayer } from '../ui/UserProfilePopoutLayer';
@@ -440,6 +441,7 @@ export function AppLayout() {
             the root). */}
         <SoundController />
         <GlobalAudioRenderer />
+        <CameraPreviewModal />
         <P2PTransferTray />
         <NotificationController />
         <UpdateToast />
@@ -486,6 +488,7 @@ export function AppLayout() {
       <PictureInPicture />
       <SoundController />
       <GlobalAudioRenderer />
+      <CameraPreviewModal />
       <P2PTransferTray />
       <NotificationController />
       <UpdateToast />

@@ -11,8 +11,13 @@ export interface ManualPresenceConfig {
 }
 
 interface ManualPresenceState {
+  /** Automatic game/app detected by the Desktop process scanner (activityDetector.ts). */
+  detectedActivity: Activity | null;
+  /** Optional manual activity set from the Status Picker (Looking to play / Watching / etc.). */
   manual: ManualPresenceConfig | null;
+  /** Automatic Last.fm "Now Playing" activity. */
   lastfmActivity: Activity | null;
+  setDetectedActivity: (activity: Activity | null) => void;
   setManual: (manual: ManualPresenceConfig | null) => void;
   setLastfmActivity: (activity: Activity | null) => void;
 }
@@ -20,8 +25,10 @@ interface ManualPresenceState {
 export const useManualPresenceStore = create<ManualPresenceState>()(
   persist(
     (set) => ({
+      detectedActivity: null,
       manual: null,
       lastfmActivity: null,
+      setDetectedActivity: (detectedActivity) => set({ detectedActivity }),
       setManual: (manual) => set({ manual }),
       setLastfmActivity: (lastfmActivity) => set({ lastfmActivity }),
     }),

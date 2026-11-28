@@ -11,6 +11,7 @@ import { useInstanceStore } from '../../stores/instanceStore';
 import { VoiceChannel } from '../voice/VoiceChannel';
 import { VoiceControls } from '../voice/VoiceControls';
 import { useRichPresenceSync } from '../presence/RichPresenceCard';
+import { useAutoIdle } from '../../hooks/useAutoIdle';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { Avatar } from '../ui/Avatar';
 import { StatusPickerPopover } from '../ui/StatusPickerPopover';
@@ -38,6 +39,7 @@ import { ChannelMutedIndicator } from '../notifications/ChannelMutedIndicator';
 
 export function ChannelSidebar() {
   useRichPresenceSync();
+  useAutoIdle();
   const { t } = useTranslation(['spaces', 'common', 'project']);
   const spaces = useSpaceStore((s) => s.spaces);
   const currentSpaceId = useSpaceStore((s) => s.currentSpaceId);

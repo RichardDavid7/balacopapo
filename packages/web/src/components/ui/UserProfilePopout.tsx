@@ -6,7 +6,6 @@ import type { User } from '@backspace/shared';
 import { Avatar } from '../ui/Avatar';
 import { Username } from '../ui/Username';
 import { ProfileBio } from './ProfileBio';
-import { LastFmStatus } from '../profile/LastFmStatus';
 import { SocialConnectionsView } from '../profile/SocialConnectionsView';
 import { RichPresenceCard } from '../presence/RichPresenceCard';
 import { useSpaceStore } from '../../stores/spaceStore';
@@ -228,18 +227,6 @@ export function UserProfilePopout({ user: propUser, origin, onClose, anchor, pla
         <div className="mt-3">
           <RichPresenceCard user={user} origin={origin} />
         </div>
-
-        {user.lastfmUsername && (
-          <>
-            <div className="border-t border-white/[0.06] my-3" />
-            <LastFmStatus
-              userId={user.id}
-              username={user.lastfmUsername}
-              showNowPlaying={user.lastfmShowNowPlaying !== false}
-              origin={origin}
-            />
-          </>
-        )}
 
         {user.socialConnections && user.socialConnections.length > 0 && (
           <>

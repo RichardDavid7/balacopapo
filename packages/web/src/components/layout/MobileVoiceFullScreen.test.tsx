@@ -54,6 +54,7 @@ vi.mock('../../audio/AudioManager', () => ({
 
 vi.mock('../../utils/voiceActions', async () => ({
   handleCameraAction: vi.fn(),
+  requestCameraToggle: vi.fn(),
   handleDisconnectAction: vi.fn(),
   handleScreenShareAction: vi.fn(),
   toggleMuteFromControl: vi.fn(),

@@ -12,6 +12,7 @@ vi.mock('../../utils/voiceActions', () => ({
   handleMuteAction: vi.fn(),
   handleDeafenAction: vi.fn(),
   handleCameraAction: vi.fn(),
+  requestCameraToggle: vi.fn(),
   handleScreenShareAction: vi.fn(),
   handleDisconnectAction: vi.fn(),
 }));

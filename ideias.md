@@ -18,6 +18,13 @@ Sincronia de foto de perfil do OIDC não tá perfeita
 
 Conexões, link pra contas pessoais como facebook, steam, epic, discord, instagram, youtube, spotify, tidal, qobuz, site personalizado, tudo com com iconezinhos, e tb com verificação de veracidade, ex. [https://steamcommunity.com/id/rpd7/](https://steamcommunity.com/id/rpd7/), e não permitir redirecionamento pra outros sites ex. [https://steamcommunity.com/linkfilter/?u=http%3A%2F%2Fvk.com%2Ftopic-50589186\_28225534](https://steamcommunity.com/linkfilter/?u=http%3A%2F%2Fvk.com%2Ftopic-50589186_28225534) a não ser no site personalizado q vai mostrar o link certinho ali. Os links idealmente exibidos como nome do perfil das contas com exceção do site externo e mostrando numa aba propria (Conexões) quando expande o perfil completamente. O menu de conexões pra adicionar deve ficar abaixo do botão de conta nas configurações e não nas config de app, aquele painel “Conexões” nas config de app renomeia para “Instancias”
 
+Configurações de notificação por grupo, categoria e canal
+
+Link dos aplicativos, como na configurações do app
+
+Versão do app, referencias, links e icones do backspace.\
+
+
 Para o app
 
 \

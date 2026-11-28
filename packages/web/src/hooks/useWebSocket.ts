@@ -449,9 +449,9 @@ function handleEvent(origin: string, event: ServerEvent, readyAlreadyDelivered =
       // so if the same app was active before and after sleep, nothing would re-push.
       if (isHome && window.backspace?.getCurrentActivity) {
         window.backspace.getCurrentActivity().then((activity: unknown) => {
-          if (activity) {
-            useActivityStore.getState().pushActivities([activity as Activity]);
-          }
+          void import('../stores/manualPresenceStore').then(({ useManualPresenceStore }) => {
+            useManualPresenceStore.getState().setDetectedActivity((activity as Activity) || null);
+          });
         }).catch(() => {});
       }
 

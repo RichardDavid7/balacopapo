@@ -12,7 +12,7 @@ import { P2PStatusButton, P2PMeshModal } from './P2PMeshModal';
 import { usePortalContainer } from '../../hooks/usePortalContainer';
 import { layoutPixels, layoutRect } from '../../platform/interfaceScale';
 import { hasPermissionBit, PermissionBits } from '../../utils/permissions';
-import { handleCameraAction, handleDisconnectAction, handleScreenShareAction, reconnectVoice } from '../../utils/voiceActions';
+import { requestCameraToggle, handleDisconnectAction, handleScreenShareAction, reconnectVoice } from '../../utils/voiceActions';
 
 /**
  * VoiceControls renders the voice status + button rows.
@@ -229,7 +229,7 @@ export function VoiceControls() {
       <div className="relative flex items-center gap-1 px-3 pb-2 pt-1">
         {canSpeak && (
           <button
-            onClick={handleCameraAction}
+            onClick={requestCameraToggle}
             className={`${btnBase} ${
               isCameraOn
                 ? 'bg-surface-base text-status-online hover:bg-surface-channel'

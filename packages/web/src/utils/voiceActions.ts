@@ -84,6 +84,20 @@ export function toggleDeafenFromControl(): void {
 }
 
 /**
+ * User clicked a camera button: if already live, turn camera off immediately;
+ * if off, open the local CameraPreviewModal so the user can check framing,
+ * mirror, device, and quality before publishing video to the call.
+ */
+export function requestCameraToggle(): void {
+  const { isCameraOn, setCameraPreviewOpen } = useVoiceStore.getState();
+  if (isCameraOn) {
+    void handleCameraAction();
+  } else {
+    setCameraPreviewOpen(true);
+  }
+}
+
+/**
  * Toggle camera. Requires LiveKit room. Sole canonical camera-toggle path —
  * the voice-bar button, mobile button, and keybind all funnel through here.
  */

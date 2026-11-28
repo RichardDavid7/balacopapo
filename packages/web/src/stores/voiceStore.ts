@@ -133,6 +133,7 @@ export interface VoiceState {
   cameraDeviceId: string | null; // null = auto-select on next camera enable
   mirrorLocalCamera: boolean;
   cameraQuality: '720p30' | '1080p30' | '720p60';
+  cameraPreviewOpen: boolean;
   focusedParticipantId: string | null;
   screenShareConfig: ScreenShareConfig;
   /**
@@ -232,6 +233,7 @@ export interface VoiceState {
   setCameraDeviceId: (deviceId: string | null) => void;
   setMirrorLocalCamera: (mirror: boolean) => void;
   setCameraQuality: (quality: '720p30' | '1080p30' | '720p60') => void;
+  setCameraPreviewOpen: (open: boolean) => void;
   pruneStaleDevices: () => Promise<void>;
   pttActive: boolean;
   setMuted: (muted: boolean) => void;
@@ -352,6 +354,7 @@ export const useVoiceStore = create<VoiceState>()(
       cameraDeviceId: null,
       mirrorLocalCamera: true,
       cameraQuality: '720p30',
+      cameraPreviewOpen: false,
       focusedParticipantId: null,
       screenShareConfig: { height: 720, fps: 60, mode: 'gaming', customBitrateKbps: null, shareAudio: !isElectron(), codec: 'vp9' },
       lastScreenShareSourceId: null,
@@ -681,6 +684,7 @@ export const useVoiceStore = create<VoiceState>()(
       setCameraDeviceId: (deviceId) => set({ cameraDeviceId: deviceId }),
       setMirrorLocalCamera: (mirror) => set({ mirrorLocalCamera: mirror }),
       setCameraQuality: (quality) => set({ cameraQuality: quality }),
+      setCameraPreviewOpen: (open) => set({ cameraPreviewOpen: open }),
 
       pruneStaleDevices: async () => {
         try {
@@ -981,6 +985,7 @@ export const useVoiceStore = create<VoiceState>()(
         cameraDeviceId: null,
       mirrorLocalCamera: true,
       cameraQuality: '720p30',
+      cameraPreviewOpen: false,
         focusedParticipantId: null,
         participantVolumes: new Map(),
         participantMutes: new Map(),

@@ -10,7 +10,7 @@ import { voiceSessionOrigin } from '../../utils/dmCall';
 import { hasPermissionBit, PermissionBits } from '../../utils/permissions';
 import { useActiveDmCall } from '../../hooks/useActiveDmCall';
 import {
-  handleCameraAction,
+  requestCameraToggle,
   handleDisconnectAction,
   handleScreenShareAction,
   toggleDeafenFromControl,
@@ -499,7 +499,7 @@ export function MobileVoiceFullScreen() {
             visible only when relevant so single-camera devices are unaffected. */}
         <div className="relative" ref={cameraPickerAnchorRef}>
           <button
-            onClick={handleCameraAction}
+            onClick={requestCameraToggle}
             className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
               isCameraOn
                 ? 'bg-accent-mint/20 text-accent-mint'

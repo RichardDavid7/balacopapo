@@ -1,5 +1,5 @@
 import type { Activity } from '@backspace/shared';
-import { useActivityStore } from '../stores/activityStore';
+import { useManualPresenceStore } from '../stores/manualPresenceStore';
 
 let unsubscribe: (() => void) | null = null;
 
@@ -9,18 +9,12 @@ export function initActivityBridge(): void {
 
   // Subscribe to future activity changes from main process
   unsubscribe = window.backspace.onActivityDetected((activity) => {
-    if (activity) {
-      useActivityStore.getState().pushActivities([activity as Activity]);
-    } else {
-      useActivityStore.getState().pushActivities([]);
-    }
+    useManualPresenceStore.getState().setDetectedActivity((activity as Activity) || null);
   });
 
   // Request current state (handles instance-switch: game was already running)
   window.backspace.getCurrentActivity?.().then((activity: unknown) => {
-    if (activity) {
-      useActivityStore.getState().pushActivities([activity as Activity]);
-    }
+    useManualPresenceStore.getState().setDetectedActivity((activity as Activity) || null);
   }).catch(() => {});
 }
 

@@ -7,6 +7,14 @@ import { useUIStore } from '../../stores/uiStore';
 import { useFormatters } from '../../i18n/formatters';
 import { usePortalContainer } from '../../hooks/usePortalContainer';
 import { layoutPixels, layoutRect } from '../../platform/interfaceScale';
+import { useManualPresenceStore, type ManualPresenceKind } from '../../stores/manualPresenceStore';
+
+const MANUAL_ACTIVITY_KINDS: readonly ManualPresenceKind[] = [
+  'looking_to_play',
+  'watching',
+  'playing',
+  'listening',
+];
 
 const REVERT_STORAGE_KEY = 'backspace_status_revert';
 
@@ -179,12 +187,17 @@ export function StatusPickerPopover({
   placement = 'above',
   showProfileButton = true,
 }: StatusPickerPopoverProps) {
-  const { t } = useTranslation(['common']);
+  const { t } = useTranslation(['common', 'social', 'settings']);
   const { formatTime } = useFormatters();
   const portalContainer = usePortalContainer();
   const currentStatus: ChosenUserStatus = useAuthStore(selectMyChosenStatus) ?? 'online';
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const openUserProfile = useUIStore((s) => s.openUserProfile);
+  const manualActivity = useManualPresenceStore((s) => s.manual);
+  const setManualActivity = useManualPresenceStore((s) => s.setManual);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [activityKind, setActivityKind] = useState<ManualPresenceKind>(manualActivity?.type ?? 'looking_to_play');
+  const [activityName, setActivityName] = useState(manualActivity?.name ?? '');
 
   const [duration, setDuration] = useState<DurationOption>('none');
   const [saving, setSaving] = useState(false);
@@ -367,6 +380,79 @@ export function StatusPickerPopover({
             >
               {t('actions.cancel')}
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Manual Activity selector (Looking to play / Watching / Playing / Listening) */}
+      <div className="border-t border-white/[0.06] pt-2 space-y-1.5">
+        <button
+          type="button"
+          onClick={() => setActivityOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-xs font-medium text-txt-secondary hover:text-txt-primary hover:bg-interactive-hover transition-colors cursor-pointer"
+        >
+          <span className="truncate">
+            {manualActivity
+              ? `${t(`social:presence.activityTypes.${manualActivity.type}`)}: ${manualActivity.name}`
+              : t('settings:connections.presence.heading')}
+          </span>
+          <span className="text-[10px] text-txt-tertiary shrink-0">{activityOpen ? '−' : '+'}</span>
+        </button>
+
+        {activityOpen && (
+          <div className="space-y-1.5 px-1 pt-0.5">
+            <div className="grid grid-cols-2 gap-1">
+              {MANUAL_ACTIVITY_KINDS.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setActivityKind(kind)}
+                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-colors truncate cursor-pointer ${
+                    activityKind === kind
+                      ? 'bg-accent-primary text-white'
+                      : 'bg-surface-elevated text-txt-secondary hover:bg-interactive-hover'
+                  }`}
+                >
+                  {t(`social:presence.activityTypes.${kind}`)}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              maxLength={128}
+              value={activityName}
+              onChange={(e) => setActivityName(e.target.value)}
+              placeholder={t('settings:connections.presence.namePlaceholder')}
+              className="w-full px-2 py-1 rounded bg-surface-base border border-border-soft text-xs text-txt-primary placeholder:text-txt-tertiary focus:outline-none focus:border-accent-primary"
+            />
+            <div className="flex items-center justify-end gap-1.5">
+              {manualActivity && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualActivity(null);
+                    setActivityName('');
+                    setActivityOpen(false);
+                  }}
+                  className="px-2 py-1 rounded bg-accent-rose/15 hover:bg-accent-rose/25 text-accent-rose text-[10px] font-semibold cursor-pointer"
+                >
+                  {t('settings:connections.presence.clear')}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={!activityName.trim()}
+                onClick={() => {
+                  const trimmed = activityName.trim();
+                  if (!trimmed) return;
+                  setManualActivity({ type: activityKind, name: trimmed });
+                  setActivityOpen(false);
+                }}
+                className="px-2.5 py-1 rounded bg-accent-primary hover:bg-accent-primary-hover text-white text-[10px] font-semibold disabled:opacity-40 cursor-pointer"
+              >
+                {t('settings:connections.presence.save')}
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -7,14 +7,18 @@ import { handleCameraAction } from '../../utils/voiceActions';
 import { Toggle } from '../ui/Toggle';
 
 interface CameraPreviewModalProps {
-  open: boolean;
-  onClose: () => void;
+  open?: boolean;
+  onClose?: () => void;
 }
 
 const QUALITY_OPTIONS: readonly CameraQualityPreset[] = ['720p30', '1080p30', '720p60'];
 
-export function CameraPreviewModal({ open, onClose }: CameraPreviewModalProps) {
+export function CameraPreviewModal({ open: openProp, onClose: onCloseProp }: CameraPreviewModalProps = {}) {
   const { t } = useTranslation(['voice', 'common']);
+  const storeOpen = useVoiceStore((s) => s.cameraPreviewOpen);
+  const setStoreOpen = useVoiceStore((s) => s.setCameraPreviewOpen);
+  const open = openProp ?? storeOpen;
+  const onClose = onCloseProp ?? (() => setStoreOpen(false));
   const cameraDeviceId = useVoiceStore((s) => s.cameraDeviceId);
   const setCameraDeviceId = useVoiceStore((s) => s.setCameraDeviceId);
   const mirrorLocalCamera = useVoiceStore((s) => s.mirrorLocalCamera);
