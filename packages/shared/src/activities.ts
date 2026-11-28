@@ -10,8 +10,9 @@ export const ACTIVITY_LIMITS = {
 } as const;
 
 export const ACTIVITY_PRIORITY: Record<ActivityType, number> = {
-  streaming: 5,
-  playing: 4,
+  streaming: 6,
+  playing: 5,
+  looking_to_play: 4,
   listening: 3,
   watching: 2,
   custom: 1,

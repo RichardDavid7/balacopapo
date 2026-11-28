@@ -449,5 +449,21 @@
     "queueHeading": "Fila ({{total}})",
     "clearQueue": "Limpar",
     "actionFailed": "Não foi possível atualizar o player de música"
+  },
+  "cameraPreview": {
+    "title": "Prévia da Câmera",
+    "unavailable": "Não foi possível acessar a câmera selecionada.",
+    "deviceLabel": "Dispositivo de câmera",
+    "defaultDevice": "Câmera padrão",
+    "cameraFallback": "Câmera {{index}}",
+    "qualityLabel": "Qualidade do vídeo",
+    "qualities": {
+      "720p30": "720p · 30 fps",
+      "1080p30": "1080p · 30 fps",
+      "720p60": "720p · 60 fps"
+    },
+    "mirrorLabel": "Espelhar minha visão",
+    "mirrorHint": "Inverte apenas como você se vê — os outros participantes veem normal.",
+    "confirm": "Ligar câmera"
   }
 }

@@ -447,5 +447,21 @@
     "queueHeading": "Warteschlange ({{total}})",
     "clearQueue": "Leeren",
     "actionFailed": "Musikplayer konnte nicht aktualisiert werden"
+  },
+  "cameraPreview": {
+    "title": "Kameravorschau",
+    "unavailable": "Zugriff auf die ausgewählte Kamera fehlgeschlagen.",
+    "deviceLabel": "Kameragerät",
+    "defaultDevice": "Standardkamera",
+    "cameraFallback": "Kamera {{index}}",
+    "qualityLabel": "Videoqualität",
+    "qualities": {
+      "720p30": "720p · 30 fps",
+      "1080p30": "1080p · 30 fps",
+      "720p60": "720p · 60 fps"
+    },
+    "mirrorLabel": "Eigene Ansicht spiegeln",
+    "mirrorHint": "Spiegelt nur deine eigene Vorschau — alle anderen sehen dich normal.",
+    "confirm": "Kamera einschalten"
   }
 }

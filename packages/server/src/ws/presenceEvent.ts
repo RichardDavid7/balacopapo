@@ -68,7 +68,7 @@ export function snapshotActivities(live: Activity[], customStatus: string | null
 
 // ─── Activity Validation ──────────────────────────────────────────────────
 
-const VALID_ACTIVITY_TYPES = new Set<string>(['custom', 'playing', 'listening', 'watching', 'streaming']);
+const VALID_ACTIVITY_TYPES = new Set<string>(['custom', 'playing', 'looking_to_play', 'listening', 'watching', 'streaming']);
 const MAX_TIMESTAMP = 4102444800000;
 
 /**

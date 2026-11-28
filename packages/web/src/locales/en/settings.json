@@ -171,7 +171,8 @@
       "connections": "Connections",
       "keybinds": "Keybinds",
       "desktop": "Desktop",
-      "instance": "Instance"
+      "instance": "Instance",
+      "instances": "Instances"
     },
     "logOut": "Log Out",
     "backToMenu": "Back to settings menu"
@@ -328,6 +329,42 @@
       "disconnect": "Unlink",
       "saved": "Last.fm settings saved",
       "disconnected": "Last.fm account unlinked"
+    },
+    "subtitle": "Manage your Rich Presence activity, Last.fm integration, and verified profile links.",
+    "presence": {
+      "heading": "Rich Presence Activity",
+      "description": "Show what you are playing, looking to play, watching, or listening to on your profile.",
+      "namePlaceholder": "Game, movie, or song title...",
+      "detailsPlaceholder": "Optional details (e.g. Ranked, Episode 4)...",
+      "save": "Set Activity",
+      "clear": "Clear"
+    },
+    "social": {
+      "heading": "Profile Links & Accounts",
+      "description": "Add verified links to your accounts. Redirect links (like Steam linkfilter) are automatically blocked for safety.",
+      "platformLabel": "Platform",
+      "addButton": "Add Connection",
+      "added": "Connection added to your profile",
+      "removed": "Connection removed",
+      "limitReached": "Maximum number of connections reached",
+      "errors": {
+        "invalid_url": "Please enter a valid link or handle.",
+        "redirect_blocked": "Redirector links (e.g. Steam linkfilter) are not allowed. Use your direct profile URL.",
+        "domain_mismatch": "This URL does not match the selected platform.",
+        "invalid_profile": "Please enter a direct profile link for this platform."
+      },
+      "placeholders": {
+        "steam": "https://steamcommunity.com/id/your_id/",
+        "epic": "Epic username or store.epicgames.com/u/...",
+        "discord": "@username or discord.com/users/123...",
+        "youtube": "https://www.youtube.com/@channel",
+        "spotify": "https://open.spotify.com/user/...",
+        "tidal": "https://tidal.com/browse/user/...",
+        "qobuz": "https://open.qobuz.com/...",
+        "instagram": "https://www.instagram.com/username",
+        "facebook": "https://www.facebook.com/username",
+        "website": "https://yoursite.com"
+      }
     }
   },
   "instance": {
@@ -518,5 +555,8 @@
     },
     "version": "Version {{version}}",
     "allReleases": "All releases on GitHub"
+  },
+  "instances": {
+    "title": "Connected Instances"
   }
 }

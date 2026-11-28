@@ -1,4 +1,4 @@
-import type { User, ReplicatedInstance } from '@backspace/shared';
+import type { User, ReplicatedInstance, UserSocialConnection } from '@backspace/shared';
 import { schema } from '../db/index.js';
 
 export function sanitizeUser(row: typeof schema.users.$inferSelect, isSelf = false): User {
@@ -36,6 +36,16 @@ export function sanitizeUser(row: typeof schema.users.$inferSelect, isSelf = fal
     }
   }
 
+  let socialConnections: UserSocialConnection[] = [];
+  if (row.socialConnections) {
+    try {
+      const parsed = JSON.parse(row.socialConnections) as unknown;
+      if (Array.isArray(parsed)) socialConnections = parsed as UserSocialConnection[];
+    } catch {
+      socialConnections = [];
+    }
+  }
+
   return {
     id: row.id,
     username: row.username,
@@ -56,6 +66,7 @@ export function sanitizeUser(row: typeof schema.users.$inferSelect, isSelf = fal
     replicatedInstances,
     lastfmUsername: row.lastfmUsername ?? null,
     lastfmShowNowPlaying: row.lastfmShowNowPlaying !== 0,
+    socialConnections,
     ...(isSelf
       ? {
           showActivity: row.showActivity !== 0,

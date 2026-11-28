@@ -11,6 +11,7 @@ import { selectStreamingLimits, useSettingsStore } from '../../stores/settingsSt
 import { voiceSessionOrigin } from '../../utils/dmCall';
 import { ScreenShareSettingsPopover } from './ScreenShareSettingsPopover';
 import { SoundboardPopover } from './SoundboardPopover';
+import { CameraPreviewModal } from './CameraPreviewModal';
 import { hasPermissionBit, PermissionBits } from '../../utils/permissions';
 import { handleMuteAction, handleDeafenAction, handleCameraAction, handleScreenShareAction, handleDisconnectAction } from '../../utils/voiceActions';
 import { VOICE_CHROME_ATTR } from '../../hooks/usePointerReveal';
@@ -57,6 +58,7 @@ export function VoiceControlBar({ revealed = false }: { revealed?: boolean }) {
   // idle → opens the OS/Electron source picker; live → opens the settings
   // popover (quality controls + the red stop action).
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [cameraPreviewOpen, setCameraPreviewOpen] = useState(false);
   const shareBtnRef = useRef<HTMLButtonElement>(null);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
   const soundboardBtnRef = useRef<HTMLButtonElement>(null);
@@ -107,7 +109,13 @@ export function VoiceControlBar({ revealed = false }: { revealed?: boolean }) {
     handleDeafenAction(isSpaceDeafened);
   }, [isSpaceDeafened]);
 
-  const handleCamera = () => handleCameraAction();
+  const handleCamera = () => {
+    if (isCameraOn) {
+      void handleCameraAction();
+    } else {
+      setCameraPreviewOpen(true);
+    }
+  };
 
   const handleScreenShare = () => {
     if (isScreenSharing) {
@@ -345,6 +353,7 @@ export function VoiceControlBar({ revealed = false }: { revealed?: boolean }) {
           </svg>
         </button>
       </div>
+      <CameraPreviewModal open={cameraPreviewOpen} onClose={() => setCameraPreviewOpen(false)} />
     </div>
   );
 }

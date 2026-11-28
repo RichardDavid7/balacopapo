@@ -6,7 +6,7 @@ import { wsSend } from '../hooks/useWebSocket';
 import { getChannelOrigin, getMyUserIdForOrigin, useSpaceStore } from '../stores/spaceStore';
 import { broadcastVoiceStatus, broadcastDeafenViaLiveKit, preArmMicrophone } from './voice';
 import { dmCallOrigin, dmCallRoomKey, sendDmCallEnd } from './dmCall';
-import { CAMERA_PRESET, stopScreenShare } from './screenShare';
+import { getCameraCaptureSpec, stopScreenShare } from './screenShare';
 import { openScreenShareSetup } from '../stores/screenShareSetupStore';
 
 /**
@@ -94,21 +94,30 @@ export async function handleCameraAction(): Promise<void> {
   try {
     const willEnable = !isCameraOn;
     if (willEnable) {
-      const cameraDeviceId = useVoiceStore.getState().cameraDeviceId;
+      const { cameraDeviceId, cameraQuality } = useVoiceStore.getState();
+      const spec = getCameraCaptureSpec(cameraQuality);
       const captureOpts: VideoCaptureOptions = {
-        resolution: CAMERA_PRESET.resolution,
-        frameRate: CAMERA_PRESET.encoding.maxFramerate,
+        resolution: spec.resolution,
+        frameRate: spec.encoding.maxFramerate,
       };
       if (cameraDeviceId) captureOpts.deviceId = cameraDeviceId;
-      await room.localParticipant.setCameraEnabled(
-        true,
-        captureOpts,
-        {
-          videoCodec: CAMERA_PRESET.codec,
-          videoEncoding: CAMERA_PRESET.encoding,
-          simulcast: true,
+      const publishOpts = {
+        videoCodec: spec.codec,
+        videoEncoding: spec.encoding,
+        simulcast: true,
+      };
+      try {
+        await room.localParticipant.setCameraEnabled(true, captureOpts, publishOpts);
+      } catch (firstErr) {
+        // Fallback for finicky webcams that reject exact 1080p/60fps constraints
+        console.warn('[voiceActions] Camera preset failed, retrying with relaxed constraints:', firstErr);
+        const relaxed: VideoCaptureOptions = cameraDeviceId ? { deviceId: cameraDeviceId } : {};
+        try {
+          await room.localParticipant.setCameraEnabled(true, relaxed, publishOpts);
+        } catch {
+          await room.localParticipant.setCameraEnabled(true, {}, publishOpts);
         }
-      );
+      }
     } else {
       // Mark this disable as intentional so the track-`ended` handler skips
       // its unplug/permission-revoke probe + toast.

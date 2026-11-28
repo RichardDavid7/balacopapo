@@ -68,7 +68,8 @@
     "tabs": {
       "about": "О пользователе",
       "mutualFriends": "Общие друзья",
-      "mutualSpaces": "Общие пространства"
+      "mutualSpaces": "Общие пространства",
+      "connections": "Связи"
     },
     "aboutMe": "Обо мне",
     "roles": "Роли",
@@ -96,6 +97,30 @@
       "userNotFound": "Пользователь Last.fm не найден (ошибка 6). Проверьте имя пользователя.",
       "apiError": "Сейчас не удалось связаться с Last.fm. Повторная попытка выполнится автоматически.",
       "idle": "Подключено к Last.fm — сейчас ничего не воспроизводится."
+    }
+  },
+  "connections": {
+    "platforms": {
+      "steam": "Steam",
+      "epic": "Epic Games",
+      "discord": "Discord",
+      "youtube": "YouTube",
+      "spotify": "Spotify",
+      "tidal": "Tidal",
+      "qobuz": "Qobuz",
+      "instagram": "Instagram",
+      "facebook": "Facebook",
+      "website": "Личный сайт"
+    }
+  },
+  "presence": {
+    "activityTypes": {
+      "playing": "Играет в",
+      "looking_to_play": "Хочет поиграть в",
+      "watching": "Смотрит",
+      "listening": "Слушает",
+      "streaming": "Стримит",
+      "custom": "Активность"
     }
   }
 }

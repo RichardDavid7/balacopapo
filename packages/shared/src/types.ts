@@ -1,4 +1,6 @@
 import type { ErrorCode, ErrorDetails } from './errors.js';
+import type { UserSocialConnection } from './socialConnections.js';
+export * from './socialConnections.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -33,6 +35,8 @@ export interface User {
   lastfmUsername?: string | null;
   /** Whether to fetch and show currently playing Last.fm scrobble on the user's profile (default true). */
   lastfmShowNowPlaying?: boolean;
+  /** Verified personal social links displayed on the user's profile (Connections tab). */
+  socialConnections?: UserSocialConnection[];
   /** Self-view only: this federated account's home instance was reset/lost — it now operates as a sovereign local account (detach spec). */
   federationHomeOrphaned?: boolean;
   /**
@@ -669,7 +673,7 @@ export interface DmMessageWithUser extends DmMessage {
 
 // ─── Activity Types ────────────────────────────────────────────────────────
 
-export type ActivityType = 'custom' | 'playing' | 'listening' | 'watching' | 'streaming';
+export type ActivityType = 'custom' | 'playing' | 'looking_to_play' | 'listening' | 'watching' | 'streaming';
 
 export interface ActivityTimestamps {
   start?: number;
@@ -990,6 +994,8 @@ export interface UpdateUserRequest {
   lastfmUsername?: string | null;
   /** Whether to fetch and show currently playing Last.fm scrobble on the user's profile (default true). */
   lastfmShowNowPlaying?: boolean;
+  /** Verified personal social links displayed on the user's profile (Connections tab). */
+  socialConnections?: UserSocialConnection[];
 }
 
 export interface UpdateMemberRequest {

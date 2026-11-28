@@ -171,7 +171,8 @@
       "connections": "Conexões",
       "keybinds": "Atalhos",
       "desktop": "Desktop",
-      "instance": "Instância"
+      "instance": "Instância",
+      "instances": "Instâncias"
     },
     "logOut": "Sair",
     "backToMenu": "Voltar ao menu de configurações"
@@ -329,6 +330,42 @@
       "disconnect": "Desvincular",
       "saved": "Configurações do Last.fm salvas",
       "disconnected": "Conta do Last.fm desvinculada"
+    },
+    "subtitle": "Gerencie sua atividade (Rich Presence), Last.fm e links verificados exibidos no seu perfil.",
+    "presence": {
+      "heading": "Atividade (Rich Presence)",
+      "description": "Mostre no seu perfil o que você está jogando, querendo jogar, assistindo ou ouvindo.",
+      "namePlaceholder": "Nome do jogo, filme ou música...",
+      "detailsPlaceholder": "Detalhe opcional (ex.: Competitivo, Episódio 4)...",
+      "save": "Definir Atividade",
+      "clear": "Limpar"
+    },
+    "social": {
+      "heading": "Contas e Links no Perfil",
+      "description": "Adicione links verificados das suas contas. Links de redirecionamento (como linkfilter da Steam) são bloqueados por segurança.",
+      "platformLabel": "Plataforma",
+      "addButton": "Adicionar Conexão",
+      "added": "Conexão adicionada ao seu perfil",
+      "removed": "Conexão removida",
+      "limitReached": "Limite máximo de conexões atingido",
+      "errors": {
+        "invalid_url": "Informe um link ou nome de usuário válido.",
+        "redirect_blocked": "Links de redirecionamento (ex.: Steam linkfilter) não são permitidos. Use o link direto do seu perfil.",
+        "domain_mismatch": "Este link não pertence à plataforma selecionada.",
+        "invalid_profile": "Informe um link direto de perfil válido para esta plataforma."
+      },
+      "placeholders": {
+        "steam": "https://steamcommunity.com/id/seu_id/",
+        "epic": "Usuário Epic ou store.epicgames.com/u/...",
+        "discord": "@usuario ou discord.com/users/123...",
+        "youtube": "https://www.youtube.com/@channel",
+        "spotify": "https://open.spotify.com/user/...",
+        "tidal": "https://tidal.com/browse/user/...",
+        "qobuz": "https://open.qobuz.com/...",
+        "instagram": "https://www.instagram.com/username",
+        "facebook": "https://www.facebook.com/username",
+        "website": "https://seusite.com.br"
+      }
     }
   },
   "instance": {
@@ -519,5 +556,8 @@
     },
     "version": "Versão {{version}}",
     "allReleases": "Todas as versões no GitHub"
+  },
+  "instances": {
+    "title": "Instâncias Conectadas"
   }
 }

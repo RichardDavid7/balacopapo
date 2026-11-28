@@ -64,7 +64,8 @@
     "tabs": {
       "about": "Info",
       "mutualFriends": "Gemeinsame Freunde",
-      "mutualSpaces": "Gemeinsame Spaces"
+      "mutualSpaces": "Gemeinsame Spaces",
+      "connections": "Verbindungen"
     },
     "aboutMe": "Über mich",
     "roles": "Rollen",
@@ -92,6 +93,30 @@
       "userNotFound": "Last.fm-Benutzer nicht gefunden (Fehler 6). Bitte prüfe deinen Benutzernamen.",
       "apiError": "Last.fm ist momentan nicht erreichbar. Erneuter Versuch folgt automatisch.",
       "idle": "Mit Last.fm verbunden — derzeit wird kein Titel abgespielt."
+    }
+  },
+  "connections": {
+    "platforms": {
+      "steam": "Steam",
+      "epic": "Epic Games",
+      "discord": "Discord",
+      "youtube": "YouTube",
+      "spotify": "Spotify",
+      "tidal": "Tidal",
+      "qobuz": "Qobuz",
+      "instagram": "Instagram",
+      "facebook": "Facebook",
+      "website": "Eigene Website"
+    }
+  },
+  "presence": {
+    "activityTypes": {
+      "playing": "Spielt",
+      "looking_to_play": "Möchte spielen",
+      "watching": "Schaut",
+      "listening": "Hört",
+      "streaming": "Streamt",
+      "custom": "Aktivität"
     }
   }
 }

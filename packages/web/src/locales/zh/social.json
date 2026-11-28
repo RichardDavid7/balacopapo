@@ -62,7 +62,8 @@
     "tabs": {
       "about": "个人介绍",
       "mutualFriends": "共同好友",
-      "mutualSpaces": "共同空间"
+      "mutualSpaces": "共同空间",
+      "connections": "关联账号"
     },
     "aboutMe": "关于我",
     "roles": "身份组",
@@ -90,6 +91,30 @@
       "userNotFound": "未找到该 Last.fm 用户（错误 6），请检查用户名。",
       "apiError": "暂时无法连接 Last.fm，稍后将自动重试。",
       "idle": "已连接 Last.fm — 当前没有正在播放的歌曲。"
+    }
+  },
+  "connections": {
+    "platforms": {
+      "steam": "Steam",
+      "epic": "Epic Games",
+      "discord": "Discord",
+      "youtube": "YouTube",
+      "spotify": "Spotify",
+      "tidal": "Tidal",
+      "qobuz": "Qobuz",
+      "instagram": "Instagram",
+      "facebook": "Facebook",
+      "website": "个人网站"
+    }
+  },
+  "presence": {
+    "activityTypes": {
+      "playing": "正在玩",
+      "looking_to_play": "想玩",
+      "watching": "正在看",
+      "listening": "正在听",
+      "streaming": "正在直播",
+      "custom": "动态"
     }
   }
 }

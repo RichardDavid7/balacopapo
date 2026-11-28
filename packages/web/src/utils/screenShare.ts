@@ -49,16 +49,36 @@ export interface ScreenShareBuildResult {
 // Camera preset (fixed 720p30 H264, decoupled from screen share)
 // ---------------------------------------------------------------------------
 
+export type CameraQualityPreset = '720p30' | '1080p30' | '720p60';
+
 export const CAMERA_PRESET = {
   resolution: { width: 1280, height: 720 },
-  encoding: { maxBitrate: 2_000_000, maxFramerate: 30 },
+  encoding: { maxBitrate: 3_500_000, maxFramerate: 30 },
   codec: 'h264' as const,
 } as const;
 
+export function getCameraCaptureSpec(quality: CameraQualityPreset = '720p30') {
+  if (quality === '1080p30') {
+    return {
+      resolution: { width: 1920, height: 1080 },
+      encoding: { maxBitrate: 4_500_000, maxFramerate: 30 },
+      codec: 'h264' as const,
+    };
+  }
+  if (quality === '720p60') {
+    return {
+      resolution: { width: 1280, height: 720 },
+      encoding: { maxBitrate: 4_500_000, maxFramerate: 60 },
+      codec: 'h264' as const,
+    };
+  }
+  return CAMERA_PRESET;
+}
+
 export const CAMERA_OVERDRIVE: OverdriveOptions = {
-  maxBitrate: 2_000_000,
+  maxBitrate: 3_500_000,
   maxFramerate: 30,
-  degradationPreference: 'maintain-framerate',
+  degradationPreference: 'balanced',
 };
 
 // ---------------------------------------------------------------------------

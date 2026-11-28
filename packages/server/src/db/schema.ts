@@ -33,6 +33,7 @@ export const users = sqliteTable('users', {
   showActivity: integer('show_activity').notNull().default(1),
   lastfmUsername: text('lastfm_username'),
   lastfmShowNowPlaying: integer('lastfm_show_now_playing').notNull().default(1),
+  socialConnections: text('social_connections'),
   federationRegistryUpdatedAt: integer('federation_registry_updated_at').default(0),
   federationHealPending: integer('federation_heal_pending').default(0),
   federationHomeOrphaned: integer('federation_home_orphaned').default(0),

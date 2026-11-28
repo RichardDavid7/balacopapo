@@ -46,6 +46,7 @@ export const AppearancePanel = lazyPanel(() => import('./settingsPanels/Appearan
 export const VoicePanel = lazyPanel(() => import('./settingsPanels/VoicePanel'), (m) => m.VoicePanel);
 export const PrivacyPanel = lazyPanel(() => import('./settingsPanels/PrivacyPanel'), (m) => m.PrivacyPanel);
 export const ConnectionsPanel = lazyPanel(() => import('./settingsPanels/ConnectionsPanel'), (m) => m.ConnectionsPanel);
+export const InstancesPanel = lazyPanel(() => import('./settingsPanels/InstancesPanel'), (m) => m.InstancesPanel);
 export const KeybindsPanel = lazyPanel(() => import('./settingsPanels/KeybindsPanel'), (m) => m.KeybindsPanel);
 export const DesktopPanel = lazyPanel(() => import('./settingsPanels/DesktopPanel'), (m) => m.DesktopPanel);
 export const DesktopDownloadPanel = lazyPanel(() => import('./settingsPanels/DesktopDownloadPanel'), (m) => m.DesktopDownloadPanel);

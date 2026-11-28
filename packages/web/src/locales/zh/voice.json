@@ -445,5 +445,21 @@
     "queueHeading": "播放队列 ({{total}})",
     "clearQueue": "清空",
     "actionFailed": "无法更新音乐播放器"
+  },
+  "cameraPreview": {
+    "title": "摄像头预览",
+    "unavailable": "无法访问所选摄像头。",
+    "deviceLabel": "摄像头设备",
+    "defaultDevice": "默认摄像头",
+    "cameraFallback": "摄像头 {{index}}",
+    "qualityLabel": "视频画质",
+    "qualities": {
+      "720p30": "720p · 30 fps",
+      "1080p30": "1080p · 30 fps",
+      "720p60": "720p · 60 fps"
+    },
+    "mirrorLabel": "镜像预览自己",
+    "mirrorHint": "仅翻转您自己的画面，其他成员看到的仍是正常画面。",
+    "confirm": "开启摄像头"
   }
 }

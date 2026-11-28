@@ -8,6 +8,12 @@ import { connectionManager } from '../ws/handler.js';
 import type { UpdateUserRequest, VerifyPasswordRequest, VerifyPasswordResponse, ChangePasswordRequest, ChangePasswordResponse, DeleteAccountRequest, FederationCredentialRequest, FederationCredentialResponse, ReplicatedInstance, SpaceLayoutItem, SpaceFolder, FederationIdentityDeleteRequest, FederationIdentityDeleteResponse, FederationIdentityDeleteResult, FederationProfileUpdatePayload } from '@backspace/shared';
 import { AVATAR_COLORS, isChosenUserStatus, type ChosenUserStatus } from '@backspace/shared';
 import { PASSWORD_MIN_LENGTH } from '@backspace/shared/src/constants.js';
+import {
+  isSocialConnectionPlatform,
+  MAX_SOCIAL_CONNECTIONS,
+  validateSocialConnection,
+  type UserSocialConnection,
+} from '@backspace/shared';
 import { sanitizeUser } from '../utils/sanitize.js';
 import { clearLastFmCache, normalizeLastFmUsername } from '../services/lastfm.js';
 import { applyChosenStatus } from '../ws/presence.js';
@@ -219,7 +225,7 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch<{ Body: UpdateUserRequest }>('/api/users/@me', { preHandler: authenticate }, async (request, reply) => {
-    const { username, displayName, avatar, banner, accentColor, avatarColor, bio, customStatus, status, replicatedInstances, homeUserId, profileUpdatedAt, discoverable, showActivity, lastfmUsername, lastfmShowNowPlaying } = request.body;
+    const { username, displayName, avatar, banner, accentColor, avatarColor, bio, customStatus, status, replicatedInstances, homeUserId, profileUpdatedAt, discoverable, showActivity, lastfmUsername, lastfmShowNowPlaying, socialConnections } = request.body;
     const db = getDb();
 
     const updateData: Record<string, string | null | undefined> = {};
@@ -507,12 +513,40 @@ export async function userRoutes(app: FastifyInstance): Promise<void> {
       (updateData as Record<string, unknown>).lastfmShowNowPlaying = lastfmShowNowPlaying ? 1 : 0;
     }
 
+    if (socialConnections !== undefined) {
+      if (!Array.isArray(socialConnections) || socialConnections.length > MAX_SOCIAL_CONNECTIONS) {
+        return sendError(reply, 400, 'validation_failed', { field: 'socialConnections', reason: 'too many connections' });
+      }
+      const validated: UserSocialConnection[] = [];
+      for (const item of socialConnections) {
+        if (!item || typeof item !== 'object' || !isSocialConnectionPlatform(item.platform)) {
+          return sendError(reply, 400, 'validation_failed', { field: 'socialConnections', reason: 'invalid platform' });
+        }
+        const rawInput = typeof item.url === 'string' && item.url.trim()
+          ? item.url
+          : (typeof item.displayLabel === 'string' ? item.displayLabel : '');
+        const check = validateSocialConnection(
+          item.platform,
+          rawInput,
+          item.platform === 'website' ? undefined : (typeof item.displayLabel === 'string' ? item.displayLabel : undefined),
+        );
+        if (!check.ok) {
+          return sendError(reply, 400, 'validation_failed', { field: 'socialConnections', reason: check.reason });
+        }
+        const id = typeof item.id === 'string' && item.id.trim().length > 0 && item.id.length <= 64
+          ? item.id.trim()
+          : crypto.randomUUID();
+        validated.push({ id, ...check.connection });
+      }
+      updateData.socialConnections = JSON.stringify(validated);
+    }
+
     if (Object.keys(updateData).length === 0 && chosenStatus === undefined) {
       return sendError(reply, 400, 'no_fields_to_update');
     }
 
     // Detect profile changes and stamp timestamp
-    const hasProfileChange = ['username', 'displayName', 'avatar', 'banner', 'accentColor', 'avatarColor', 'bio', 'customStatus', 'lastfmUsername', 'lastfmShowNowPlaying'].some(f => f in updateData);
+    const hasProfileChange = ['username', 'displayName', 'avatar', 'banner', 'accentColor', 'avatarColor', 'bio', 'customStatus', 'lastfmUsername', 'lastfmShowNowPlaying', 'socialConnections'].some(f => f in updateData);
     const hasDurableChange = DURABLE_PROFILE_FIELDS.some(f => f in updateData);
     if (hasDurableChange) {
       (updateData as Record<string, unknown>).profileUpdatedAt = Date.now();

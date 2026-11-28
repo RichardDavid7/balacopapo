@@ -171,7 +171,8 @@
       "connections": "连接",
       "keybinds": "按键绑定",
       "desktop": "桌面端",
-      "instance": "实例"
+      "instance": "实例",
+      "instances": "实例"
     },
     "logOut": "退出登录",
     "backToMenu": "返回设置菜单"
@@ -327,6 +328,42 @@
       "disconnect": "解除绑定",
       "saved": "Last.fm 设置已保存",
       "disconnected": "已解除 Last.fm 账号绑定"
+    },
+    "subtitle": "管理您的动态状态 (Rich Presence)、Last.fm 以及个人资料上的认证链接。",
+    "presence": {
+      "heading": "动态状态 (Rich Presence)",
+      "description": "在个人资料上显示您正在玩的游戏、想玩的游戏、正在观看或正在收听的内容。",
+      "namePlaceholder": "游戏、影片或歌曲名称...",
+      "detailsPlaceholder": "可选详情（例如：排位赛、第 4 集）...",
+      "save": "设置状态",
+      "clear": "清除"
+    },
+    "social": {
+      "heading": "个人账号与链接",
+      "description": "添加经验证的个人账号链接。出于安全考虑，将自动拦截跳转链接（例如 Steam linkfilter）。",
+      "platformLabel": "平台",
+      "addButton": "添加关联",
+      "added": "已添加到个人资料",
+      "removed": "已移除关联",
+      "limitReached": "已达到最大关联数量",
+      "errors": {
+        "invalid_url": "请输入有效的链接或用户名。",
+        "redirect_blocked": "不允许使用跳转链接（例如 Steam linkfilter），请填写直接的主页链接。",
+        "domain_mismatch": "该链接与所选平台不匹配。",
+        "invalid_profile": "请输入该平台的直接个人主页链接。"
+      },
+      "placeholders": {
+        "steam": "https://steamcommunity.com/id/your_id/",
+        "epic": "Epic 用户名或 store.epicgames.com/u/...",
+        "discord": "@用户名 或 discord.com/users/123...",
+        "youtube": "https://www.youtube.com/@channel",
+        "spotify": "https://open.spotify.com/user/...",
+        "tidal": "https://tidal.com/browse/user/...",
+        "qobuz": "https://open.qobuz.com/...",
+        "instagram": "https://www.instagram.com/username",
+        "facebook": "https://www.facebook.com/username",
+        "website": "https://yoursite.cn"
+      }
     }
   },
   "instance": {
@@ -517,5 +554,8 @@
     },
     "version": "版本 {{version}}",
     "allReleases": "GitHub 上的所有版本"
+  },
+  "instances": {
+    "title": "已连接的实例"
   }
 }

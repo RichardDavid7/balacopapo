@@ -9,6 +9,7 @@ import { MessageInput } from '../chat/MessageInput';
 import { VoiceGrid } from '../voice/VoiceGrid';
 import { DmP2PSendButton } from '../voice/P2PMeshModal';
 import { VoiceControlBar } from '../voice/VoiceControlBar';
+import { VoiceHeaderMusicButton } from '../voice/VoiceHeaderMusicButton';
 import { VoiceChatPanel } from '../voice/VoiceChatPanel';
 import { FriendsPage } from '../chat/FriendsPage';
 import { ExplorePage } from '../chat/ExplorePage';
@@ -523,6 +524,7 @@ export function MainContent() {
             )}
           </div>
           <div className={`flex items-center gap-1 flex-shrink-0 ${voiceFullscreen ? 'pointer-events-auto mr-24' : ''}`}>
+            {currentChannelId && <VoiceHeaderMusicButton channelId={currentChannelId} />}
             <TransferIndicator />
             <MemberListToggleButton />
           </div>

@@ -171,7 +171,8 @@
       "connections": "Подключения",
       "keybinds": "Горячие клавиши",
       "desktop": "Приложение",
-      "instance": "Сервер"
+      "instance": "Сервер",
+      "instances": "Инстансы"
     },
     "logOut": "Выйти",
     "backToMenu": "Назад к меню настроек"
@@ -330,6 +331,42 @@
       "disconnect": "Отвязать",
       "saved": "Настройки Last.fm сохранены",
       "disconnected": "Аккаунт Last.fm отвязан"
+    },
+    "subtitle": "Управляйте активностью Rich Presence, интеграцией Last.fm и проверенными ссылками в профиле.",
+    "presence": {
+      "heading": "Активность (Rich Presence)",
+      "description": "Показывайте в профиле, во что вы играете, хотите поиграть, что смотрите или слушаете.",
+      "namePlaceholder": "Название игры, фильма или трека...",
+      "detailsPlaceholder": "Дополнительно (например: Рейтинг, Серия 4)...",
+      "save": "Установить активность",
+      "clear": "Очистить"
+    },
+    "social": {
+      "heading": "Аккаунты и ссылки в профиле",
+      "description": "Добавляйте проверенные ссылки на ваши аккаунты. Редиректы (например, Steam linkfilter) блокируются для безопасности.",
+      "platformLabel": "Платформа",
+      "addButton": "Добавить связь",
+      "added": "Связь добавлена в профиль",
+      "removed": "Связь удалена",
+      "limitReached": "Достигнуто максимальное число связей",
+      "errors": {
+        "invalid_url": "Введите корректную ссылку или имя пользователя.",
+        "redirect_blocked": "Ссылки-редиректы (например, Steam linkfilter) запрещены. Укажите прямую ссылку на профиль.",
+        "domain_mismatch": "Эта ссылка не соответствует выбранной платформе.",
+        "invalid_profile": "Укажите прямую ссылку на профиль для этой платформы."
+      },
+      "placeholders": {
+        "steam": "https://steamcommunity.com/id/your_id/",
+        "epic": "Ник Epic или store.epicgames.com/u/...",
+        "discord": "@username или discord.com/users/123...",
+        "youtube": "https://www.youtube.com/@channel",
+        "spotify": "https://open.spotify.com/user/...",
+        "tidal": "https://tidal.com/browse/user/...",
+        "qobuz": "https://open.qobuz.com/...",
+        "instagram": "https://www.instagram.com/username",
+        "facebook": "https://www.facebook.com/username",
+        "website": "https://vash-sait.ru"
+      }
     }
   },
   "instance": {
@@ -520,5 +557,8 @@
     },
     "version": "Версия {{version}}",
     "allReleases": "Все выпуски на GitHub"
+  },
+  "instances": {
+    "title": "Подключённые инстансы"
   }
 }

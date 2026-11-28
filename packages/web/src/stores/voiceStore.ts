@@ -131,6 +131,8 @@ export interface VoiceState {
   inputDeviceId: string;
   outputDeviceId: string;
   cameraDeviceId: string | null; // null = auto-select on next camera enable
+  mirrorLocalCamera: boolean;
+  cameraQuality: '720p30' | '1080p30' | '720p60';
   focusedParticipantId: string | null;
   screenShareConfig: ScreenShareConfig;
   /**
@@ -228,6 +230,8 @@ export interface VoiceState {
   setInputDevice: (deviceId: string) => void;
   setOutputDevice: (deviceId: string) => void;
   setCameraDeviceId: (deviceId: string | null) => void;
+  setMirrorLocalCamera: (mirror: boolean) => void;
+  setCameraQuality: (quality: '720p30' | '1080p30' | '720p60') => void;
   pruneStaleDevices: () => Promise<void>;
   pttActive: boolean;
   setMuted: (muted: boolean) => void;
@@ -346,6 +350,8 @@ export const useVoiceStore = create<VoiceState>()(
       inputDeviceId: 'default',
       outputDeviceId: 'default',
       cameraDeviceId: null,
+      mirrorLocalCamera: true,
+      cameraQuality: '720p30',
       focusedParticipantId: null,
       screenShareConfig: { height: 720, fps: 60, mode: 'gaming', customBitrateKbps: null, shareAudio: !isElectron(), codec: 'vp9' },
       lastScreenShareSourceId: null,
@@ -673,6 +679,8 @@ export const useVoiceStore = create<VoiceState>()(
       setOutputDevice: (deviceId) => set({ outputDeviceId: deviceId }),
 
       setCameraDeviceId: (deviceId) => set({ cameraDeviceId: deviceId }),
+      setMirrorLocalCamera: (mirror) => set({ mirrorLocalCamera: mirror }),
+      setCameraQuality: (quality) => set({ cameraQuality: quality }),
 
       pruneStaleDevices: async () => {
         try {
@@ -971,6 +979,8 @@ export const useVoiceStore = create<VoiceState>()(
         inputDeviceId: 'default',
         outputDeviceId: 'default',
         cameraDeviceId: null,
+      mirrorLocalCamera: true,
+      cameraQuality: '720p30',
         focusedParticipantId: null,
         participantVolumes: new Map(),
         participantMutes: new Map(),
@@ -1077,6 +1087,8 @@ export const useVoiceStore = create<VoiceState>()(
         inputDeviceId: state.inputDeviceId,
         outputDeviceId: state.outputDeviceId,
         cameraDeviceId: state.cameraDeviceId,
+        mirrorLocalCamera: state.mirrorLocalCamera,
+        cameraQuality: state.cameraQuality,
         screenShareConfig: state.screenShareConfig,
         lastScreenShareSourceId: state.lastScreenShareSourceId,
         echoCancellation: state.echoCancellation,

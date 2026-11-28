@@ -29,6 +29,7 @@ export function VoiceUser({ tile, large, edgeToEdge = false, chromeVisible = tru
   const spaceDeafenedUserIds = useVoiceStore((s) => s.spaceDeafenedUserIds);
   const permissionMutedUserIds = useVoiceStore((s) => s.permissionMutedUserIds);
   const unwatchedCameras = useVoiceStore((s) => s.unwatchedCameras);
+  const mirrorLocalCamera = useVoiceStore((s) => s.mirrorLocalCamera);
   const participantMutes = useVoiceStore((s) => s.participantMutes);
   const spaceId = useSpaceStore((s) => currentVoiceChannelId ? s.channelToSpaceMap.get(currentVoiceChannelId) : null);
 
@@ -174,7 +175,7 @@ export function VoiceUser({ tile, large, edgeToEdge = false, chromeVisible = tru
           autoPlay
           playsInline
           muted={isLocal}
-          className={`w-full h-full ${large ? 'object-contain bg-black' : 'object-cover'}`}
+          className={`w-full h-full ${large ? 'object-contain bg-black' : 'object-cover'} ${isLocal && mirrorLocalCamera ? 'scale-x-[-1]' : ''}`}
         />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-surface-channel">

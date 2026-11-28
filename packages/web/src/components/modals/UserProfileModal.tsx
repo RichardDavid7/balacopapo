@@ -10,6 +10,8 @@ import { Avatar } from '../ui/Avatar';
 import { Username } from '../ui/Username';
 import { ProfileBio } from '../ui/ProfileBio';
 import { LastFmStatus } from '../profile/LastFmStatus';
+import { SocialConnectionsView } from '../profile/SocialConnectionsView';
+import { RichPresenceCard } from '../presence/RichPresenceCard';
 import { useUIStore, type ProfileMemberContext } from '../../stores/uiStore';
 import { useSpaceStore, getApiForOrigin } from '../../stores/spaceStore';
 import { api } from '../../api/client';
@@ -27,7 +29,7 @@ import { getProfileMember, useProfileMemberRoles } from '../../hooks/useProfileM
 import { useShownStatus } from '../../hooks/useShownStatus';
 import { ProfileRoles } from '../ui/ProfileRoles';
 
-type Tab = 'about' | 'friends' | 'spaces';
+type Tab = 'about' | 'connections' | 'friends' | 'spaces';
 
 export function UserProfileModal() {
   useEmojiShortcodeNames();
@@ -228,8 +230,11 @@ export function UserProfileModal() {
     navigate(`/channels/${spaceId}`);
   };
 
+  const socialConnections = user.socialConnections ?? [];
+  const totalConnections = socialConnections.length + (user.lastfmUsername ? 1 : 0);
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'about', label: t('social:profile.tabs.about') },
+    ...(totalConnections > 0 ? [{ key: 'connections' as Tab, label: t('social:profile.tabs.connections'), count: totalConnections }] : []),
     { key: 'friends', label: t('social:profile.tabs.mutualFriends'), count: mutualFriends.length },
     { key: 'spaces', label: t('social:profile.tabs.mutualSpaces'), count: mutualSpaces.length },
   ];
@@ -325,6 +330,8 @@ export function UserProfileModal() {
 
               <ProfileRoles roles={roles} />
 
+              <RichPresenceCard user={user} origin={userOrigin} />
+
               {user.lastfmUsername && (
                 <LastFmStatus
                   userId={user.id}
@@ -344,6 +351,20 @@ export function UserProfileModal() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {activeTab === 'connections' && (
+            <div className="space-y-3">
+              {user.lastfmUsername && (
+                <LastFmStatus
+                  userId={user.id}
+                  username={user.lastfmUsername}
+                  showNowPlaying={user.lastfmShowNowPlaying !== false}
+                  origin={userOrigin}
+                />
+              )}
+              <SocialConnectionsView connections={socialConnections} />
             </div>
           )}
 

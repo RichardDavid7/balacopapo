@@ -447,5 +447,21 @@
     "queueHeading": "Queue ({{total}})",
     "clearQueue": "Clear",
     "actionFailed": "Could not update music player"
+  },
+  "cameraPreview": {
+    "title": "Camera Preview",
+    "unavailable": "Could not access the selected camera.",
+    "deviceLabel": "Camera device",
+    "defaultDevice": "Default camera",
+    "cameraFallback": "Camera {{index}}",
+    "qualityLabel": "Video quality",
+    "qualities": {
+      "720p30": "720p · 30 fps",
+      "1080p30": "1080p · 30 fps",
+      "720p60": "720p · 60 fps"
+    },
+    "mirrorLabel": "Mirror my preview",
+    "mirrorHint": "Flips only your own view — everyone else sees you normally.",
+    "confirm": "Turn on camera"
   }
 }

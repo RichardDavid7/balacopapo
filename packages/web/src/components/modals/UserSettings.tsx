@@ -13,6 +13,7 @@ import {
   VoicePanel,
   PrivacyPanel,
   ConnectionsPanel,
+  InstancesPanel,
   DesktopPanel,
   DesktopDownloadPanel,
   InstancePanel,
@@ -32,10 +33,11 @@ import { HiButton } from '../telemetry/answers/HiButton';
  */
 const USER_SETTINGS_TABS = [
   { id: 'account', group: 'user', label: 'settings:nav.tabs.account' },
+  { id: 'connections', group: 'user', label: 'settings:nav.tabs.connections' },
   { id: 'appearance', group: 'user', label: 'settings:nav.tabs.appearance' },
   { id: 'voice', group: 'user', label: 'settings:nav.tabs.voice' },
   { id: 'privacy', group: 'user', label: 'settings:nav.tabs.privacy' },
-  { id: 'connections', group: 'app', label: 'settings:nav.tabs.connections' },
+  { id: 'instances', group: 'app', label: 'settings:nav.tabs.instances' },
   { id: 'keybinds', group: 'app', label: 'settings:nav.tabs.keybinds' },
   { id: 'desktop', group: 'app', label: 'settings:nav.tabs.desktop' },
   { id: 'instance', group: 'admin', label: 'settings:nav.tabs.instance' },
@@ -201,6 +203,7 @@ export function UserSettingsModal() {
     voice: () => <VoicePanel />,
     privacy: () => <PrivacyPanel />,
     connections: () => <ConnectionsPanel />,
+    instances: () => <InstancesPanel />,
     keybinds: () => <KeybindsPanel />,
     desktop: () => (isElectron()
       ? <DesktopPanel />
