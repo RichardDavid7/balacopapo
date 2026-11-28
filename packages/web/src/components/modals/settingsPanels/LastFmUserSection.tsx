@@ -135,6 +135,7 @@ export function LastFmUserSection() {
               userId={user.id}
               username={user.lastfmUsername}
               showNowPlaying={user.lastfmShowNowPlaying !== false}
+              showDiagnostics
             />
           </div>
         )}

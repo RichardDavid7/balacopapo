@@ -82,6 +82,14 @@
   "instanceNotConnected": "未连接到 {{host}}。请重新连接后再试。",
   "lastfm": {
     "profileLabel": "Last.fm · {{username}}",
-    "nowPlaying": "正在收听"
+    "nowPlaying": "正在收听",
+    "diag": {
+      "notConfigured": "实例尚未配置 Last.fm API 密钥。",
+      "privateProfile": "您的 Last.fm 最近收听记录已设为私密（错误 17），仅显示主页链接。",
+      "invalidApiKey": "Last.fm 拒绝了实例的 API 密钥（错误 10）。只需要填写 API key（不需要 Shared secret）。",
+      "userNotFound": "未找到该 Last.fm 用户（错误 6），请检查用户名。",
+      "apiError": "暂时无法连接 Last.fm，稍后将自动重试。",
+      "idle": "已连接 Last.fm — 当前没有正在播放的歌曲。"
+    }
   }
 }

@@ -8,13 +8,22 @@ interface LastFmStatusProps {
   username?: string | null;
   showNowPlaying?: boolean;
   origin?: string;
+  /** When true (in user settings preview), show helpful status/error hints when idle. */
+  showDiagnostics?: boolean;
 }
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-export function LastFmStatus({ userId, username, showNowPlaying = true, origin = '' }: LastFmStatusProps) {
+export function LastFmStatus({
+  userId,
+  username,
+  showNowPlaying = true,
+  origin = '',
+  showDiagnostics = false,
+}: LastFmStatusProps) {
   const { t } = useTranslation(['social']);
   const [data, setData] = useState<LastFmNowPlayingResponse | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!username || !showNowPlaying) {
@@ -25,11 +34,14 @@ export function LastFmStatus({ userId, username, showNowPlaying = true, origin =
     const client = getApiForOrigin(origin);
 
     const load = async () => {
+      setLoading(true);
       try {
         const res = await client.lastfm.getNowPlaying(userId);
         if (!cancelled) setData(res);
       } catch {
         // Older instance or network hiccup — keep profile link visible gracefully
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -45,6 +57,16 @@ export function LastFmStatus({ userId, username, showNowPlaying = true, origin =
 
   const profileUrl = data?.profileUrl || `https://www.last.fm/user/${encodeURIComponent(username)}`;
   const track = data?.isPlaying ? data.track : null;
+
+  let diagnosticText: string | null = null;
+  if (showDiagnostics && !track && !loading && showNowPlaying && data) {
+    if (!data.configured) diagnosticText = t('social:lastfm.diag.notConfigured');
+    else if (data.privateProfile || data.errorCode === 17) diagnosticText = t('social:lastfm.diag.privateProfile');
+    else if (data.errorCode === 10) diagnosticText = t('social:lastfm.diag.invalidApiKey');
+    else if (data.errorCode === 6) diagnosticText = t('social:lastfm.diag.userNotFound');
+    else if (data.errorCode) diagnosticText = t('social:lastfm.diag.apiError');
+    else diagnosticText = t('social:lastfm.diag.idle');
+  }
 
   return (
     <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-2.5 space-y-2">
@@ -106,6 +128,12 @@ export function LastFmStatus({ userId, username, showNowPlaying = true, origin =
               <div className="text-[10px] text-txt-tertiary truncate">{track.album}</div>
             )}
           </div>
+        </div>
+      )}
+
+      {diagnosticText && (
+        <div className="text-[11px] text-txt-tertiary">
+          {diagnosticText}
         </div>
       )}
     </div>

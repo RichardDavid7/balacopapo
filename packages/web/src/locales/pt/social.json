@@ -86,6 +86,14 @@
   "instanceNotConnected": "Não conectado a {{host}}. Conecte-se novamente e tente de novo.",
   "lastfm": {
     "profileLabel": "Last.fm · {{username}}",
-    "nowPlaying": "Ouvindo agora"
+    "nowPlaying": "Ouvindo agora",
+    "diag": {
+      "notConfigured": "A chave de API do Last.fm ainda não foi configurada na instância.",
+      "privateProfile": "Seu histórico recente no Last.fm está privado (erro 17). Apenas o link do perfil será exibido.",
+      "invalidApiKey": "O Last.fm rejeitou a chave de API da instância (erro 10). Use apenas a API key (não o Shared secret).",
+      "userNotFound": "Usuário do Last.fm não encontrado (erro 6). Verifique o nome digitado.",
+      "apiError": "Não foi possível consultar o Last.fm agora. Tentando novamente em breve.",
+      "idle": "Conectado ao Last.fm — nenhuma música tocando no momento."
+    }
   }
 }

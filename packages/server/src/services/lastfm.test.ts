@@ -10,6 +10,8 @@ describe('Last.fm service helpers', () => {
   it('normalizes usernames and full Last.fm profile URLs', () => {
     expect(normalizeLastFmUsername('  richard_07  ')).toBe('richard_07');
     expect(normalizeLastFmUsername('https://www.last.fm/user/Cool-Listener/')).toBe('Cool-Listener');
+    expect(normalizeLastFmUsername('https://www.last.fm/pt/user/Richard_07')).toBe('Richard_07');
+    expect(normalizeLastFmUsername('https://www.last.fm/pt/user/Richard_07/library')).toBe('Richard_07');
     expect(normalizeLastFmUsername('http://last.fm/user/abc')).toBe('abc');
     expect(normalizeLastFmUsername('a')).toBeNull();
     expect(normalizeLastFmUsername('bad user name!')).toBeNull();

@@ -5,6 +5,7 @@ import { config } from '../config.js';
 
 const LASTFM_ENDPOINT = 'https://ws.audioscrobbler.com/2.0/';
 const CACHE_TTL_MS = 25_000;
+const ERROR_CACHE_TTL_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 const LASTFM_USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
 // Last.fm returns this generic gray star image when an album has no artwork.
@@ -14,6 +15,7 @@ interface CacheEntry {
   expiresAt: number;
   isPlaying: boolean;
   privateProfile: boolean;
+  errorCode: number | null;
   track: LastFmNowPlayingTrack | null;
   cachedAt: number;
 }
@@ -25,8 +27,8 @@ export function normalizeLastFmUsername(input: unknown): string | null {
   if (typeof input !== 'string') return null;
   const trimmed = input.trim();
   if (!trimmed) return null;
-  // Also allow pasting a full profile URL like https://www.last.fm/user/name
-  const urlMatch = trimmed.match(/^https?:\/\/(?:www\.)?last\.fm\/user\/([a-zA-Z0-9_-]{2,32})\/?$/i);
+  // Also allow pasting full profile URLs with or without locale prefix (e.g. /pt/user/name, /user/name/library)
+  const urlMatch = trimmed.match(/^https?:\/\/(?:www\.)?last\.fm\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?user\/([a-zA-Z0-9_-]{2,32})(?:\/.*|\?.*)?$/i);
   const candidate = urlMatch ? urlMatch[1]! : trimmed;
   return LASTFM_USERNAME_RE.test(candidate) ? candidate : null;
 }
@@ -107,6 +109,7 @@ export function parseLastFmRecentTracksPayload(
       expiresAt: nowMs + CACHE_TTL_MS,
       isPlaying: false,
       privateProfile: true,
+      errorCode: 17,
       track: null,
       cachedAt: nowMs,
     };
@@ -114,9 +117,10 @@ export function parseLastFmRecentTracksPayload(
 
   if (typeof data.error === 'number') {
     return {
-      expiresAt: nowMs + CACHE_TTL_MS,
+      expiresAt: nowMs + ERROR_CACHE_TTL_MS,
       isPlaying: false,
       privateProfile: false,
+      errorCode: data.error,
       track: null,
       cachedAt: nowMs,
     };
@@ -129,6 +133,7 @@ export function parseLastFmRecentTracksPayload(
       expiresAt: nowMs + CACHE_TTL_MS,
       isPlaying: false,
       privateProfile: false,
+      errorCode: null,
       track: null,
       cachedAt: nowMs,
     };
@@ -141,6 +146,7 @@ export function parseLastFmRecentTracksPayload(
       expiresAt: nowMs + CACHE_TTL_MS,
       isPlaying: false,
       privateProfile: false,
+      errorCode: null,
       track: null,
       cachedAt: nowMs,
     };
@@ -155,6 +161,7 @@ export function parseLastFmRecentTracksPayload(
     expiresAt: nowMs + CACHE_TTL_MS,
     isPlaying: true,
     privateProfile: false,
+    errorCode: null,
     track: {
       name,
       artist,
@@ -183,17 +190,26 @@ async function fetchRecentTrackUncached(
   try {
     const res = await fetchImpl(url.toString(), {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Balacopapo/1.0 (+https://github.com/RichardDavid7/balacopapo)',
+      },
       signal: controller.signal,
     });
     const json = (await res.json().catch(() => ({}))) as unknown;
-    return parseLastFmRecentTracksPayload(json);
-  } catch {
+    const parsed = parseLastFmRecentTracksPayload(json);
+    if (parsed.errorCode && parsed.errorCode !== 17) {
+      console.warn(`[lastfm] API error ${parsed.errorCode} for user "${username}" (HTTP ${res.status})`);
+    }
+    return parsed;
+  } catch (err) {
+    console.warn(`[lastfm] Request failed for user "${username}":`, err instanceof Error ? err.message : err);
     const now = Date.now();
     return {
-      expiresAt: now + CACHE_TTL_MS,
+      expiresAt: now + ERROR_CACHE_TTL_MS,
       isPlaying: false,
       privateProfile: false,
+      errorCode: -1,
       track: null,
       cachedAt: now,
     };
@@ -248,6 +264,7 @@ export async function getLastFmNowPlaying(
       showNowPlaying,
       isPlaying: cached.isPlaying,
       privateProfile: cached.privateProfile,
+      errorCode: cached.errorCode,
       track: cached.track,
       cachedAt: cached.cachedAt,
     };
@@ -272,6 +289,7 @@ export async function getLastFmNowPlaying(
     showNowPlaying,
     isPlaying: entry.isPlaying,
     privateProfile: entry.privateProfile,
+    errorCode: entry.errorCode,
     track: entry.track,
     cachedAt: entry.cachedAt,
   };

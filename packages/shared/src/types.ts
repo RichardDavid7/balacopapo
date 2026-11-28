@@ -2488,6 +2488,8 @@ export interface LastFmNowPlayingResponse {
   isPlaying: boolean;
   /** True when Last.fm returned error 17 ("Hide recent listening information"). */
   privateProfile: boolean;
+  /** Optional Last.fm API error code (e.g. 6 = user not found, 10 = invalid API key, 17 = private). */
+  errorCode?: number | null;
   track: LastFmNowPlayingTrack | null;
   cachedAt: number | null;
 }

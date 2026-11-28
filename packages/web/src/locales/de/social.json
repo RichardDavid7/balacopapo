@@ -84,6 +84,14 @@
   "instanceNotConnected": "Keine Verbindung zu {{host}}. Verbinde dich erneut und versuche es noch einmal.",
   "lastfm": {
     "profileLabel": "Last.fm · {{username}}",
-    "nowPlaying": "Hört gerade"
+    "nowPlaying": "Hört gerade",
+    "diag": {
+      "notConfigured": "Der Last.fm-API-Schlüssel der Instanz ist noch nicht konfiguriert.",
+      "privateProfile": "Dein Last.fm-Hörverlauf ist auf privat gestellt (Fehler 17). Es wird nur der Profillink angezeigt.",
+      "invalidApiKey": "Last.fm hat den API-Schlüssel abgelehnt (Fehler 10). Nur der API-Schlüssel wird benötigt (nicht das Shared Secret).",
+      "userNotFound": "Last.fm-Benutzer nicht gefunden (Fehler 6). Bitte prüfe deinen Benutzernamen.",
+      "apiError": "Last.fm ist momentan nicht erreichbar. Erneuter Versuch folgt automatisch.",
+      "idle": "Mit Last.fm verbunden — derzeit wird kein Titel abgespielt."
+    }
   }
 }

@@ -84,6 +84,14 @@
   "instanceNotConnected": "Not connected to {{host}}. Connect to it again and retry.",
   "lastfm": {
     "profileLabel": "Last.fm · {{username}}",
-    "nowPlaying": "Listening now"
+    "nowPlaying": "Listening now",
+    "diag": {
+      "notConfigured": "Instance Last.fm API key is not configured yet.",
+      "privateProfile": "Your Last.fm recent listening history is set to private (error 17). Only your profile link will be shown.",
+      "invalidApiKey": "Last.fm rejected the instance API key (error 10). Only the API key is needed (not the Shared secret).",
+      "userNotFound": "Last.fm user not found (error 6). Check your username.",
+      "apiError": "Could not reach Last.fm right now. Will retry automatically.",
+      "idle": "Connected to Last.fm — nothing is currently scrobbling."
+    }
   }
 }
