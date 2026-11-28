@@ -279,6 +279,8 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
   // - Touch / mobile: dragging the floating aim button moves a crosshair offset 64px
   //   above the finger so the finger never covers the target; releasing sends the ping.
   const [pointMode, setPointMode] = useState(false);
+  const isPointDraggingRef = useRef(false);
+  const lastDragPingAtRef = useRef(0);
   const [touchAim, setTouchAim] = useState<{ fingerX: number; fingerY: number; targetX: number; targetY: number } | null>(null);
   const touchAimActiveRef = useRef(false);
   const [boxDims, setBoxDims] = useState({ w: 0, h: 0, vw: 0, vh: 0 });
@@ -404,7 +406,7 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
       // Ignore clicks on overlay buttons
       if ((e.target as HTMLElement | null)?.closest('button')) return;
 
-      // Desktop Shift+click or active Point Mode: send ping immediately
+      // Desktop Shift+click or active Point Mode: send ping immediately + allow throttled drag (~100 ms)
       if (pointMode || e.shiftKey) {
         const videoEl = videoRef.current;
         if (!videoEl) return;
@@ -418,6 +420,8 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
         if (!norm) return;
         e.preventDefault();
         e.stopPropagation();
+        isPointDraggingRef.current = true;
+        lastDragPingAtRef.current = Date.now();
         sendStreamPointer(norm.x, norm.y, 'ping');
         return;
       }
@@ -432,15 +436,34 @@ export function StreamTile({ tile, large, edgeToEdge = false, chromeVisible = tr
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      if (isPointDraggingRef.current && (pointMode || e.shiftKey)) {
+        const now = Date.now();
+        if (now - lastDragPingAtRef.current < 100) return;
+        const videoEl = videoRef.current;
+        if (!videoEl) return;
+        const norm = clientPointToNormalizedVideo(
+          e.clientX,
+          e.clientY,
+          videoEl.getBoundingClientRect(),
+          videoEl.videoWidth,
+          videoEl.videoHeight,
+        );
+        if (norm) {
+          lastDragPingAtRef.current = now;
+          sendStreamPointer(norm.x, norm.y, 'drag');
+        }
+        return;
+      }
       if (!isPanning || !panStartRef.current) return;
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       setPan(clampPan(panStartRef.current.panX + dx, panStartRef.current.panY + dy, zoom));
     },
-    [isPanning, zoom, clampPan],
+    [isPanning, zoom, clampPan, pointMode, sendStreamPointer],
   );
 
   const handlePointerUp = useCallback(() => {
+    isPointDraggingRef.current = false;
     setIsPanning(false);
     panStartRef.current = null;
   }, []);

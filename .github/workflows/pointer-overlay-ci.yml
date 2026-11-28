@@ -1,0 +1,65 @@
+name: Pointer Overlay Native CI (Rust — Win & Linux)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clients/pointer-overlay/**'
+      - '.github/workflows/pointer-overlay-ci.yml'
+  pull_request:
+    paths:
+      - 'clients/pointer-overlay/**'
+      - '.github/workflows/pointer-overlay-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pointer-overlay-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-overlay:
+    name: Pointer Overlay (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: windows-x64, bin: balacopapo-pointer-overlay.exe }
+          - { os: ubuntu-22.04, target: linux-x64, bin: balacopapo-pointer-overlay }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: clients/pointer-overlay
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: clients/pointer-overlay
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit Tests
+        run: cargo test
+
+      - name: Release Build
+        run: cargo build --release
+
+      - name: Stage Artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "target/release/${{ matrix.bin }}" "dist/${{ matrix.bin }}"
+
+      - name: Upload Pointer Overlay Binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: balacopapo-pointer-overlay-${{ matrix.target }}
+          path: clients/pointer-overlay/dist/*

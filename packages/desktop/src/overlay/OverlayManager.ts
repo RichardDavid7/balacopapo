@@ -1,5 +1,6 @@
 import { BrowserWindow, screen } from 'electron';
 import { OVERLAY_SHELL_HTML } from './overlayHtml';
+import { NativePointerOverlay, toPhysicalDisplayBounds } from './NativePointerOverlay';
 import type { OverlayConfig, OverlayEvent } from './types';
 
 const DEFAULT_CONFIG: OverlayConfig = {
@@ -12,10 +13,10 @@ const DEFAULT_CONFIG: OverlayConfig = {
 /**
  * Standalone, isolated OS Overlay manager for Balacopapo Desktop.
  *
- * Owns a single transparent, frameless, click-through, always-on-top window
- * hosting independent widget layers (stream pointer pings, speaking indicators,
- * join/leave toasts). Automatically hides when no transient or persistent
- * items are visible so GPU/CPU usage drops to zero when idle.
+ * Uses the ultra-lightweight native Rust external overlay (`balacopapo-pointer-overlay`)
+ * for stream pointer pings whenever available (zero extra BrowserWindow, <5 MB RAM,
+ * 0% CPU when idle, anti-cheat safe). Falls back cleanly to the transparent BrowserWindow
+ * overlay for non-pointer widgets or dev builds without the Rust binary.
  */
 export class OverlayManager {
   private win: BrowserWindow | null = null;
@@ -24,9 +25,11 @@ export class OverlayManager {
   private pendingEvents: OverlayEvent[] = [];
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private hasPersistentSpeakers = false;
+  private readonly nativePointer = new NativePointerOverlay();
 
   setConfig(partial: Partial<OverlayConfig>): void {
     this.config = { ...this.config, ...partial };
+    this.syncNativePointerState();
     if (!this.config.enabled) {
       if (this.win && !this.win.isDestroyed()) {
         this.win.hide();
@@ -40,6 +43,7 @@ export class OverlayManager {
 
   setTargetDisplayId(displayId: string | null): void {
     this.config.displayId = displayId && displayId.trim() ? displayId.trim() : null;
+    this.syncNativePointerState();
     if (this.win && !this.win.isDestroyed()) {
       this.win.setBounds(this.resolveTargetBounds());
     }
@@ -50,6 +54,18 @@ export class OverlayManager {
 
     const sanitized = this.sanitizeEvent(event);
     if (!sanitized) return;
+
+    if (sanitized.kind === 'pointer_ping' && this.nativePointer.isAvailable()) {
+      this.syncNativePointerState();
+      if (this.nativePointer.sendPing(sanitized)) {
+        return;
+      }
+    }
+
+    if (sanitized.kind === 'pointer_clear') {
+      this.nativePointer.clear();
+      return;
+    }
 
     if (sanitized.kind === 'speaking_update') {
       this.hasPersistentSpeakers = sanitized.speakers.length > 0;
@@ -68,6 +84,7 @@ export class OverlayManager {
   }
 
   destroy(): void {
+    this.nativePointer.destroy();
     if (this.hideTimer) {
       clearTimeout(this.hideTimer);
       this.hideTimer = null;
@@ -81,13 +98,24 @@ export class OverlayManager {
     this.hasPersistentSpeakers = false;
   }
 
-  private resolveTargetBounds(): Electron.Rectangle {
+  private resolveTargetDisplay(): Electron.Display {
     const displays = screen.getAllDisplays();
     if (this.config.displayId) {
       const match = displays.find((d) => String(d.id) === this.config.displayId);
-      if (match) return match.bounds;
+      if (match) return match;
     }
-    return screen.getPrimaryDisplay().bounds;
+    return screen.getPrimaryDisplay();
+  }
+
+  private resolveTargetBounds(): Electron.Rectangle {
+    return this.resolveTargetDisplay().bounds;
+  }
+
+  private syncNativePointerState(): void {
+    if (!this.nativePointer.isAvailable()) return;
+    const display = this.resolveTargetDisplay();
+    const physical = toPhysicalDisplayBounds(display.bounds, display.scaleFactor ?? 1);
+    this.nativePointer.updateState(this.config.enabled, physical);
   }
 
   private ensureWindow(): void {
@@ -182,6 +210,9 @@ export class OverlayManager {
   }
 
   private sanitizeEvent(event: OverlayEvent): OverlayEvent | null {
+    if (event.kind === 'pointer_clear') {
+      return { kind: 'pointer_clear' };
+    }
     if (event.kind === 'pointer_ping') {
       const x = Number(event.x);
       const y = Number(event.y);

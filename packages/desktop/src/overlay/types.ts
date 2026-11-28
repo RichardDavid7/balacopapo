@@ -17,6 +17,9 @@ export type OverlayEvent =
       color: string;
     }
   | {
+      kind: 'pointer_clear';
+    }
+  | {
       kind: 'speaking_update';
       speakers: OverlaySpeakerItem[];
     }
